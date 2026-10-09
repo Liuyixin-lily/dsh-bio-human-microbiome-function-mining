@@ -1,0 +1,101 @@
+{
+  "project_name": "example_functional_dark_matter",
+  "target_function_card": {
+    "target_id": "EXAMPLE_ENZYME_HUMAN",
+    "enzyme_name": "example_reaction_enzyme",
+    "ec": "1.1.1.-",
+    "reaction": "substrate -> product",
+    "substrate": "substrate_name",
+    "product": "product_name"
+  },
+  "inputs": {
+    "target_sequence_fasta": "inputs/target_sequence.faa",
+    "target_structure_pdb": "inputs/target_structure.pdb",
+    "candidate_proteome_fasta": "inputs/candidate_proteome.faa",
+    "candidate_annotation_fasta": "inputs/candidate_proteome.faa",
+    "candidate_annotation_gbff": "inputs/candidate_annotations.gbff",
+    "reference_enzyme_set_tsv": "outputs/task/reference_enzyme_set.tsv"
+  },
+  "reference_enzyme": {
+    "enabled": true,
+    "enzyme_name": "example_reaction_enzyme",
+    "ec": "1.1.1.-",
+    "pdb_ids": "",
+    "output_tsv": "outputs/task/reference_enzyme_set.tsv",
+    "output_fasta": "outputs/task/reference_enzymes.faa",
+    "output_provenance": "outputs/task/reference_provenance.json",
+    "auto_run_local": true
+  },
+  "output": {
+    "task_output_dir": "outputs/task",
+    "schema_dir": "human_microbiome_function_mining/schemas"
+  },
+  "tools": {
+    "sequence_screen": {
+      "name": "DIAMOND",
+      "enabled": true,
+      "auto_run_local": true,
+      "executable": "/path/to/diamond",
+      "cdhit_executable": "/path/to/cd-hit",
+      "cdhit_identity": null,
+      "db": "inputs/candidate_proteome.faa",
+      "identity_threshold": 20.0,
+      "query_coverage_threshold": 0.7,
+      "evalue_threshold": "1e-5",
+      "threads": 8,
+      "max_target_seqs": 50000,
+      "output_dir": "outputs/sequence_screening"
+    },
+    "structure_prediction": {
+      "name": "ESMFold",
+      "enabled": false,
+      "executable": "/path/to/esmfold",
+      "auto_run_local": false,
+      "output_dir": "outputs/predictions/esmfold"
+    },
+    "usalign": {
+      "name": "US-align",
+      "enabled": true,
+      "auto_run_local": true,
+      "executable": "/path/to/USalign",
+      "candidate_dir": "outputs/predictions/esmfold",
+      "tm_score_threshold": 0.5,
+      "output_dir": "outputs/alignments/usalign"
+    },
+    "deer": {
+      "name": "DEER",
+      "enabled": false,
+      "auto_run_local": false,
+      "executable": "python",
+      "script_path": "/path/to/deer/do_retrieval.py",
+      "ckpt_dir": "/path/to/deer/ckpt",
+      "deer_model_path": "/path/to/deer/ckpt/deer_checkpoint.ckpt",
+      "template_pdb_dir": "inputs/target_structures",
+      "database_pdb_dir": "outputs/predictions/esmfold",
+      "device": "cpu",
+      "top_k": 20,
+      "tmp_dir": "outputs/alignments/deer/tmp",
+      "distance_cutoff": 12.0
+    }
+  },
+  "validation_inputs": {
+    "fedkea": {
+      "preferred_source": "local",
+      "alternate_source": "web_download",
+      "executable": "python",
+      "script_path": "/path/to/FEDKEA/main.py",
+      "env": {
+        "PATH": "/path/to/miniconda3/envs/fedkea/bin:/usr/local/bin:/usr/bin:/bin",
+        "LD_LIBRARY_PATH": "/path/to/miniconda3/envs/fedkea/lib"
+      },
+      "auto_run_local": false,
+      "local_result_dir": "outputs/fedkea/result",
+      "required_files": [
+        "binary_result.txt",
+        "enzyme_result_with_probability.csv",
+        "enzyme_result_with_confidence.csv"
+      ],
+      "tool_version": "FEDKEA GitHub main"
+    }
+  }
+}

@@ -1,0 +1,225 @@
+{
+  "project_name": "nsmase2_hsmd_three_microbes_demo",
+  "target_function_card": {
+    "target_id": "SMPD3_HUMAN",
+    "enzyme_name": "neutral sphingomyelinase 2",
+    "ec": "3.1.4.12",
+    "reaction": "sphingomyelin + H2O -> ceramide + phosphocholine",
+    "substrate": "sphingomyelin",
+    "product": "ceramide",
+    "cofactor": "Mg2+",
+    "structural_fold": "DNase I-like beta-sandwich",
+    "pathway": "sphingolipid signaling and metabolism",
+    "input_source": "sequence",
+    "database_notes": "Human neutral sphingomyelinase 2 (SMPD3, nSMase2); demo target with PDB 5UVG."
+  },
+  "inputs": {
+    "target_sequence_fasta": "inputs/SMPD3_HUMAN.faa",
+    "reference_enzyme_set_tsv": "",
+    "candidate_proteome_fasta": "inputs/candidate_proteome.faa",
+    "target_structure_pdb": "inputs/SMPD3_HUMAN_5UVG.pdb",
+    "candidate_annotation_fasta": "inputs/candidate_proteome.faa",
+    "candidate_annotation_gbff": "",
+    "target_catalytic_residues_file": "inputs/SMPD3_HUMAN_catalytic_pocket_residues.tsv"
+  },
+  "output": {
+    "task_output_dir": "outputs/task",
+    "schema_dir": "human_microbiome_function_mining/schemas"
+  },
+  "tools": {
+    "sequence_screen": {
+      "name": "DIAMOND",
+      "executable": "/home/liuyixin/miniconda3/envs/meta/bin/diamond",
+      "cdhit_executable": "/home/liuyixin/miniconda3/envs/meta/bin/cd-hit",
+      "cdhit_identity": 1.0,
+      "enabled": true,
+      "auto_run_local": true,
+      "db": "inputs/candidate_proteome.faa",
+      "identity_threshold": 20.0,
+      "query_coverage_threshold": 0.7,
+      "evalue_threshold": "1e-5",
+      "threads": 8,
+      "output_dir": "outputs/sequence_screening"
+    },
+    "structure_prediction": {
+      "name": "precomputed_structures",
+      "enabled": false,
+      "executable": "",
+      "auto_run_local": false,
+      "device": "",
+      "output_dir": "inputs/candidate_structures",
+      "notes": "This demo consumes the precomputed PDB structures; no additional folding is run."
+    },
+    "usalign": {
+      "name": "US-align",
+      "enabled": true,
+      "executable": "/data/Xianjinyuan/nihaoran/enzyme_site/USalign/USalign",
+      "auto_run_local": true,
+      "candidate_dir": "inputs/candidate_structures",
+      "tm_score_threshold": 0.5,
+      "output_dir": "outputs/alignments/run_full_085"
+    },
+    "deer": {
+      "name": "DEER",
+      "enabled": true,
+      "executable": "/home/liuyixin/miniconda3/envs/deer/bin/python",
+      "script_path": "/home/liuyixin/00.database/deer/do_retrieval.py",
+      "auto_run_local": false,
+      "template_pdb_dir": "/home/liuyixin/database/HSMD/plugin_demo/inputs/target_structures",
+      "database_pdb_dir": "/home/liuyixin/database/HSMD/plugin_demo/inputs/candidate_structures",
+      "device": "cpu",
+      "skip_hf_checkpoint": true,
+      "ckpt_dir": "/home/liuyixin/00.database/deer/ckpt",
+      "deer_model_path": "/home/liuyixin/00.database/deer/ckpt/deer_checkpoint.ckpt",
+      "top_k": 20,
+      "tmp_dir": "/home/liuyixin/database/HSMD/plugin_demo/outputs/alignments/deer/tmp",
+      "distance_cutoff": 12.0,
+      "require_usalign_evidence": true,
+      "output_dir": "outputs/alignments/deer"
+    }
+  },
+  "validation_inputs": {
+    "fedkea": {
+      "preferred_source": "web_download",
+      "alternate_source": "local",
+      "executable": "python",
+      "script_path": "/home/liuyixin/00.database/FEDKEA/main.py",
+      "env": {
+        "PATH": "/home/liuyixin/miniconda3/envs/fedkea/bin:/usr/local/bin:/usr/bin:/bin",
+        "LD_LIBRARY_PATH": "/home/liuyixin/miniconda3/envs/fedkea/lib"
+      },
+      "auto_run_local": false,
+      "local_result_dir": "outputs/fedkea/result",
+      "required_files": [
+        "binary_result.txt",
+        "enzyme_result_with_probability.csv",
+        "enzyme_result_with_confidence.csv"
+      ],
+      "tool_version": "FEDKEA GitHub main",
+      "notes": [
+        "The user may submit candidate sequences to the FedKEA web server manually and save returned files.",
+        "Agent never calls the FedKEA web server programmatically."
+      ]
+    }
+  },
+  "execution_mode": {
+    "description": "Run preframework tools directly on this server when paths are accessible; otherwise return exact commands.",
+    "require_user_confirmation_before_run": false
+  },
+  "candidate_sequences": {
+    "description": "Source genome FASTA files used to extract final candidate protein/CDS records.",
+    "genomes": {
+      "Staphylococcus_xylosus": {
+        "protein_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn",
+        "structure_dir": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/structure",
+        "gbff": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.gbff"
+      },
+      "Streptococcus_thermophilus": {
+        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.ffn",
+        "structure_dir": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/structure",
+        "gbff": ""
+      },
+      "Streptococcus_pyogenes": {
+        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_genomic.ffn",
+        "structure_dir": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/structure",
+        "gbff": ""
+      }
+    },
+    "candidates": {
+      "WP_023610742.1": {
+        "source_genome": "Streptococcus_pyogenes",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_genomic.ffn"
+      },
+      "1111525849483863_bin.19_00773": {
+        "source_genome": "Streptococcus_thermophilus",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.ffn"
+      },
+      "1111525849483863_bin.19_01722": {
+        "source_genome": "Streptococcus_thermophilus",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.ffn"
+      },
+      "WP_023610361.1": {
+        "source_genome": "Streptococcus_pyogenes",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_genomic.ffn"
+      },
+      "WP_340083110.1": {
+        "source_genome": "Staphylococcus_xylosus",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn"
+      },
+      "WP_029377471.1": {
+        "source_genome": "Staphylococcus_xylosus",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn"
+      },
+      "WP_326009104.1": {
+        "source_genome": "Staphylococcus_xylosus",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn"
+      },
+      "WP_340082858.1": {
+        "source_genome": "Staphylococcus_xylosus",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn"
+      },
+      "WP_340083393.1": {
+        "source_genome": "Staphylococcus_xylosus",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn"
+      },
+      "WP_029379012.1": {
+        "source_genome": "Staphylococcus_xylosus",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn"
+      },
+      "WP_038679090.1": {
+        "source_genome": "Staphylococcus_xylosus",
+        "protein_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
+        "cds_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn"
+      }
+    }
+  },
+  "existing_annotation": {
+    "description": "Existing protein/CDS annotations in the three candidate genomes.",
+    "usage": "Parse .faa header annotations and .gbff CDS annotations into source_feature_annotations.tsv.",
+    "note": "Existing annotations are additional evidence, not proof of biochemical function."
+  },
+  "protocol": {
+    "sequence_evidence_classes": [
+      "known",
+      "ambiguous",
+      "unknown",
+      "weak",
+      "sequence_supported"
+    ],
+    "structural_evidence_classes": [
+      "structure_supported",
+      "hypothesis"
+    ],
+    "priority_tiers": [
+      "USALIGN_TARGET_EC",
+      "DEER_FEDKEA_CONFIRMED",
+      "USALIGN_OTHER_EC",
+      "USALIGN_NOT_ENZYME",
+      "USALIGN_UNVALIDATED",
+      "DEER_FALLBACK",
+      "SEQUENCE_ONLY",
+      "ANNOTATION_ONLY"
+    ],
+    "scoring_overview": {
+      "rank_policy": "priority_rule is primary: USALIGN_TARGET_EC > DEER_FEDKEA_CONFIRMED > USALIGN_OTHER_EC > USALIGN_NOT_ENZYME > USALIGN_UNVALIDATED > DEER_FALLBACK > SEQUENCE_ONLY > ANNOTATION_ONLY; ties break by structural_score desc, sequence_score desc, annotation strength desc, candidate_id asc",
+      "structural_score": "derived from US-align TM-score mean",
+      "sequence_score": "derived from pident and query coverage",
+      "priority_rule": "machine-readable rule assigned by scripts/score_candidates.py for every candidate row",
+      "priority_order": "numeric order for priority_rule; lower is higher priority",
+      "overall_score": "deterministic structure-first score written by scripts/score_candidates.py for backward compatibility; it does not control overall_rank"
+    }
+  }
+}

@@ -1,0 +1,125 @@
+# human-microbiome-function-mining bundle patch: inserts the plugin row and,
+# on DSH 0.2.0+, the agent preset declaration for the microbiome function
+# mining persona.
+#
+# Applied AFTER @deepseek-ai/dsh-base (which supplies the `skills` and
+# `systemPrompt` services this plugin injects).
+#
+# [preset declaration semantic]
+#   - DSH 0.2.0+: `@deepseek-ai/dsh-agent-preset` resolves -> the preset row is
+#     active. The preset skills are loaded from this package's preset directory
+#     via createRequire(baseUrl).
+#   - DSH 0.1.x: the package is unavailable -> the disabled capability check is
+#     true and the preset row is skipped. The preset is still installed by
+#     `postinstall` (scripts/install-preset.js) into
+#     ~/.dsh/.agent-presets/human-microbiome-function-mining.
+
+- insert:
+    - id: human-microbiome-function-mining
+      name: '@dsh-bio/human-microbiome-function-mining'
+    - id: preset-human-microbiome-function-mining
+      name: '@deepseek-ai/dsh-agent-preset'
+      disabled: !!js "(() => { try { return !process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json') } catch { return true } })()"
+      config:
+        id: human-microbiome-function-mining
+        name: '人体微生物功能挖掘专家（human microbiome function mining）'
+        description: >-
+          人体微生物功能挖掘专家人设：目标酶/EC/底物-产物输入标准化、参考酶集合
+          抓取、候选基因组准备、CD-HIT 去冗余、DIAMOND 序列筛选、已有 .faa/.gbff
+          注释证据、对所有候选结构直接 US-align、DEER fallback、FedKEA 酶学/EC
+          验证、结构优先排序和实验验证设计。装插件后切换到本预设，AI 即成为功能
+          暗物质挖掘流程的可审计科学助理。
+        order: 10
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: >-
+                你是 **人体微生物功能挖掘专家**（human microbiome function mining
+                expert），运行在 DeepSeek Harness + @dsh-bio/human-microbiome-function-mining
+                插件上。你的核心任务是把一个目标酶/EC/底物-产物输入变成可审计的
+                候选发现、证据整合与实验验证设计。
+
+                工作流：
+                1. 先建 target_function_card.json（build-target-function-card skill）。
+                2. 自动抓取参考酶集合（网络可用时/用户允许时），否则给出命令等待返回。
+                3. 候选基因组准备：genome-search、genome-download、genome-annotation。
+                4. CD-HIT 去冗余（单基因组 100%；多基因组泛蛋白组 95%）后 DIAMOND
+                   序列筛选（identity >= 0.2 且 query coverage >= 0.7，除非用户覆盖）。
+                5. 解析 .faa/.gbff 已有注释为现有知识证据链。
+                6. 对所有候选结构直接 US-align（TM-score >= 0.5 为合格，可配置）。
+                7. 仅当某来源基因组 US-align 合格候选不足时，经用户同意后对这个
+                   基因组运行 DEER fallback。
+                8. 合并 FedKEA 输出（binary_result.txt 和
+                   enzyme_result_with_confidence.csv）到 fedkea_* 字段。
+                9. 运行 literature-evidence 子 skill（可用 MCP 文献工具时用
+                   nature-academic-search），输出 verified PMID/DOI 到
+                   literature_evidence.tsv，写入 literature_* 字段。
+                10. score_candidates.py 按结构优先规则排序，
+                   summarize_candidates.py 输出最终候选、可证伪实验假设与实验设计。
+
+                外部工具执行边界：
+                - 插件不捆绑 DIAMOND/CD-HIT/US-align/DEER/FedKEA/Bakta。
+                - 只有用户当前终端能访问工具和数据路径且允许直接执行时，你才
+                  运行 wrapper 并解析输出。
+                - 否则给出精确命令，等待用户返回输出文件后解析。
+                - 绝不程序化调用 FedKEA 网页版。
+                - 绝不编造任何工具输出、序列、PDB id、EC 号、UniProt id 或文献 id。
+
+                每条候选证据都要保留来源工具、版本、文件路径、参数阈值。结构
+                相似性、注释和 EC 预测只是假设/佐证层，不是生化功能证明。
+
+                默认中文；用户写英文或论文时切英文。
+
+          # skill 通道：preset 拥有 skill 平面时，需要显式挂 skill-filesystem
+          # 才能让 agent 读到插件注册的 skill。
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              customSkillDirs:
+                - !!js "(() => { try { return process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@dsh-bio/human-microbiome-function-mining/package.json')), 'preset', 'human-microbiome-function-mining', 'skills') } catch { return process.getBuiltinModule('node:path').join(process.env.DSH_HOME || process.env.USERPROFILE || '.', '.dsh', '.agent-presets', 'human-microbiome-function-mining', 'skills') } })()"
+
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 4096

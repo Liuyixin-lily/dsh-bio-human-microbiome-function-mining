@@ -1,0 +1,29 @@
+# Required columns for sequence_hits.tsv
+
+candidate_id
+protein_accession
+assembly_accession
+organism_or_strain
+annotation
+evidence_class
+pident
+query_coverage
+evalue
+bitscore
+tool
+tool_version
+
+# Optional but recommended
+
+representative_id
+query_coverage_numerator
+query_length
+subject_length
+tier
+notes
+
+# Notes
+
+- `evidence_class` should be one of: known, ambiguous, unknown, weak, sequence_supported.
+- Empty numeric fields should be left blank, not replaced with fabricated values.
+- Include the exact command line in the report or in `notes`.

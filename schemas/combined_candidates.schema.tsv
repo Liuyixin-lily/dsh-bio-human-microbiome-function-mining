@@ -1,0 +1,139 @@
+# Required columns for combined_candidates.tsv
+
+candidate_id
+representative_id
+protein_accession
+overall_score
+overall_rank
+priority_tier
+provenance
+
+# Optional but recommended
+
+assembly_accession
+organism_or_strain
+annotation
+evidence_class
+structure_support
+tm_score_mean
+sequence_score
+structural_score
+sequence_rank
+structural_rank
+priority_rule
+priority_order
+rank_policy
+catalytic_score
+genome_context_score
+ecological_score
+notes
+fedkea_binary_result_file
+fedkea_is_enzyme
+fedkea_enzyme_probability
+fedkea_ec_confidence_file
+fedkea_accepted_name
+fedkea_other_names
+fedkea_final_result
+fedkea_tool_version
+fedkea_notes
+fedkea_ec_confidence
+pident
+query_coverage
+evalue
+bitscore
+predicted_function
+experimental_knowledge
+evidence_class_definition
+fedkea_raw_ec_list
+fedkea_first_probability
+fedkea_second_probability
+fedkea_third_probability
+fedkea_fourth_probability
+fedkea_additional_scores
+fedkea_first
+fedkea_second
+fedkea_third
+fedkea_fourth
+existing_annotation
+source_product
+source_protein_name
+source_gene
+source_locus_tag
+source_ec_number
+source_pfam
+source_interpro
+source_tigrfam
+source_cazy
+source_kegg_orthology
+source_cog
+source_go_terms
+source_description
+source_feature_annotation_source
+source_annotation_note
+deer_distance
+deer_rank
+literature_evidence_file
+literature_evidence_count
+literature_direct_functional
+literature_assay_hits
+literature_catalytic_residue
+literature_main_findings
+literature_verified_refs
+
+# Notes
+
+- `evidence_class_definition` should explain what evidence_class means in this task.
+- `overall_score` and `overall_rank` use the deterministic
+  explicit `priority_rule` policy from `scripts/score_candidates.py`.
+  `priority_order` is the primary sort key, then `structural_score`,
+  then `sequence_score`, then annotation strength, then `candidate_id`.
+
+Priority rules:
+1. `USALIGN_TARGET_EC`: US-align evidence above TM-score threshold and FedKEA
+   assigns the configured target EC.
+2. `DEER_FEDKEA_CONFIRMED`: DEER evidence used because US-align did not leave
+   enough suitable candidates, and FedKEA confirms the candidate as an enzyme.
+   Sorted above US-align evidence that arrived at a non-target EC.
+3. `USALIGN_OTHER_EC`: US-align evidence above threshold and FedKEA assigns a
+   different EC number.
+4. `USALIGN_NOT_ENZYME`: US-align evidence above threshold and FedKEA predicts
+   not an enzyme.
+5. `USALIGN_UNVALIDATED`: US-align evidence above threshold but no FedKEA
+   result yet.
+6. `DEER_FALLBACK`: DEER evidence used because US-align did not leave enough
+   suitable candidates and FedKEA has not confirmed enzyme function.
+7. `SEQUENCE_ONLY`: sequence evidence only, no structure evidence.
+8. `ANNOTATION_ONLY`: only existing source annotations available.
+
+`priority_tier` is the same machine-readable value as `priority_rule` for
+backward compatibility; `priority_order` gives the numeric rank used for sort.
+- `sequence_rank` ranks candidates by `sequence_score` only; `structural_rank`
+  ranks candidates by `structural_score` only. They are separate views of the
+  same rows and do not replace `priority_rule`, `priority_order`,
+  `overall_rank`, or `overall_score`.
+- Evidence-specific fields such as `tm_score_mean`, `sequence_score`,
+  `sequence_rank`, `catalytic_score`, `genome_context_score`,
+  `ecological_score`, `assembly_accession`, and `fedkea_*` are optional when
+  the corresponding evidence source does not exist for a row. Do not invent
+  values; leave them empty unless the evidence is available.
+- Prefer machine-readable numeric scores over prose when possible.
+- Each row must reference at least one supporting sequence or structural candidate.
+- `fedkea_*` fields store FedKEA Enzyme Identification and EC Number Prediction results as an orthogonal validation layer. They may be empty until a FedKEA run has completed for the candidate.
+- FedKEA binary identification output is stored in `binary_result.txt` with columns `Accession`, `IsEnzyme`, `Probability`. Map `fedkea_is_enzyme` as `True`/`False` or `1`/`0` from that file.
+- `fedkea_enzyme_probability` should be numeric or empty and should match `Probability` from `binary_result.txt`.
+- `fedkea_final_result` should be the EC number found in FEDKEA `enzyme_result_with_confidence.csv` column `FinalResult`.
+- `fedkea_ec_confidence_file` should be the path to `enzyme_result_with_confidence.csv`, whose columns are `Accession`, `FinalResult`, `confidence`, `accepted_name`, `other_names`.
+- `confidence` in FedKEA output is a categorical label (`High`, `Medium`, `Low`). Store it in `fedkea_notes` or add a dedicated `fedkea_ec_confidence` field if needed.
+- Preserve the original FedKEA file paths so every FedKEA field can be traced back to its source.
+- `fedkea_tool_version` should record the FedKEA version or exact software/repository tag when available.
+- `literature_evidence_file` should point to `literature_evidence.tsv` or another verified citation table for the candidate.
+- `literature_evidence_count` is the number of verified literature rows for this candidate or candidate organism.
+- `literature_direct_functional` should be `yes` only when a verified publication directly demonstrates the candidate organism or candidate protein performs the target reaction.
+- `literature_assay_hits` and `literature_catalytic_residue` record verified papers that describe compatible assays or active-site/mutagenesis evidence.
+- `literature_main_findings` is a short machine-readable summary of key findings; do not put an unverified claim here.
+- `literature_verified_refs` can list verified PMID/DOI identifiers separated by `;`. Empty means no verified literature was provided.
+- Existing annotations parsed from user-provided `.faa`/`.gbff` files are stored
+  in `existing_annotation` and the `source_*` fields. They are an
+  existing-knowledge evidence chain and should not replace screening evidence.
+- `source_annotation_note` should point to the original `.faa`/`.gbff` file path
+  and feature type so every `source_*` field is traceable.

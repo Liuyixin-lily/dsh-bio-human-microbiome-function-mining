@@ -1,0 +1,3 @@
+interface:
+  display_name: "Sequence Mapping"
+  short_description: "Run DIAMOND sequence screening against pan-proteomes"

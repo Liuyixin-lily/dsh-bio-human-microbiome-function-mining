@@ -1,0 +1,77 @@
+{
+  "name": "@dsh-bio/human-microbiome-function-mining",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness plugin for human microbiome functional dark matter discovery. Turns a target enzyme, EC number, or substrate/product reaction into candidate discovery, literature-aware evidence integration, and experimental design.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./preset/*": "./preset/*"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "src/**/*.js",
+    "skills/**",
+    "agents/**/*.md",
+    "scripts/**",
+    "schemas/**",
+    "references/**",
+    "projects/README.md",
+    "preset/**/*",
+    "README.md",
+    "README.en.md",
+    "QUICKSTART.md",
+    "DELIVERY.md",
+    "LICENSE",
+    "SKILL-PROVENANCE.yaml",
+    "config.example.json",
+    "config.minimal.example.json"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "microbiome",
+    "functional-dark-matter",
+    "enzyme-discovery",
+    "literature-evidence",
+    "literature-search",
+    "bioinformatics",
+    "structure-screening",
+    "sequence-screening"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "test": "python3 scripts/example_test.py",
+    "validate": "python3 scripts/validate_schema.py --root .",
+    "install:preset": "node scripts/install-preset.js",
+    "postinstall": "node scripts/install-preset.js"
+  },
+  "engines": {
+    "node": "^22.19 || >=24"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6 || ^0.2.0-rc.1",
+    "@deepseek-ai/dsh-skill": "^0.1.0-rc.6 || ^0.2.0-rc.1",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.6 || ^0.2.0-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-skill": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-system-prompt": {
+      "optional": true
+    }
+  }
+}

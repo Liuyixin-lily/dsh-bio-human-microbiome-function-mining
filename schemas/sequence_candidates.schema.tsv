@@ -1,0 +1,36 @@
+# Required columns for sequence_candidates.tsv
+
+candidate_id
+representative_id
+assembly_accession
+protein_accession
+organism_or_strain
+annotation
+evidence_class
+pident
+query_coverage
+evalue
+bitscore
+tool
+tool_version
+sequence_score
+
+# Optional but recommended
+
+domain
+ec_prediction
+pfam
+cazy
+kegg_orthology
+sequence_category
+priority_tier
+notes
+
+# Notes
+
+- `evidence_class` should be one of: known, ambiguous, unknown, weak, sequence_supported.
+- `sequence_category` may store the original screening bucket: known, ambiguous, unknown.
+- `sequence_score` should reflect only sequence-based evidence and be consistent with the configured identity/coverage/E-value policy.
+- Do not add structure-derived numbers to this table unless the source file is explicit.
+- `priority_tier` is produced later by `scripts/score_candidates.py` on the
+  combined table, not in this pre-scoring evidence table. It is optional here.

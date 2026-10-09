@@ -1,0 +1,75 @@
+{
+  "project_name": "example_functional_dark_matter",
+  "target_function_card": {
+    "target_id": "EXAMPLE_ENZYME_HUMAN",
+    "enzyme_name": "example_reaction_enzyme",
+    "ec": "1.1.1.-",
+    "reaction": "substrate -> product",
+    "substrate": "substrate_name",
+    "product": "product_name"
+  },
+  "inputs": {
+    "target_sequence_fasta": "inputs/target_sequence.faa",
+    "target_structure_pdb": "inputs/target_structure.pdb",
+    "candidate_proteome_fasta": "inputs/candidate_proteome.faa",
+    "candidate_annotation_fasta": "inputs/candidate_proteome.faa",
+    "candidate_annotation_gbff": "inputs/candidate_annotations.gbff"
+  },
+  "reference_enzyme": {
+    "enabled": true,
+    "enzyme_name": "example_reaction_enzyme",
+    "ec": "1.1.1.-",
+    "pdb_ids": "",
+    "auto_run_local": true
+  },
+  "output": {
+    "task_output_dir": "outputs/task",
+    "schema_dir": "human_microbiome_function_mining/schemas"
+  },
+  "tools": {
+    "sequence_screen": {
+      "name": "DIAMOND",
+      "enabled": true,
+      "auto_run_local": true,
+      "executable": "/path/to/diamond",
+      "cdhit_executable": "/path/to/cd-hit",
+      "db": "inputs/candidate_proteome.faa",
+      "identity_threshold": 20.0,
+      "query_coverage_threshold": 0.7,
+      "evalue_threshold": "1e-5",
+      "threads": 8,
+      "max_target_seqs": 50000,
+      "output_dir": "outputs/sequence_screening"
+    },
+    "structure_prediction": {
+      "name": "ESMFold",
+      "enabled": false,
+      "executable": "/path/to/esmfold",
+      "auto_run_local": false,
+      "output_dir": "outputs/predictions/esmfold"
+    },
+    "usalign": {
+      "name": "US-align",
+      "enabled": true,
+      "auto_run_local": true,
+      "executable": "/path/to/USalign",
+      "candidate_dir": "outputs/predictions/esmfold",
+      "tm_score_threshold": 0.5,
+      "output_dir": "outputs/alignments/usalign"
+    }
+  },
+  "validation_inputs": {
+    "fedkea": {
+      "preferred_source": "web_download",
+      "alternate_source": "local",
+      "executable": "python",
+      "script_path": "/path/to/FEDKEA/main.py",
+      "env": {
+        "PATH": "/path/to/miniconda3/envs/fedkea/bin:/usr/local/bin:/usr/bin:/bin",
+        "LD_LIBRARY_PATH": "/path/to/miniconda3/envs/fedkea/lib"
+      },
+      "auto_run_local": false,
+      "local_result_dir": "outputs/fedkea/result"
+    }
+  }
+}

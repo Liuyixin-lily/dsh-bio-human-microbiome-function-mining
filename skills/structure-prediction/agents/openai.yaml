@@ -1,0 +1,3 @@
+interface:
+  display_name: "Structure Prediction"
+  short_description: "Retrieve or predict candidate protein structures"

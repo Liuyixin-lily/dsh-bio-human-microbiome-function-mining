@@ -1,0 +1,4 @@
+interface:
+  display_name: "Genome Download"
+  short_description: "Download NCBI RefSeq/GenBank genomes by species or accession list"
+  default_prompt: "Use $genome-download to build a GCF/GCA list from my species list and download RefSeq or GenBank genomic, protein, CDS, GBFF, and GFF files."

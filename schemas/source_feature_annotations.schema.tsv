@@ -1,0 +1,42 @@
+# Required columns for source_feature_annotations.tsv
+
+candidate_id
+protein_accession
+source_file
+feature_type
+
+# Optional but recommended
+
+product
+protein_name
+gene
+locus_tag
+ec_number
+pfam
+interpro
+tigrfam
+cazy
+kegg_orthology
+cog
+go_terms
+description
+annotation_source
+notes
+
+# Notes
+
+- `source_file` should be the absolute or user-relative path to the original
+  `.faa` or `.gbff` file that contained the annotation.
+- `feature_type` should be `fasta_header` for annotations parsed from FASTA
+  headers or `cds` for CDS features parsed from GenBank flat files.
+- `protein_accession` should match the `protein_accession` used in candidate
+  tables whenever possible.
+- Product, gene, EC number, Pfam, InterPro, TIGRFAM, CAZy, KEGG, COG, and GO
+  fields may be empty when not present in the source file.
+- The original annotation text should be preserved in `description`.
+- Do not fabricate annotations. Empty fields are preferred over invented
+  database identifiers.
+- Fields after `feature_type` are optional but recommended because a FASTA
+  header or a GenBank CDS may legitimately lack the corresponding annotation
+  (for example no EC number, Pfam domain, or gene symbol). Keep them empty
+  when the source file does not contain them.

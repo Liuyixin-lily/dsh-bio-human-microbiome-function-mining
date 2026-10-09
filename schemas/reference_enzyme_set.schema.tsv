@@ -1,0 +1,22 @@
+# Required columns for reference_enzyme_set.tsv
+
+target_id
+reference_id
+name
+organism
+source
+sequence_file
+catalytic_file
+
+# Optional but recommended
+
+ec
+structure_file
+uniprot
+notes
+
+# Notes
+
+- `source` should be one of: UniProt, BRENDA, KEGG, PDB, AlphaFold, Pfam, literature, curated.
+- `sequence_file` and `catalytic_file` are project-relative paths when available.
+- Do not include references without provenance.

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Genome Annotation"
+  short_description: "Bakta genome annotation with full or light database"

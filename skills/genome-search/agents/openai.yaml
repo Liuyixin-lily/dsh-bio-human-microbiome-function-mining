@@ -1,0 +1,4 @@
+interface:
+  display_name: "Genome Search"
+  short_description: "Search or audit NCBI GCF/GCA genomes by source metadata"
+  default_prompt: "Use $genome-search to find or audit NCBI GCF/GCA genome assemblies matching the supplied taxa or accession list and the specified biological source."

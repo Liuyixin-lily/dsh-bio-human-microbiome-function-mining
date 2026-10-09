@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Target Function Card",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "target_id",
+    "enzyme_name",
+    "ec",
+    "reaction",
+    "substrate",
+    "product",
+    "cofactor",
+    "structural_fold",
+    "pathway",
+    "catalytic_residues_file",
+    "structure_file",
+    "sequence_file",
+    "known_enzymes",
+    "known_microbial_enzymes",
+    "input_source",
+    "notes"
+  ],
+  "properties": {
+    "target_id": {
+      "type": "string",
+      "description": "Stable target identifier such as HAL_HUMAN or SMPD1_HUMAN."
+    },
+    "enzyme_name": {
+      "type": "string"
+    },
+    "ec": {
+      "type": "string",
+      "description": "Full EC number when available, otherwise a family-level value such as 3.1.1.-"
+    },
+    "reaction": {
+      "type": "string",
+      "description": "Chemical reaction string such as L-histidine -> urocanate + NH3."
+    },
+    "substrate": {
+      "type": "string"
+    },
+    "product": {
+      "type": "string"
+    },
+    "cofactor": {
+      "type": "string",
+      "description": "Empty string if no cofactor is known."
+    },
+    "structural_fold": {
+      "type": "string",
+      "description": "Known structural fold only when supported by PDB/AlphaFold, otherwise empty string."
+    },
+    "pathway": {
+      "type": "string"
+    },
+    "catalytic_residues_file": {
+      "type": "string",
+      "description": "Path to the catalytic/pocket residue TSV, relative to the project directory."
+    },
+    "structure_file": {
+      "type": "string",
+      "description": "Path to the target PDB or AlphaFold model when available, otherwise empty string."
+    },
+    "sequence_file": {
+      "type": "string",
+      "description": "Path to the target sequence FASTA, relative to the project directory."
+    },
+    "known_enzymes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Curated identifiers/proteins that define the reference enzyme set."
+    },
+    "known_microbial_enzymes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Known microbial functional analogs used for comparison."
+    },
+    "input_source": {
+      "enum": [
+        "sequence",
+        "ec",
+        "reaction",
+        "manual"
+      ],
+      "description": "How the target was originally supplied by the user."
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+*.tgz
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+project.json
+*.local.json

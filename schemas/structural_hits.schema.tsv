@@ -1,0 +1,26 @@
+# Required columns for structural_hits.tsv
+
+candidate_id
+template_id
+tm_score_1
+tm_score_2
+tm_score_mean
+rmsd
+aligned_length
+sequence_identity
+plddt_mean
+tool
+tool_version
+structure_support
+
+# Optional but recommended
+
+prediction_pdb
+aligned_residues
+notes
+
+# Notes
+
+- `structure_support` should be `1` only when the configured TM-score threshold is met.
+- `plddt_mean` may be empty when the prediction source does not provide pLDDT.
+- Keep candidate_id stable with sequence_hits.tsv.

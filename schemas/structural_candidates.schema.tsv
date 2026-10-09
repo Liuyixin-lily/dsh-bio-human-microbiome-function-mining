@@ -1,0 +1,43 @@
+# Required columns for structural_candidates.tsv
+
+candidate_id
+representative_id
+assembly_accession
+protein_accession
+organism_or_strain
+annotation
+template_id
+tm_score_1
+tm_score_2
+tm_score_mean
+rmsd
+aligned_length
+sequence_identity
+plddt_mean
+tool
+tool_version
+structural_score
+
+# Optional but recommended
+
+prediction_pdb
+catalytic_residue_hits
+pocket_similarity
+notes
+structure_support
+deer_distance
+deer_rank
+deer_template_id
+priority_tier
+
+# Notes
+
+- This table should include structure-supported candidates after running structure prediction and US-align for all sequence candidates.
+- `structure_support` is derived by the case and should be `1` only when the configured TM-score threshold is met.
+- Avoid placing sequence-only candidates here; keep them in `sequence_candidates.tsv`.
+- For DEER fallback evidence, keep the raw DEER metric in `deer_distance` and
+  `deer_rank`, mark `structure_support` according to the configured distance
+  cutoff, and fill TM-score fields with the US-align score when both are
+  available.
+- `priority_tier` is produced later by `scripts/score_candidates.py` on the
+  combined table, not in this pre-scoring evidence table. It is optional here.

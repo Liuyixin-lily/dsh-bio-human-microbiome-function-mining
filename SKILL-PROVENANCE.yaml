@@ -1,0 +1,83 @@
+# Skill provenance and adaptation ledger.
+#
+# This plugin reuses workflow logic and wrapper/parsing scripts from the
+# locally developed Codex skills under ~/.codex/skills:
+#   - sequence-mapping (DIAMOND sequence screening)
+#   - Structure Mapping (US-align / DEER fallback)
+#   - genome-search / genome-download / genome-annotation
+#   - fedkea upstream wrapper (GitHub: Stevenleizheng/FEDKEA)
+#
+# All bundled markers are original or derived from those internal skills;
+# no external copyrighted text is vendored.
+
+version: 1
+verified_on: "2026-10-08"
+
+sources:
+  - local_skill: sequence-mapping
+    path: ~/.codex/skills/sequence-mapping/SKILL.md
+    absorbed:
+      - target: skills/screen-sequence-candidates.md
+      - target: scripts/run_diamond.py
+      - target: scripts/parse_sequence_hits.py
+  - local_skill: structure-mapping
+    path: ~/.codex/skills/Structure Mapping/SKILL.md
+    absorbed:
+      - target: skills/screen-structure-candidates.md
+      - target: scripts/run_usalign.py
+      - target: scripts/parse_usalign.py
+      - target: scripts/run_deer.py
+      - target: scripts/parse_deer.py
+    note: >-
+      US-align is the primary structural route. DEER remains a user-approved
+      fallback only when US-align does not leave enough suitable candidates
+      for a source genome.
+  - local_skill: genome-search
+    path: ~/.codex/skills/genome-search/SKILL.md
+    absorbed:
+      - target: skills/genome-search.md
+      - target: skills/genome-search/scripts/
+  - local_skill: genome-download
+    path: ~/.codex/skills/genome-download/SKILL.md
+    absorbed:
+      - target: skills/genome-download.md
+      - target: skills/genome-download/scripts/
+  - local_skill: genome-annotation
+    path: ~/.codex/skills/genome-annotation/SKILL.md
+    absorbed:
+      - target: skills/genome-annotation.md
+      - target: scripts/run_bakta.py
+  - local_skill: nature-academic-search
+    path: ~/.codex/skills/nature-academic-search/SKILL.md
+    absorbed:
+      - target: skills/literature-evidence.md
+      - target: skills/literature-evidence/SKILL.md
+      - target: references/literature_evidence.md
+    note: >-
+      literature-evidence is not a bundled literature engine. It routes to
+      nature-academic-search when MCP literature tools are available, and
+      falls back to OpenAlex-only discovery or user-provided citation files.
+  - upstream: FEDKEA
+    repo: Stevenleizheng/FEDKEA
+    url: https://github.com/Stevenleizheng/FEDKEA
+    web: https://www.viromelab.com/software/fedkea
+    absorbed:
+      - target: scripts/run_fedkea.py
+      - target: scripts/parse_fedkea.py
+    note: >-
+      Wrapper follows the upstream main.py interface for local Enzyme
+      Identification and EC Number Prediction. The plugin never calls the
+      FedKEA web server programmatically; users may submit sequences manually.
+
+dsh_compat:
+  - dsh.bundle.patch: ./cordis.patch.yml
+  - preset_id: human-microbiome-function-mining
+  - flat_skills:
+      - functional-dark-matter-discover
+      - build-target-function-card
+      - screen-sequence-candidates
+      - screen-structure-candidates
+      - literature-evidence
+      - genome-search
+      - genome-download
+      - genome-annotation
