@@ -132,7 +132,7 @@ npx -y @deepseek-ai/dsh plugin --profile web add ./human_microbiome_function_min
 
 # Once published/mirrored
 npx -y @deepseek-ai/dsh plugin --profile web add @dsh-bio/human-microbiome-function-mining
-npx -y @deepseek-ai/dsh plugin --profile web add github:your-scope/human-microbiome-function-mining
+npx -y @deepseek-ai/dsh plugin --profile web add github:Liuyixin-lily/dsh-bio-human-microbiome-function-mining
 ```
 
 The `postinstall` script installs the agent preset into
@@ -194,11 +194,17 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples
 
-The examples below come from real, executable research scenarios. They show how
-the plugin should be used by an Agent. Each example includes a user prompt that
-can be sent verbatim and the workflow the Agent should run using the bundled
-skills. In practice, tool and data paths must be replaced with the user's own
-paths.
+The examples are organized by common input type and adapted from real, executable
+research scenarios:
+
+| Input type | Trigger | Example |
+| --- | --- | --- |
+| Known metabolic reaction | Substrate/product is known, but no template sequence or EC. | ceramide synthesis: sphingomyelin -> ceramide + phosphocholine |
+| Known enzyme name / EC | Functional annotation is known. | neutral sphingomyelinase / EC 3.1.4.12 |
+| Known reference sequence | A FASTA or UniProt accession is available. | DDC / P20711 |
+
+Each example contains a prompt you can send directly and the workflow the Agent
+will run with the bundled skills. Replace tool and data paths with your own.
 
 ### Example 1: predict whether human microbiome microbes encode a target reaction from a product/substrate reaction
 
@@ -210,19 +216,24 @@ Predict whether the skin microbe Staphylococcus epidermidis
 verifiable experimental design."
 
 Agent:
-- Build target_function_card.json from a substrate/product reaction
-  sphingomyelin -> ceramide + phosphocholine
-- Resolve GCF_038181645.1 and prepare candidate proteomes
-- Run CD-HIT deduplication (single-genome 100%; multi-genome 95%) + DIAMOND sequence screening
-- Parse existing .faa/.gbff annotations
-- First check whether candidate structure files exist:
-  - if PDB/CIF files are present, US-align all candidate structures directly
-  - if no structure files are present, run the bundled `structure-prediction`
-    sub-skill to obtain or predict candidate structures (PDB > AlphaFold DB >
-    homology model > de novo), then US-align again
-  - if US-align candidates are insufficient, use DEER fallback after user consent
-- Rank using FedKEA, literature evidence, and existing annotations
-- Generate experimental_design.md
+- Use `build-target-function-card` to write
+  sphingomyelin -> ceramide + phosphocholine into
+  `target_function_card.json`
+- Use `genome-search` / `genome-download` / `genome-annotation` to resolve
+  `GCF_038181645.1` and prepare candidate proteomes
+- Use `screen-sequence-candidates` to run CD-HIT deduplication (single-genome
+  100%, multi-genome 95%) then DIAMOND sequence screening
+- Capture existing `.faa`/`.gbff` annotations for protein/gene names, ECs,
+  Pfam/InterPro/KEGG identifiers, and product descriptions
+- Check whether candidate structure files exist; if missing, run
+  `structure-prediction` (PDB > AlphaFold DB > homology model > de novo), then
+  use `screen-structure-candidates` to US-align all available structures
+- Use DEER fallback only after explaining why US-align candidates are
+  insufficient and when the user agrees
+- Merge FedKEA, literature, and existing-annotation evidence, then rank
+  structure-first
+- Output `scored_candidates_full.tsv`, `experimental_hypotheses.tsv`,
+  and `experimental_design.md`
 
 The response clearly reports:
 - whether candidate genes are detected
@@ -241,20 +252,21 @@ Staphylococcus xylosus) contain metabolic genes related to
 neutral sphingomyelinase and provide a verifiable experimental design."
 
 Agent:
-- Build target card for neutral sphingomyelinase / EC 3.1.4.12
-- Prepare reference enzyme set automatically or manually
-- Run CD-HIT deduplication per genome (single-genome 100%; multi-genome 95%) + DIAMOND screening
-- First check whether each genome has candidate structure files:
-  - if structure files are present, US-align all candidate structures directly
-  - if no structure files are present, run the bundled `structure-prediction`
-    sub-skill to obtain candidate structures (PDB > AlphaFold DB > homology
-    model > de novo)
-  - for genomes with too few US-align candidates (for example
-    Staphylococcus_xylosus), use DEER fallback after user consent
-- Validate final candidate sequences with FedKEA
-- Merge evidence, rank structure-first, and summarize per species
-- Output per-species candidate tables, representative candidates,
-  and experimental design
+- Use `build-target-function-card` for neutral sphingomyelinase / EC 3.1.4.12
+- Prepare the reference enzyme set automatically or manually, and record NCBI,
+  PDB, and/or UniProt provenance
+- Run `screen-sequence-candidates` on each genome: CD-HIT deduplication
+  (single-genome 100%, multi-genome 95%), then DIAMOND screening
+- Check each genome for existing candidate structures; if missing, run
+  `structure-prediction`, then use `screen-structure-candidates` to US-align
+  all available candidate structures
+- Treat DEER as a per-genome fallback only when US-align lacks enough suitable
+  candidates and the user agrees (for example, `Staphylococcus_xylosus`)
+- Validate final candidates with FedKEA and keep the binary/enzyme/probability
+  outputs
+- Use `literature-evidence` to attach verifiable PMID/DOI evidence
+- Score with `score_candidates.py` and output per-species candidate tables,
+  representative candidates, and experimental design
 
 The response clearly reports:
 - whether each species has candidates
@@ -272,20 +284,22 @@ the key melatonin synthesis enzyme DDC (P20711) and provide a
 verifiable experimental design."
 
 Agent:
-- Build target card for DDC / aromatic L-amino acid decarboxylase
-  (EC 4.1.1.28), UniProt reference = P20711
-- If the P20711 sequence is not provided, generate the UniProt FASTA
-  retrieval command or ask the user to provide the reference sequence
-- Prepare Bifidobacterium adolescentis candidate proteomes
-- Run CD-HIT deduplication (single-genome 100%; multi-genome 95%) + DIAMOND sequence screening
-- First check whether candidate structure files exist:
-  - if PDB/CIF files are present, US-align all candidate structures directly
-  - if no structure files are present, run the bundled `structure-prediction`
-    sub-skill to obtain candidate structures (PDB > AlphaFold DB > homology
-    model > de novo)
-  - if US-align candidates are insufficient, use DEER fallback after user consent
+- Use `build-target-function-card` for DDC / aromatic L-amino acid
+  decarboxylase (EC 4.1.1.28), with UniProt reference = P20711
+- If the user does not provide FASTA, give the UniProt retrieval command instead
+  of fabricating a sequence
+- Use `genome-search` / `genome-download` / `genome-annotation` to prepare
+  Bifidobacterium adolescentis candidate proteomes
+- Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%,
+  multi-genome 95%), then DIAMOND screening
+- Check whether candidate structures exist; if missing, run
+  `structure-prediction`, then use `screen-structure-candidates` to US-align
+  all available structures
+- Use DEER fallback only when US-align candidates are insufficient and the user
+  agrees
 - Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
-- Combine literature evidence and output final ranking plus experiment design
+- Combine `literature-evidence` to attach PMID/DOI-backed evidence and final
+  ranking
 
 The response clearly reports:
 - whether DDC-like candidates are detected

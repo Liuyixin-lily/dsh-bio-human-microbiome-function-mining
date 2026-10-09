@@ -47,7 +47,10 @@
                 4. CD-HIT 去冗余（单基因组 100%；多基因组泛蛋白组 95%）后 DIAMOND
                    序列筛选（identity >= 0.2 且 query coverage >= 0.7，除非用户覆盖）。
                 5. 解析 .faa/.gbff 已有注释为现有知识证据链。
-                6. 对所有候选结构直接 US-align（TM-score >= 0.5 为合格，可配置）。
+                6. 没有候选结构文件时先运行 structure-prediction 子 skill
+                   （PDB > AlphaFold DB（mean pLDDT >= 60）> homology model >
+                   de novo），然后对所有候选结构直接 US-align（TM-score >= 0.5
+                   为合格，可配置）。
                 7. 仅当某来源基因组 US-align 合格候选不足时，经用户同意后对这个
                    基因组运行 DEER fallback。
                 8. 合并 FedKEA 输出（binary_result.txt 和

@@ -21,6 +21,12 @@ export const SKILL_MANIFEST = [
     file: 'screen-sequence-candidates.md'
   },
   {
+    name: 'structure-prediction',
+    description: 'Retrieve or predict missing candidate structures with priority experimental PDB > AlphaFold DB model passing mean pLDDT >= 60 > homology model > de novo prediction, producing structure/<protein_sequence_id>.pdb for US-align.',
+    whenToUse: '候选蛋白还没有 PDB/mmCIF 结构文件，需要在 US-align 前准备结构时。',
+    file: 'structure-prediction.md'
+  },
+  {
     name: 'screen-structure-candidates',
     description: 'Screen candidate protein structures against a reference target structure. Use US-align directly on all candidate structures first, then try DEER only when US-align does not yield enough suitable candidates for a genome.',
     whenToUse: '序列候选已有，需要结构证据评分和排序时。',

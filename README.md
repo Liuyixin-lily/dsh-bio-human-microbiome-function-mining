@@ -134,7 +134,7 @@ npx -y @deepseek-ai/dsh plugin --profile web add ./human_microbiome_function_min
 
 # Once published/mirrored
 npx -y @deepseek-ai/dsh plugin --profile web add @dsh-bio/human-microbiome-function-mining
-npx -y @deepseek-ai/dsh plugin --profile web add github:your-scope/human-microbiome-function-mining
+npx -y @deepseek-ai/dsh plugin --profile web add github:Liuyixin-lily/dsh-bio-human-microbiome-function-mining
 ```
 
 The `postinstall` script installs the agent preset into
@@ -196,7 +196,15 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples / 使用示例
 
-以下示例来自真实的可执行研究场景，用来演示插件如何被 Agent 使用。每个示例都包含用户可以原样发送的 prompt，以及 Agent 按插件 skill 应该执行的流程。实际运行时，工具和数据路径需要替换成用户自己的路径。
+以下示例按三种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
+
+| 输入类型 | 触发点 | 举例 |
+| --- | --- | --- |
+| 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC。 | 神经酰胺合成 → ceramide + phosphocholine |
+| 已知酶名/EC | 有酶功能或功能类别注释。 | neutral sphingomyelinase / EC 3.1.4.12 |
+| 已知参考序列 | 有模板蛋白 FASTA 或 UniProt accession。 | DDC / P20711 |
+
+每个示例都给出“用户可以直接发送的一句话 prompt”和“Agent 按插件 skill 实际会走的分析链”。实际运行时，把工具和数据路径替换成你自己的即可。
 
 ### Example 1: 从代谢反应出发，预测人体微生物是否编码相关基因
 
@@ -207,19 +215,22 @@ User:
 并给出可以验证的实验方案。"
 
 Agent:
-- 构建 target_function_card.json，输入为底物/产物反应
-  sphingomyelin -> ceramide + phosphocholine
-- 解析 GCF_038181645.1，准备候选 proteome
-- 运行 CD-HIT 去冗余（单基因组 100%，多基因组 95%）+ DIAMOND 序列筛选
-- 解析已有 .faa/.gbff 注释
-- 先检查候选结构文件是否存在：
-  - 有 PDB/CIF 文件时，对所有候选结构直接 US-align
-  - 没有结构文件时，运行内置 `structure-prediction` 子 skill 获取或预测
-    候选结构文件（PDB > AlphaFold DB > homology model > de novo），
-    获得结构后再跑 US-align
-  - US-align 候选不足时，经用户同意再跑 DEER
-- 结合 FedKEA、文献证据和已有注释进行综合排序
-- 生成 experimental_design.md
+- 用 `build-target-function-card` 把
+  sphingomyelin -> ceramide + phosphocholine 写成
+  `target_function_card.json`
+- 用 `genome-search` / `genome-download` / `genome-annotation` 解析
+  `GCF_038181645.1` 并准备候选 proteome
+- 用 `screen-sequence-candidates` 先做 CD-HIT 去冗余（单基因组 100%，多基因组
+  95%），再 DIAMOND 序列筛选
+- 用 `parse_source_annotations.py` 收集 `.faa`/`.gbff` 已带的 protein/gene、EC、
+  Pfam/InterPro/KEGG 等注释证据
+- 检查候选结构文件是否存在：没有就先跑 `structure-prediction`
+  （PDB > AlphaFold DB > homology model > de novo），有则用
+  `screen-structure-candidates` 对全部候选结构直接 US-align
+- US-align 候选不足时，明确原因后，经用户同意再跑 DEER fallback
+- 合并 FedKEA、文献证据和已有注释，按结构优先原则排序
+- 输出 `scored_candidates_full.tsv`、`experimental_hypotheses.tsv`
+  和 `experimental_design.md`
 
 回答会明确：
 - 是否检出候选基因
@@ -238,18 +249,18 @@ neutral sphingomyelinase 相关的代谢基因，并给出可以验证的
 实验方案。"
 
 Agent:
-- 以 neutral sphingomyelinase / EC 3.1.4.12 构建目标卡片
-- 自动或手动准备参考酶集合
-- 三个基因组分别 CD-HIT 去冗余（单基因组 100%，多基因组 95%）+ DIAMOND 筛选
-- 先检查每个基因组是否有候选结构文件：
-  - 有结构文件时，所有候选结构直接 US-align
-  - 没有结构文件时，运行内置 `structure-prediction` 子 skill
-    获取候选结构（PDB > AlphaFold DB > homology model > de novo）
-  - US-align 候选不足的基因组（如 Staphylococcus_xylosus），
-    经用户同意补 DEER
-- 候选序列用 FedKEA 做酶/EC 验证
-- 合并证据并按结构优先原则排序
-- 输出每个物种的候选表、代表候选与实验设计方案
+- 用 `build-target-function-card` 以 neutral sphingomyelinase /
+  EC 3.1.4.12 建目标卡片
+- 自动或手动准备参考酶集合，优先写明来源（NCBI/PDB/UniProt）
+- 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余
+  （单基因组 100%，多基因组 95%），再 DIAMOND 筛选
+- 每个基因组先看有没有候选结构；没有就跑 `structure-prediction`，有则
+  用 `screen-structure-candidates` 直接对所有候选结构 US-align
+- 按基因组分别判断是否 US-align 合格候选不足；不足且用户同意时，
+  才跑 DEER fallback（例如 Staphylococcus_xylosus 之前就是这样）
+- 用 FedKEA 对最终候选做酶/EC 验证，并保留 binary/enzyme/probability 结果
+- 用 `literature-evidence` 补充可验证的 PMID/DOI 证据链
+- 用 `score_candidates.py` 排序，输出每个物种的候选表、代表候选与实验设计
 
 回答会明确：
 - 每个物种是否有候选
@@ -267,19 +278,18 @@ User:
 可以验证的实验方案。"
 
 Agent:
-- 以 DDC / aromatic L-amino acid decarboxylase
-  （EC 4.1.1.28）构建目标卡片，UniProt 参考 = P20711
-- 若用户未提供 P20711 序列，先生成 UniProt FASTA 获取命令
-  或请用户提供参考序列
-- 准备 Bifidobacterium adolescentis 候选 proteome
-- 运行 CD-HIT 去冗余（单基因组 100%，多基因组 95%）+ DIAMOND 序列筛选
-- 先检查候选结构文件是否存在：
-  - 有 PDB/CIF 文件时，对所有候选结构直接 US-align
-  - 没有结构文件时，运行内置 `structure-prediction` 子 skill
-    获取候选结构（PDB > AlphaFold DB > homology model > de novo）
-  - US-align 候选不足时，经用户同意补 DEER
+- 用 `build-target-function-card` 以 DDC / aromatic L-amino acid
+  decarboxylase（EC 4.1.1.28）建目标卡片，UniProt 参考 = P20711
+- 没有用户提供的 FASTA 时，先给 UniProt 获取命令，不要自己编序列
+- 用 `genome-search` / `genome-download` / `genome-annotation` 准备
+  Bifidobacterium adolescentis 候选 proteome
+- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%，多基因组
+  95%），再 DIAMOND 筛选
+- 检查候选结构是否存在；无则跑 `structure-prediction`，有则用
+  `screen-structure-candidates` 直接 US-align
+- US-align 候选不足时，经用户同意再跑 DEER fallback
 - 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
-- 结合文献证据输出最终排序与实验设计
+- 结合 `literature-evidence` 输出带 PMID/DOI 的证据链与最终排序
 
 回答会明确：
 - 是否检出 DDC 类候选

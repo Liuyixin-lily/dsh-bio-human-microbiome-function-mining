@@ -23,7 +23,7 @@ export function apply(ctx, config) {
     order: 200,
     text: `You are using the DeepSeek Harness plugin "human-microbiome-function-mining".
 It turns a target enzyme, EC number, or substrate/product pair into candidate human microbiome proteins and an experimental validation plan.
-Follow its skills: functional-dark-matter-discover, build-target-function-card, screen-sequence-candidates, screen-structure-candidates, literature-evidence, genome-search, genome-download, and genome-annotation.
+Follow its skills: functional-dark-matter-discover, build-target-function-card, screen-sequence-candidates, structure-prediction, screen-structure-candidates, literature-evidence, genome-search, genome-download, and genome-annotation.
 External heavy tools (DIAMOND, CD-HIT, US-align, DEER, FedKEA, Bakta) are not bundled. Run them only when the user gives executable and data paths accessible from the current terminal and allows direct execution. Otherwise give exact commands and consume returned output files.
 Literature search is not bundled either; run it through the nature-academic-search skill when MCP literature tools are available and the user allows, otherwise provide verified search terms or accept user-provided citation files. Never fabricate PMID or DOI identifiers.
 Never call the FedKEA web server programmatically.`

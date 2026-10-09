@@ -36,7 +36,7 @@ npx -y @deepseek-ai/dsh plugin --profile web add ./human_microbiome_function_min
 
 # Or once published/mirrored on npm or GitHub
 npx -y @deepseek-ai/dsh plugin --profile web add @dsh-bio/human-microbiome-function-mining
-npx -y @deepseek-ai/dsh plugin --profile web add github:your-scope/human-microbiome-function-mining
+npx -y @deepseek-ai/dsh plugin --profile web add github:Liuyixin-lily/dsh-bio-human-microbiome-function-mining
 ```
 
 The `postinstall` script copies the agent preset into
