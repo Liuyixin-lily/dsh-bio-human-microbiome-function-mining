@@ -46,6 +46,13 @@ available:
    `genome_dataset` config. Run those scripts directly when accessible from the
    current terminal; otherwise give the user the exact commands and wait for
    returned files.
+   Before heavy screening, run `scripts/preflight_inputs.py --project
+   project.json`. Verify `inputs.candidate_proteome_fasta` and every configured
+   candidate-genome `.faa`, `.ffn`, `.gbff`, and structure directory. Add
+   `--require-genome-complete` for a complete protein/CDS/GenBank route, or
+   `--require-target-sequence` / `--require-target-structure` when the chosen
+   target route needs them. Never start sequence/structure screening when
+   required paths are missing or empty.
 1. Build or load a reference enzyme set from UniProt, BRENDA, KEGG, PDB,
    AlphaFold DB, Pfam, and experimentally validated microbial homologs. Use
    `scripts/fetch_reference_enzymes.py` to fetch the reference set

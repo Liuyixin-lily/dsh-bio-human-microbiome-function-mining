@@ -96,7 +96,7 @@ diamond blastp --ultra-sensitive --query-cover 50 --subject-cover 50 --id 50 \
 Download the matching chains from RCSB:
 
 ```bash
-python3 /path/to/structure_prediction_scripts/download_pdb_direct.py
+python3 skills/structure-prediction/scripts/download_pdb_direct.py
 ```
 
 If the user does not have local PDB database files, they can download the
@@ -135,8 +135,8 @@ For candidate proteins with PDB or AFDB direct hits but no final structure,
 build a homology-model manifest after direct downloads are complete:
 
 ```bash
-python3 /path/to/structure_prediction_scripts/build_homology_pending.py
-python3 /path/to/structure_prediction_scripts/run_homology_modeling.py \
+python3 skills/structure-prediction/scripts/build_homology_pending.py
+python3 skills/structure-prediction/scripts/run_homology_modeling.py \
   --manifest homology_pending.tsv --threads 6
 ```
 
@@ -177,5 +177,8 @@ Only US-align candidate structure files that passed the structure-quality gate
 for their source type. Do not route low-quality models into downstream
 structural candidates.
 
-Detailed reference notes are in
+The bundled pipeline entry point is
+`skills/structure-prediction/scripts/run_structure_pipeline.sh`. See the script
+header for the required `STRUCTURE_PRED_ROOT`, PDB/AFDB database, and model
+source arguments. Detailed reference notes are in
 `skills/structure-prediction/references/structure_prediction.md`.

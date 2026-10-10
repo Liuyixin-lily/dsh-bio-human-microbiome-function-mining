@@ -4,6 +4,7 @@
 # locally developed Codex skills under ~/.codex/skills:
 #   - sequence-mapping (DIAMOND sequence screening)
 #   - Structure Mapping (US-align / DEER fallback)
+#   - structure-prediction (PDB/AFDB retrieval, homology orchestration)
 #   - genome-search / genome-download / genome-annotation
 #   - fedkea upstream wrapper (GitHub: Stevenleizheng/FEDKEA)
 #
@@ -32,6 +33,16 @@ sources:
       US-align is the primary structural route. DEER remains a user-approved
       fallback only when US-align does not leave enough suitable candidates
       for a source genome.
+  - local_skill: structure-prediction
+    path: ~/.codex/skills/structure-prediction/SKILL.md
+    absorbed:
+      - target: skills/structure-prediction.md
+      - target: skills/structure-prediction/SKILL.md
+      - target: skills/structure-prediction/scripts/
+    note: >-
+      The bundled scripts retain the reference skill's STRUCTURE_PRED_ROOT
+      workflow. They remain optional helpers and require the user's own
+      DIAMOND/PDB/AFDB/MODELLER setup.
   - local_skill: genome-search
     path: ~/.codex/skills/genome-search/SKILL.md
     absorbed:
@@ -76,6 +87,7 @@ dsh_compat:
       - functional-dark-matter-discover
       - build-target-function-card
       - screen-sequence-candidates
+      - structure-prediction
       - screen-structure-candidates
       - literature-evidence
       - genome-search

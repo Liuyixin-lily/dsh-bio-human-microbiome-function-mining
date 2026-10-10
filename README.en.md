@@ -49,7 +49,7 @@ human_microbiome_function_mining/
 - `functional-dark-matter-discover`: main workflow that turns a target enzyme/EC/reaction into candidates and experimental design.
 - `build-target-function-card`: standardizes target inputs and generates the Target Function Card.
 - `screen-sequence-candidates`: runs or consumes DIAMOND sequence screening; defaults to CD-HIT deduplication first (100% for single-genome datasets, 95% for multi-genome pan-proteomes).
-- `structure-prediction`: retrieves or predicts missing candidate structures with priority experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` > homology model > de novo prediction, producing `structure/<protein_sequence_id>.pdb` for US-align.
+- `structure-prediction`: retrieves or predicts missing candidate structures with priority experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` > homology model > de novo prediction. The bundled PDB/AFDB/homology helper scripts are under `skills/structure-prediction/scripts/` and produce `structure/<protein_sequence_id>.pdb` for US-align.
 - `screen-structure-candidates`: structural evidence screening. First check whether candidate structure files exist; if structures are missing, run the bundled `structure-prediction` sub-skill before US-aligning all available candidate structures. Use DEER as a fallback only for a genome when US-align does not yield enough suitable candidates and the user agrees.
 - `literature-evidence`: literature evidence audit. When MCP literature tools are available, follow a `nature-academic-search` style workflow; otherwise provide search terms or accept user-provided verified citation files. Never fabricate PMID/DOI.
 - `genome-search`: select candidate GCF/GCA assemblies from NCBI Assembly/BioSample metadata.
@@ -65,6 +65,7 @@ The three genome sub-skills are independent deliverables. Load them when users h
 ```text
 target enzyme / EC / substrate-product
   -> target_function_card.json
+  -> preflight check .faa/.ffn/.gbff and structure paths
   -> optional genome-search / genome-download / genome-annotation
   -> CD-HIT deduplication (100% for single-genome datasets; 95% for multi-genome pan-proteomes)
   -> DIAMOND sequence screening
@@ -163,6 +164,7 @@ Sanity check without external tools:
 
 ```bash
 cd human_microbiome_function_mining
+python3 scripts/preflight_inputs.py --project project.json
 python3 scripts/example_test.py
 # example test passed
 ```
@@ -171,6 +173,7 @@ Typical wrapper entry points:
 
 ```bash
 python3 human_microbiome_function_mining/scripts/fetch_reference_enzymes.py --project project.json
+python3 human_microbiome_function_mining/scripts/preflight_inputs.py --project project.json
 python3 human_microbiome_function_mining/scripts/run_diamond.py --project project.json
 python3 human_microbiome_function_mining/scripts/run_usalign.py --project project.json
 python3 human_microbiome_function_mining/scripts/run_deer.py --project project.json
@@ -219,6 +222,9 @@ Agent:
 - Use `build-target-function-card` to write
   sphingomyelin -> ceramide + phosphocholine into
   `target_function_card.json`
+- Run `scripts/preflight_inputs.py --project project.json` before heavy work
+  when candidate genome `.faa`/`.ffn`/`.gbff` paths and structure directories are
+  configured
 - Use `genome-search` / `genome-download` / `genome-annotation` to resolve
   `GCF_038181645.1` and prepare candidate proteomes
 - Use `screen-sequence-candidates` to run CD-HIT deduplication (single-genome
@@ -255,6 +261,8 @@ Agent:
 - Use `build-target-function-card` for neutral sphingomyelinase / EC 3.1.4.12
 - Prepare the reference enzyme set automatically or manually, and record NCBI,
   PDB, and/or UniProt provenance
+- Aggressively check each genome and structure repository path; reject
+  empty/missing required input before heavy work
 - Run `screen-sequence-candidates` on each genome: CD-HIT deduplication
   (single-genome 100%, multi-genome 95%), then DIAMOND screening
 - Check each genome for existing candidate structures; if missing, run
@@ -288,6 +296,8 @@ Agent:
   decarboxylase (EC 4.1.1.28), with UniProt reference = P20711
 - If the user does not provide FASTA, give the UniProt retrieval command instead
   of fabricating a sequence
+- Run `scripts/preflight_inputs.py --project project.json` before heavy work
+  when candidate genome paths and structure directories are configured
 - Use `genome-search` / `genome-download` / `genome-annotation` to prepare
   Bifidobacterium adolescentis candidate proteomes
 - Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%,

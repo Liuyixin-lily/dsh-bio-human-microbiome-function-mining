@@ -51,7 +51,7 @@ human_microbiome_function_mining/
 - `functional-dark-matter-discover`: 主流程，负责把目标酶/EC/反应变成候选与实验设计。
 - `build-target-function-card`: 标准化目标输入，生成 Target Function Card。
 - `screen-sequence-candidates`: 运行或消费 DIAMOND 序列筛选，默认先做 CD-HIT 去冗余；单菌单基因组默认 100%，多基因组泛蛋白组默认 95%。
-- `structure-prediction`: 当候选蛋白没有已知结构文件时，按 PDB > AlphaFold DB（mean pLDDT >= 60）> homology model > de novo prediction 的优先级检索或预测结构，为 US-align 准备 `structure/<protein_sequence_id>.pdb`。
+- `structure-prediction`: 当候选蛋白没有已知结构文件时，按 PDB > AlphaFold DB（mean pLDDT >= 60）> homology model > de novo prediction 的优先级检索或预测结构；内置的 PDB/AFDB/homology 辅助脚本在 `skills/structure-prediction/scripts/` 中，为 US-align 准备 `structure/<protein_sequence_id>.pdb`。
 - `screen-structure-candidates`: 结构证据筛选。先检查候选结构文件是否存在；没有结构文件时先运行内置 `structure-prediction` 子 skill 获取候选结构，再对全部候选结构直接 US-align；只有某个基因组 US-align 候选不足时才按用户同意跑 DEER fallback。
 - `literature-evidence`: 文献证据审计。可用 MCP 文献工具时走 `nature-academic-search` 类流程，否则给出检索词或接收用户提供的已验证引用文件；禁止编造 PMID/DOI。
 - `genome-search`: 从 NCBI Assembly/BioSample 元数据中选择候选 GCF/GCA。
@@ -67,6 +67,7 @@ The three genome sub-skills are independent deliverables. Load them when users h
 ```text
 target enzyme / EC / substrate-product
   -> target_function_card.json
+  -> preflight check .faa/.ffn/.gbff and structure paths
   -> optional genome-search / genome-download / genome-annotation
   -> CD-HIT deduplication (100% for single-genome datasets; 95% for multi-genome pan-proteomes)
   -> DIAMOND sequence screening
@@ -165,6 +166,7 @@ Sanity check without external tools:
 
 ```bash
 cd human_microbiome_function_mining
+python3 scripts/preflight_inputs.py --project project.json
 python3 scripts/example_test.py
 # example test passed
 ```
@@ -173,6 +175,7 @@ Typical wrapper entry points:
 
 ```bash
 python3 human_microbiome_function_mining/scripts/fetch_reference_enzymes.py --project project.json
+python3 human_microbiome_function_mining/scripts/preflight_inputs.py --project project.json
 python3 human_microbiome_function_mining/scripts/run_diamond.py --project project.json
 python3 human_microbiome_function_mining/scripts/run_usalign.py --project project.json
 python3 human_microbiome_function_mining/scripts/run_deer.py --project project.json
@@ -218,6 +221,8 @@ Agent:
 - 用 `build-target-function-card` 把
   sphingomyelin -> ceramide + phosphocholine 写成
   `target_function_card.json`
+- 先跑 `scripts/preflight_inputs.py --project project.json`，检查候选基因组的
+  `.faa`/`.ffn`/`.gbff` 和结构目录是否存在
 - 用 `genome-search` / `genome-download` / `genome-annotation` 解析
   `GCF_038181645.1` 并准备候选 proteome
 - 用 `screen-sequence-candidates` 先做 CD-HIT 去冗余（单基因组 100%，多基因组
@@ -252,6 +257,7 @@ Agent:
 - 用 `build-target-function-card` 以 neutral sphingomyelinase /
   EC 3.1.4.12 建目标卡片
 - 自动或手动准备参考酶集合，优先写明来源（NCBI/PDB/UniProt）
+- 严格检查用户给的基因组和结构仓库路径，缺文件或空文件在重型流程前报错
 - 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余
   （单基因组 100%，多基因组 95%），再 DIAMOND 筛选
 - 每个基因组先看有没有候选结构；没有就跑 `structure-prediction`，有则
@@ -281,6 +287,8 @@ Agent:
 - 用 `build-target-function-card` 以 DDC / aromatic L-amino acid
   decarboxylase（EC 4.1.1.28）建目标卡片，UniProt 参考 = P20711
 - 没有用户提供的 FASTA 时，先给 UniProt 获取命令，不要自己编序列
+- 先跑 `scripts/preflight_inputs.py --project project.json`，检查候选基因组的
+  文件和结构目录是否存在
 - 用 `genome-search` / `genome-download` / `genome-annotation` 准备
   Bifidobacterium adolescentis 候选 proteome
 - 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%，多基因组

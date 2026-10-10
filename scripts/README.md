@@ -57,6 +57,15 @@ Available scripts:
   It validates parser, merge, and scoring scripts without depending on real
   DIAMOND, US-align, DEER, or FedKEA executions.
 
+Input preflight:
+
+- `preflight_inputs.py`: checks configured
+  `inputs.candidate_proteome_fasta`, per-genome `.faa`, `.ffn`, `.gbff`, and
+  candidate structure directories before heavy screening. It never creates
+  data. Configured candidate paths are validated; `--require-genome-complete`,
+  `--require-target-sequence`, or `--require-target-structure` to enforce
+  different route requirements.
+
 Agent-runnable wrappers:
 
 - `run_diamond.py`: runs configured CD-HIT deduplication on the candidate

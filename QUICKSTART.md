@@ -90,7 +90,11 @@ cp human_microbiome_function_mining/config.minimal.example.json project.json
      plugin will give you search terms or accept user-provided verified
      citation files
 
-4. Ask the DeepSeek agent to run the workflow. The agent can execute configured
+4. Ask the DeepSeek agent to run the workflow. The workflow starts with
+   `scripts/preflight_inputs.py --project project.json` and verifies that
+   candidate genome `.faa`, `.ffn`, `.gbff`, and structure paths exist before
+   running DIAMOND, US-align, DEER, FedKEA, or Bakta.
+5. The agent can execute configured
    tools when they are accessible from the current terminal. If a tool is not
    accessible, the agent prints the exact command for you to run on your own
    compute and then consumes the returned files.
