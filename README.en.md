@@ -222,6 +222,10 @@ Agent:
 - Use `build-target-function-card` to write
   sphingomyelin -> ceramide + phosphocholine into
   `target_function_card.json`
+- If the user does not provide a template sequence or reference enzyme set, run
+  `fetch_reference_enzymes.py` against public NCBI/PDB endpoints to prepare the
+  reference records. If the current terminal has no network access, give the
+  user the exact fetch command instead of fabricating a sequence.
 - Run `scripts/preflight_inputs.py --project project.json` before heavy work
   when candidate genome `.faa`/`.ffn`/`.gbff` paths and structure directories are
   configured
@@ -233,11 +237,14 @@ Agent:
   Pfam/InterPro/KEGG identifiers, and product descriptions
 - Check whether candidate structure files exist; if missing, run
   `structure-prediction` (PDB > AlphaFold DB > homology model > de novo), then
-  use `screen-structure-candidates` to US-align all available structures
-- Use DEER fallback only after explaining why US-align candidates are
-  insufficient and when the user agrees
-- Merge FedKEA, literature, and existing-annotation evidence, then rank
-  structure-first
+  use `screen-structure-candidates` to US-align all available structure files
+  directly
+- Use DEER fallback for a genome only after explaining why US-align candidates
+  are insufficient and when the user agrees; never auto-jump straight to DEER
+- Audit literature evidence with `literature-evidence` and keep only verifiable
+  PMID/DOI rows
+- Merge FedKEA, literature, existing annotations, sequence evidence, and
+  structural evidence, then rank structure-first
 - Output `scored_candidates_full.tsv`, `experimental_hypotheses.tsv`,
   and `experimental_design.md`
 
@@ -263,11 +270,13 @@ Agent:
   PDB, and/or UniProt provenance
 - Aggressively check each genome and structure repository path; reject
   empty/missing required input before heavy work
+- Run `preflight_inputs.py` before heavy work and verify each genome's `.faa`,
+  `.ffn`, `.gbff`, and candidate structure directory
 - Run `screen-sequence-candidates` on each genome: CD-HIT deduplication
   (single-genome 100%, multi-genome 95%), then DIAMOND screening
-- Check each genome for existing candidate structures; if missing, run
+- For each genome, check existing candidate structure files; if missing, run
   `structure-prediction`, then use `screen-structure-candidates` to US-align
-  all available candidate structures
+  all available candidate structure files for that genome directly
 - Treat DEER as a per-genome fallback only when US-align lacks enough suitable
   candidates and the user agrees (for example, `Staphylococcus_xylosus`)
 - Validate final candidates with FedKEA and keep the binary/enzyme/probability
@@ -295,7 +304,8 @@ Agent:
 - Use `build-target-function-card` for DDC / aromatic L-amino acid
   decarboxylase (EC 4.1.1.28), with UniProt reference = P20711
 - If the user does not provide FASTA, give the UniProt retrieval command instead
-  of fabricating a sequence
+  of fabricating a sequence; when reference-enzyme fetching is configured, also
+  use `fetch_reference_enzymes.py` to prepare local reference records
 - Run `scripts/preflight_inputs.py --project project.json` before heavy work
   when candidate genome paths and structure directories are configured
 - Use `genome-search` / `genome-download` / `genome-annotation` to prepare
@@ -304,12 +314,12 @@ Agent:
   multi-genome 95%), then DIAMOND screening
 - Check whether candidate structures exist; if missing, run
   `structure-prediction`, then use `screen-structure-candidates` to US-align
-  all available structures
+  all available structure files directly
 - Use DEER fallback only when US-align candidates are insufficient and the user
-  agrees
+  agrees; do not replace US-align with DEER
 - Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
-- Combine `literature-evidence` to attach PMID/DOI-backed evidence and final
-  ranking
+- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence,
+  then apply the structure-first final ranking
 
 The response clearly reports:
 - whether DDC-like candidates are detected

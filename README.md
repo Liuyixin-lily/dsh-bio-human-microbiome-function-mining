@@ -221,6 +221,9 @@ Agent:
 - 用 `build-target-function-card` 把
   sphingomyelin -> ceramide + phosphocholine 写成
   `target_function_card.json`
+- 如果用户没有给出模板序列或参考酶集，先用
+  `fetch_reference_enzymes.py` 从 NCBI/PDB 等公开接口获取参考酶记录，
+  并在没有网络时只给用户抓取命令，不自行编造序列
 - 先跑 `scripts/preflight_inputs.py --project project.json`，检查候选基因组的
   `.faa`/`.ffn`/`.gbff` 和结构目录是否存在
 - 用 `genome-search` / `genome-download` / `genome-annotation` 解析
@@ -231,9 +234,11 @@ Agent:
   Pfam/InterPro/KEGG 等注释证据
 - 检查候选结构文件是否存在：没有就先跑 `structure-prediction`
   （PDB > AlphaFold DB > homology model > de novo），有则用
-  `screen-structure-candidates` 对全部候选结构直接 US-align
-- US-align 候选不足时，明确原因后，经用户同意再跑 DEER fallback
-- 合并 FedKEA、文献证据和已有注释，按结构优先原则排序
+  `screen-structure-candidates` 对全部候选结构文件直接 US-align
+- 只有当某个基因组 US-align 没有足够合格候选时，才说明原因并经用户同意跑
+  DEER fallback，不自动跳过 US-align
+- 通过 `literature-evidence` skill 审计文献证据，只保留可验证的 PMID/DOI
+- 合并 FedKEA、文献证据、已有注释和结构/序列证据，按结构优先原则排序
 - 输出 `scored_candidates_full.tsv`、`experimental_hypotheses.tsv`
   和 `experimental_design.md`
 
@@ -258,10 +263,13 @@ Agent:
   EC 3.1.4.12 建目标卡片
 - 自动或手动准备参考酶集合，优先写明来源（NCBI/PDB/UniProt）
 - 严格检查用户给的基因组和结构仓库路径，缺文件或空文件在重型流程前报错
+- 跑重流程前执行 `preflight_inputs.py`，对三个基因组逐个核对 `.faa`、
+  `.ffn`、`.gbff` 和候选结构目录
 - 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余
   （单基因组 100%，多基因组 95%），再 DIAMOND 筛选
-- 每个基因组先看有没有候选结构；没有就跑 `structure-prediction`，有则
-  用 `screen-structure-candidates` 直接对所有候选结构 US-align
+- 每个基因组先检查候选结构文件是否存在；缺少结构就跑
+  `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组
+  所有候选结构文件直接 US-align
 - 按基因组分别判断是否 US-align 合格候选不足；不足且用户同意时，
   才跑 DEER fallback（例如 Staphylococcus_xylosus 之前就是这样）
 - 用 FedKEA 对最终候选做酶/EC 验证，并保留 binary/enzyme/probability 结果
@@ -286,7 +294,8 @@ User:
 Agent:
 - 用 `build-target-function-card` 以 DDC / aromatic L-amino acid
   decarboxylase（EC 4.1.1.28）建目标卡片，UniProt 参考 = P20711
-- 没有用户提供的 FASTA 时，先给 UniProt 获取命令，不要自己编序列
+- 没有用户提供的 FASTA 时，先给 UniProt 获取命令，不要自己编序列；如项目配置了
+  参考酶抓取，也会用 `fetch_reference_enzymes.py` 自动准备参考酶记录
 - 先跑 `scripts/preflight_inputs.py --project project.json`，检查候选基因组的
   文件和结构目录是否存在
 - 用 `genome-search` / `genome-download` / `genome-annotation` 准备
@@ -294,10 +303,11 @@ Agent:
 - 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%，多基因组
   95%），再 DIAMOND 筛选
 - 检查候选结构是否存在；无则跑 `structure-prediction`，有则用
-  `screen-structure-candidates` 直接 US-align
-- US-align 候选不足时，经用户同意再跑 DEER fallback
+  `screen-structure-candidates` 对全部候选结构文件直接 US-align
+- 只有当 US-align 合格候选不足时，经用户同意才跑 DEER fallback
 - 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
-- 结合 `literature-evidence` 输出带 PMID/DOI 的证据链与最终排序
+- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后再按结构优先
+  原则做最终排序
 
 回答会明确：
 - 是否检出 DDC 类候选
