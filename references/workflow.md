@@ -75,3 +75,26 @@ Existing annotation fields can add protein/gene names, EC numbers,
 Pfam/InterPro/TIGRFAM/CAZy/KEGG/COG/GO identifiers, and product descriptions
 already present in the user's `.faa`/`.gbff` inputs, and they remain useful for
 FedKEA comparison, literature alignment, and hypothesis generation.
+
+## FedKEA validation scope
+
+- FedKEA is an orthogonal functional validation layer after sequence and
+  structure screening have produced a candidate subset.
+- **Input scope**: by default, run FedKEA only on the candidate protein FASTA
+  produced by `scripts/extract_candidate_sequences.py`
+  (`candidate_proteins.faa`) or an equivalent candidate subset derived from
+  `structural_candidates.tsv`, not on the full genome proteome. Running on the
+  entire proteome is allowed only when the user explicitly asks for a
+  whole-proteome enzyme scan.
+- **FASTA header rule**: candidate FASTA headers must place the accession as
+  the first whitespace-delimited field with no description (for example
+  `>WP_000000000.1`). When FedKEA receives a multi-word header, its output
+  accession can collapse to `MULTISPECIES:` or another truncated token and
+  cannot be joined back to the candidate IDs.
+- **Accession check**: pass `--expected-accessions` to `scripts/parse_fedkea.py`
+  or set `validation_inputs.fedkea.expected_accessions` in `project.json` so
+  the parser verifies that FedKEA output accessions can be joined to the
+  expected candidate subset. Zero overlap is a hard failure; partial mismatch
+  is recorded in `fedkea_notes`.
+- Keep the original FedKEA file paths and tool version in `fedkea_results.tsv`
+  and `combined_candidates.tsv` so every validation field is traceable.

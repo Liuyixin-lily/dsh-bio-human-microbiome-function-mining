@@ -21,7 +21,13 @@ Available scripts:
   US-align over remaining candidate PDB/CIF structures in an isolated
   acceptance directory. It is an internal parallel-run utility and is not part
   of the normal single-terminal workflow.
-- `parse_fedkea.py`: parses user-supplied FedKEA output files into `fedkea_results.tsv`.
+- `parse_fedkea.py`: parses user-supplied FedKEA output files into
+  `fedkea_results.tsv`. Pass `--expected-accessions` (plain accession list, or
+  TSV/CSV with an ID column such as `subject_refseq`,
+  `candidate_id`/`query_id`/`protein_id`/`id`/`accession`) so the parser can
+  verify that FedKEA output accessions can be joined back to the candidate
+  subset that was actually submitted. Zero overlap aborts with an error;
+  partial mismatch is recorded in `fedkea_notes`.
 - `parse_deer.py`: parses DEER `similarity.csv` into a plugin-compatible
   structural evidence table, keeping the raw DEER distance/rank in dedicated
   fields rather than treating that metric as a TM-score. Pass
@@ -98,7 +104,11 @@ Agent-runnable wrappers:
 - `run_fedkea.py`: runs the configured local FEDKEA `main.py` when accessible,
   then calls `parse_fedkea.py`. When not accessible, writes a pending
   checkpoint with the exact `main.py` command and never calls the FedKEA web
-  server programmatically.
+  server programmatically. Pass `--expected-accessions` or set
+  `validation_inputs.fedkea.expected_accessions` in `project.json` so the parse
+  step checks accession joinability. FedKEA should normally be run on the
+  candidate subset produced by sequence/structure screening, not on the entire
+  proteome, unless there is an explicit reason to run a whole-proteome scan.
 - `run_signalp.py`: runs the configured local SignalP executable when
   accessible and `auto_run_local` is enabled, otherwise writes a pending
   checkpoint with the exact SignalP command and consumes returned output.
@@ -110,7 +120,14 @@ Candidate sequence extraction:
 - `extract_candidate_sequences.py`: extracts final candidate proteins,
   CDS, gene nucleotide sequences, and optional SignalP-cleaved mature proteins
   from source FASTA files. It reads `--candidates`, `--project`, `--outdir`,
-  and optional `--signalp-tsv`. When genomic `.fna` is available and the CDS
+  optional `--candidate-id-column`, and optional `--signalp-tsv`. By default it
+  auto-detects the candidate ID column from `candidate_id`/`query_id`/
+  `protein_id`/`id`/`subject_refseq`, so structural candidate tables that use
+  `subject_refseq` are supported. The written `candidate_proteins.faa`,
+  `candidate_cds.ffn`, and `candidate_gene_sequences.fna` use clean
+  accession-only FASTA headers (`>WP_...`) so tools such as FedKEA that parse
+  the first header token do not emit truncated or `MULTISPECIES:` accessions.
+  When genomic `.fna` is available and the CDS
   header carries an NCBI-style `[location=...]`, it writes the true genomic
   locus as `candidate_gene_sequences.fna`; otherwise it falls back to the CDS
   sequence from `.ffn`. If SignalP predicts a secreted protein using the

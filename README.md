@@ -205,6 +205,13 @@ SignalP https://services.healthtech.dtu.dk/services/SignalP-6.0/
 
 For candidate lists shorter than 20 sequences, FedKEA web server is usually the fastest validation route. For larger batches, install FedKEA locally and point `validation_inputs.fedkea.script_path` at its `main.py`.
 
+FedKEA should normally be run on the candidate protein FASTA produced by
+`extract_candidate_sequences.py`, not on the full proteome, unless the user
+explicitly requests a whole-proteome enzyme scan. Candidate FASTA headers must
+keep the accession as the first field (for example `>WP_...`), and the wrapper
+can verify output accession joinability with `--expected-accessions` (or
+`validation_inputs.fedkea.expected_accessions` in `project.json`).
+
 For DEER checkpoints on a server without Hugging Face access, place the model files under the configured `tools.deer.ckpt_dir` and set `tools.deer.skip_hf_checkpoint: true` before running.
 
 ---
@@ -257,21 +264,13 @@ neutral sphingomyelinase 相关的代谢基因，并给出可以验证的
 实验方案。"
 
 Agent:
-- 用 `build-target-function-card` 以 neutral sphingomyelinase /
-  EC 3.1.4.12 建目标卡片
+- 用 `build-target-function-card` 以 neutral sphingomyelinase /EC 3.1.4.12 建目标卡片
 - 自动或手动准备参考酶集合，优先写明来源（NCBI/PDB/UniProt）
 - 严格检查用户给的基因组和结构仓库路径，缺文件或空文件在重型流程前报错
-- 跑重流程前执行 `preflight_inputs.py`，对三个基因组逐个核对 `.faa`、
-  `.ffn`、`.gbff` 和候选结构目录
-- 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余
-  （单基因组 100%，多基因组 95%），再 DIAMOND 筛选
-- 先看每个 DIAMOND 命中是否已有注释匹配 neutral sphingomyelinase /
-  EC 3.1.4.12；匹配则标记 `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过结构流程
-- 只有序列命中但注释不匹配或无注释时，才检查候选结构文件；缺少结构就跑
-  `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组
-  所有候选结构文件直接 US-align
-- 按基因组分别判断是否 US-align 合格候选不足；不足且用户同意时，
-  才跑 DEER fallback（例如之前 Staphylococcus_xylosus 的情况）
+- 跑重流程前执行 `preflight_inputs.py`，对三个基因组逐个核对 `.faa`、`.ffn`、`.gbff` 和候选结构目录
+- 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余（100%），再 DIAMOND 筛选
+- 先看每个 DIAMOND 命中是否已有注释匹配 neutral sphingomyelinase /EC 3.1.4.12；只有序列命中但注释不匹配或无注释时，才检查候选结构文件：
+- 缺少结构就跑 `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组所有候选结构文件直接 US-align；按基因组分别判断是否 US-align 合格候选不足；不足且用户同意时，才跑 DEER fallback
 - 用 FedKEA 对最终候选做酶/EC 验证，并保留 binary/enzyme/probability 结果
 - 用 `literature-evidence` 补充可验证的 PMID/DOI 证据链
 - 用 `score_candidates.py` 排序，输出每个物种的候选表、代表候选与实验设计

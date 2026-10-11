@@ -204,6 +204,13 @@ FEDKEA `main.py` is accessible from the current terminal and `auto_run_local`
 is enabled. It never calls the FedKEA web server programmatically; it only
 consumes saved result files.
 
+FedKEA should normally receive the final candidate protein subset
+(`outputs/task/candidate_sequences/candidate_proteins.faa` or an equivalent
+candidate FASTA), not the full proteome. Candidate headers keep the accession
+as the first field, and parse/run calls should include `--expected-accessions`
+(for example, a list of the submitted candidate IDs) so output accessions are
+checked before FedKEA evidence is merged.
+
 For this demo, the four `Staphylococcus xylosus` DEER hits that FedKEA
 classified as non-enzymes (from the manually submitted web batch) are:
 

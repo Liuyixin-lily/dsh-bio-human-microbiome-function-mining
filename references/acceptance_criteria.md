@@ -24,6 +24,12 @@ traceable back to a source file or command the user supplied.
 - Every candidate row has a `candidate_id` and `protein_accession`.
 - `provenance` names the source tables that contributed to the row.
 - Any `fedkea_*` field has an original FedKEA file path and tool version.
+- FedKEA was run on the candidate subset submitted for validation, not silently
+  on the full proteome, unless the user explicitly requested a whole-proteome
+  scan and the report says so.
+- FedKEA output accessions were checked against the expected candidate IDs.
+  Zero overlap is a failed validation step; partial mismatch is recorded in
+  `fedkea_notes` before any FedKEA field is used in scoring.
 - Any `source_*` field has the original `.faa`/`.gbff` file path and feature
   type recorded in `source_annotation_note`.
 - No PDB, UniProt, PubMed, EC, KEGG, Pfam, or GO identifier is fabricated.

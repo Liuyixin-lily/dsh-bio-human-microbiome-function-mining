@@ -66,6 +66,13 @@ FEDKEA can be used in either of these two ways:
    Agent. Agent parses them as long as the columns match the standard FedKEA output
    format.
 
+FedKEA should be run on the candidate protein subset produced by sequence and
+structure screening, not on the full proteome unless the user explicitly asks
+for a whole-proteome scan. Candidate FASTA headers must keep the accession as
+the first whitespace-delimited field with no description (for example
+`>WP_...`). `parse_fedkea.py --expected-accessions` should be used to verify
+that output accessions can be joined back to the submitted candidate IDs.
+
 Agent must not claim to call the FedKEA web server programmatically. It should
 only consume saved result files that the user provided or produced locally.
 
@@ -142,3 +149,6 @@ script path are accessible from the current terminal, then parses the output
 directory into `fedkea_results.tsv`. When FEDKEA is not installed locally or
 the user prefers the web route, the wrapper prints the exact command and waits
 for the user to save the returned result files.
+For the local route, set `validation_inputs.fedkea.expected_accessions` in
+`project.json` or pass `--expected-accessions` so the parse step checks the
+accession join before producing `fedkea_results.tsv`.

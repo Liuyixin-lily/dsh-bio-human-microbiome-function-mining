@@ -87,6 +87,44 @@ def read_probability(path: Path) -> dict[str, dict[str, str]]:
     return result
 
 
+def read_expected_accessions(path: Path | None) -> dict[str, str]:
+    """Read an accession list or single-column table of expected candidates."""
+    expected: dict[str, str] = {}
+    if path is None or not path.is_file():
+        return expected
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        first_line = handle.readline().rstrip("\r\n")
+        handle.seek(0)
+        if "\t" in first_line or "," in first_line:
+            dialect = csv.Sniffer().sniff(first_line, delimiters="\t,")
+            reader = csv.DictReader(handle, dialect=dialect)
+            fieldnames = reader.fieldnames or []
+            id_col = None
+            for candidate in ("subject_refseq", "candidate_id", "query_id", "protein_id", "id", "accession"):
+                if candidate in fieldnames:
+                    id_col = candidate
+                    break
+            if id_col is None and fieldnames:
+                id_col = fieldnames[0]
+            for row in reader:
+                if not row or not any(row.values()):
+                    continue
+                cid = ""
+                if id_col and row.get(id_col):
+                    cid = row[id_col].strip()
+                elif not id_col and row:
+                    cid = list(row.values())[0].strip()
+                if cid:
+                    expected[cid] = row
+        else:
+            handle.seek(0)
+            for raw in handle:
+                cid = raw.strip()
+                if cid:
+                    expected[cid] = cid
+    return expected
+
+
 def merge_rows(
     binary: dict[str, dict[str, str]],
     prob: dict[str, dict[str, str]],
@@ -128,6 +166,40 @@ def merge_rows(
     return rows
 
 
+def accession_check_summary(
+    actual: set[str],
+    expected: set[str],
+) -> tuple[str, str]:
+    """Return (status, note) comparing FedKEA output accessions with expected IDs.
+
+    FedKEA output accession can silently become "MULTISPECIES:" or a truncated
+    header token when the input FASTA header is not a clean first-field
+    accession. We therefore treat zero overlap as a hard error and partial
+    overlap as a warning recorded in fedkea_notes.
+    """
+    if not expected:
+        return "no_expected_input", ""
+    if not (actual & expected):
+        return "zero_overlap", (
+            f"expected={len(expected)} actual={len(actual)} "
+            f"missing={len(expected)} unexpected={len(actual)}"
+        )
+    missing = sorted(expected - actual)
+    unexpected = sorted(actual - expected)
+    if not missing and not unexpected:
+        return "matched", f"accession_check=expected={len(expected)} actual={len(actual)} matched=ok"
+    parts = [f"expected={len(expected)}", f"actual={len(actual)}"]
+    if missing:
+        parts.append("missing=" + ",".join(missing[:5]) + ("..." if len(missing) > 5 else ""))
+    if unexpected:
+        parts.append("unexpected=" + ",".join(unexpected[:5]) + ("..." if len(unexpected) > 5 else ""))
+    if missing and not unexpected:
+        return "partial_missing", ";".join(parts)
+    if unexpected and not missing:
+        return "partial_unexpected", ";".join(parts)
+    return "partial_mismatch", ";".join(parts)
+
+
 def write_tsv(path: Path, fields: list[str], rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -144,6 +216,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--confidence-csv", type=Path, help="enzyme_result_with_confidence.csv from FedKEA.")
     parser.add_argument("--output", type=Path, required=True, help="Output fedkea_results.tsv.")
     parser.add_argument("--tool-version", default="", help="FedKEA version or repository tag.")
+    parser.add_argument(
+        "--expected-accessions",
+        type=Path,
+        help=(
+            "Plain accession list or TSV/CSV with an ID column such as "
+            "subject_refseq/candidate_id/query_id/protein_id/id/accession. "
+            "FedKEA is only valid for the candidate subset fed into it; this "
+            "file lets the parser verify that output accessions can be joined "
+            "back to the expected candidates."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -158,7 +241,25 @@ def main(argv: list[str] | None = None) -> int:
     binary = read_binary(binary_path)
     probability = read_probability(probability_path)
     confidence = read_confidence(confidence_path)
+    expected = read_expected_accessions(args.expected_accessions)
+    actual_accessions = set(binary) | set(probability) | set(confidence)
+    status, note = accession_check_summary(actual_accessions, set(expected))
+    if status == "zero_overlap":
+        detail = f"expected={len(expected)} actual={len(actual_accessions)}"
+        print(
+            "error: FedKEA output has zero accession overlap with the expected "
+            f"candidate IDs ({detail}). Check that the input FASTA headers are "
+            "clean accession-only first fields (for example >WP_... without "
+            "'MULTISPECIES:' descriptions) and that the expected list matches "
+            "the sequences actually submitted to FedKEA.",
+            file=sys.stderr,
+        )
+        return 3
     rows = merge_rows(binary, probability, confidence, args)
+    if note:
+        for row in rows:
+            existing = row.get("fedkea_notes") or ""
+            row["fedkea_notes"] = f"{existing}; {note}".strip("; ").strip() if existing else note
     fields = [
         "protein_accession",
         "fedkea_binary_result_file",

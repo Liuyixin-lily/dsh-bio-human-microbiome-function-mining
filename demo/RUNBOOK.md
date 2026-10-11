@@ -174,9 +174,15 @@ the equivalent returned files
 ```bash
 python3 human_microbiome_function_mining/scripts/parse_fedkea.py \
   --confidence-csv outputs/fedkea/result/enzyme_result_with_confidence.csv \
+  --expected-accessions outputs/alignments/run_full_085/structural_candidates.tsv \
   --output outputs/fedkea/fedkea_results.tsv \
   --tool-version "FedKEA local result"
 ```
+
+`--expected-accessions` makes the parser verify that FedKEA output accessions
+can be joined back to the candidate subset that was actually submitted. If a
+run covers candidates from more than one structural table, pass a single list
+or generated TSV containing every submitted candidate accession.
 
 For a manually downloaded web result, either paste the table into the same
 contract TSV format or append the returned rows to

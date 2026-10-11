@@ -24,6 +24,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run FEDKEA enzyme/EC prediction and parse output.")
     parser.add_argument("--project", type=Path, help="Path to a project.json/project folder.")
     parser.add_argument("--query", type=Path, help="Candidate proteome FASTA used as -i.")
+    parser.add_argument(
+        "--expected-accessions",
+        type=Path,
+        help=(
+            "Plain accession list or TSV/CSV with an ID column for the expected "
+            "candidate IDs. Passed through to parse_fedkea.py so output "
+            "accessions are checked for joinability back to the submitted "
+            "candidate subset."
+        ),
+    )
     parser.add_argument("--outdir", type=Path, help="FEDKEA result output directory (-o).")
     parser.add_argument("--datadir", type=Path, help="FEDKEA model/data directory (-d).")
     parser.add_argument("--gpu", help="GPU ids as string, e.g. '0' or '0,1'; omit for CPU (-g).")
@@ -109,6 +119,33 @@ def build_command(
     return cmd
 
 
+def parse_command(
+    root: Path,
+    outdir: Path,
+    tool_version: str,
+    results_tsv: Path,
+    expected_accessions: Path | None = None,
+) -> list[str]:
+    """Build the post-FedKEA parse command as a list of CLI strings."""
+    cmd = [
+        sys.executable,
+        str(Path(__file__).with_name("parse_fedkea.py")),
+        "--output",
+        str(results_tsv),
+        "--tool-version",
+        tool_version,
+    ]
+    if (outdir / "binary_result.txt").is_file():
+        cmd += ["--binary-result", str(outdir / "binary_result.txt")]
+    if (outdir / "enzyme_result_with_probability.csv").is_file():
+        cmd += ["--probability-csv", str(outdir / "enzyme_result_with_probability.csv")]
+    if (outdir / "enzyme_result_with_confidence.csv").is_file():
+        cmd += ["--confidence-csv", str(outdir / "enzyme_result_with_confidence.csv")]
+    if expected_accessions is not None:
+        cmd += ["--expected-accessions", str(expected_accessions)]
+    return cmd
+
+
 def build_env(fed_cfg: dict[str, Any], extra: list[str]) -> dict[str, str]:
     """Return an environment dict for the FEDKEA subprocess.
 
@@ -137,6 +174,7 @@ def parse_fedkea(
     required_files: list[str],
     tool_version: str,
     results_tsv: Path,
+    expected_accessions: Path | None = None,
 ) -> int:
     binary = outdir / "binary_result.txt"
     probability = outdir / "enzyme_result_with_probability.csv"
@@ -146,20 +184,7 @@ def parse_fedkea(
         print(f"missing FEDKEA result files: {', '.join(missing)}", file=sys.stderr)
         return 2
 
-    cmd = [
-        sys.executable,
-        str(Path(__file__).with_name("parse_fedkea.py")),
-        "--output",
-        str(results_tsv),
-        "--tool-version",
-        tool_version,
-    ]
-    if binary.is_file():
-        cmd += ["--binary-result", str(binary)]
-    if probability.is_file():
-        cmd += ["--probability-csv", str(probability)]
-    if confidence.is_file():
-        cmd += ["--confidence-csv", str(confidence)]
+    cmd = parse_command(root, outdir, tool_version, results_tsv, expected_accessions)
     print(collection_cmd(cmd))
     return subprocess.run(cmd, cwd=str(root)).returncode
 
@@ -171,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     out_cfg = project.get("output") or {}
 
     query = args.query or Path(fed_cfg.get("candidate_proteome", "outputs/sequence_screening/sequence_candidates.faa"))
+    expected_accessions = args.expected_accessions or fed_cfg.get("expected_accessions")
     outdir = args.outdir or Path(fed_cfg.get("local_result_dir", "outputs/fedkea/result"))
     datadir = args.datadir or Path(fed_cfg.get("data_dir", fed_cfg.get("datadir", "data")))
     gpu = args.gpu if args.gpu is not None else fed_cfg.get("gpu")
@@ -185,6 +211,9 @@ def main(argv: list[str] | None = None) -> int:
     run_env = build_env(fed_cfg, args.env_var)
 
     query = resolve(query, root)
+    if expected_accessions is not None:
+        expected_accessions = Path(expected_accessions)
+        expected_accessions = resolve(expected_accessions, root)
     outdir = resolve(outdir, root)
     datadir = resolve(datadir, root)
     script_path = resolve(script_path, root)
@@ -227,7 +256,14 @@ def main(argv: list[str] | None = None) -> int:
         return result.returncode
 
     results_tsv = outdir.parent / "fedkea_results.tsv"
-    parsed = parse_fedkea(root, outdir, required_files, tool_version, results_tsv)
+    parsed = parse_fedkea(
+        root,
+        outdir,
+        required_files,
+        tool_version,
+        results_tsv,
+        expected_accessions=expected_accessions,
+    )
     if parsed != 0:
         write_checkpoint(checkpoint, "failed", "fedkea", cmd, [], "parse step failed")
         return parsed

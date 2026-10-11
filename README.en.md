@@ -202,6 +202,13 @@ SignalP https://services.healthtech.dtu.dk/services/SignalP-6.0/
 
 For candidate lists shorter than 20 sequences, the FedKEA web server is usually the fastest validation route. For larger batches, install FedKEA locally and point `validation_inputs.fedkea.script_path` at its `main.py`.
 
+FedKEA should normally be run on the candidate protein FASTA produced by
+`extract_candidate_sequences.py`, not on the full proteome, unless the user
+explicitly requests a whole-proteome enzyme scan. Candidate FASTA headers must
+keep the accession as the first field (for example `>WP_...`), and the wrapper
+can verify output accession joinability with `--expected-accessions` (or
+`validation_inputs.fedkea.expected_accessions` in `project.json`).
+
 For DEER checkpoints on a server without Hugging Face access, place the model files under the configured `tools.deer.ckpt_dir` and set `tools.deer.skip_hf_checkpoint: true` before running.
 
 ---
@@ -258,28 +265,15 @@ neutral sphingomyelinase and provide a verifiable experimental design."
 
 Agent:
 - Use `build-target-function-card` for neutral sphingomyelinase / EC 3.1.4.12
-- Prepare the reference enzyme set automatically or manually, and record NCBI,
-  PDB, and/or UniProt provenance
-- Aggressively check each genome and structure repository path; reject
-  empty/missing required input before heavy work
-- Run `preflight_inputs.py` before heavy work and verify each genome's `.faa`,
-  `.ffn`, `.gbff`, and candidate structure directory
-- Run `screen-sequence-candidates` on each genome: CD-HIT deduplication
-  (single-genome 100%, multi-genome 95%), then DIAMOND screening
-- For each genome, first check whether a DIAMOND hit already matches the
-  neutral sphingomyelinase / EC 3.1.4.12 annotation; if yes, mark
-  `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure steps
-- Only when sequence hits lack matching annotation, check candidate structure
-  files; if missing, run `structure-prediction`, then use
-  `screen-structure-candidates` to US-align all available candidate structure
-  files for that genome directly
-- Treat DEER as a per-genome fallback only when US-align lacks enough suitable
-  candidates and the user agrees (for example, `Staphylococcus_xylosus`)
-- Validate final candidates with FedKEA and keep the binary/enzyme/probability
-  outputs
+- Prepare the reference enzyme set automatically or manually, and record NCBI, PDB, and/or UniProt provenance
+- Aggressively check each genome and structure repository path; reject empty/missing required input before heavy work
+- Run `preflight_inputs.py` before heavy work and verify each genome's `.faa`, `.ffn`, `.gbff`, and candidate structure directory
+- Run `screen-sequence-candidates` on each genome: CD-HIT deduplication (100%), then DIAMOND screening
+- For each genome, first check whether a DIAMOND hit already matches the neutral sphingomyelinase / EC 3.1.4.12 annotation; only when sequence hits lack matching annotation, check candidate structure files:
+- If structure is missing, run `structure-prediction`, then use `screen-structure-candidates` to US-align all available candidate structure files for that genome directly; treat DEER as a per-genome fallback only when US-align lacks enough suitable candidates and the user agrees
+- Validate final candidates with FedKEA and keep the binary/enzyme/probability outputs
 - Use `literature-evidence` to attach verifiable PMID/DOI evidence
-- Score with `score_candidates.py` and output per-species candidate tables,
-  representative candidates, and experimental design
+- Score with `score_candidates.py` and output per-species candidate tables, representative candidates, and experimental design
 
 The response clearly reports:
 - whether each species has candidates

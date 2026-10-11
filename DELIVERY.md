@@ -87,7 +87,9 @@ Use these directly or through the agent skills:
   citations are available so hypotheses include literature-backed citations.
 - `extract_candidate_sequences.py`: extracts final candidate proteins, CDS,
   gene nucleotide sequences, and optional SignalP-cleaved mature proteins from
-  source FASTA files.
+  source FASTA files. When those FASTA files are later used as FedKEA input,
+  the extracted files use clean accession-only headers so FedKEA output
+  accessions can be joined back to the candidate subset.
 - `validate_schema.py`: checks output TSVs against `schemas/`.
 - `example_test.py`: end-to-end example test against synthetic inputs. It
   verifies that the parsing, merge, and scoring scripts work together without
@@ -138,7 +140,11 @@ run these themselves, point them to the upstream repositories:
 For candidate lists shorter than 20 sequences, the FedKEA web server is usually
 the fastest validation route. For larger batches, recommend installing FedKEA
 locally and giving `validation_inputs.fedkea.script_path` the path to its
-`main.py`.
+`main.py`. By default FedKEA runs on the candidate subset produced by
+sequence/structure screening, not on the full proteome. Use
+`--expected-accessions` or `validation_inputs.fedkea.expected_accessions` so
+the parse step verifies that FedKEA output accessions can be joined to the
+submitted candidates; zero overlap is a failed validation step.
 
 When running FedKEA locally inside a conda environment, the wrapper expects
 `python` to be the FedKEA environment's interpreter because `main.py` launches

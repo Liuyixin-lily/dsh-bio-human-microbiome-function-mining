@@ -26,6 +26,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--project", required=True, help="Path to project JSON.")
     parser.add_argument("--outdir", required=True, help="Output directory.")
     parser.add_argument(
+        "--candidate-id-column",
+        help=(
+            "Column in the candidates TSV that holds candidate protein IDs. "
+            "Default: auto-detect candidate_id/query_id/protein_id/id/subject_refseq."
+        ),
+    )
+    parser.add_argument(
         "--signalp-tsv",
         type=pathlib.Path,
         help="Optional candidate_signal_peptides.tsv from scripts/run_signalp.py.",
@@ -73,19 +80,30 @@ def read_project(project_path: pathlib.Path) -> dict:
         return json.load(f)
 
 
-def read_candidate_ids(candidates_path: pathlib.Path) -> list[str]:
+def read_candidate_ids(candidates_path: pathlib.Path, candidate_id_column: str | None = None) -> list[str]:
     ids = []
     with candidates_path.open("r", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter="\t")
-        for row in reader:
+        if not reader.fieldnames:
+            return ids
+        if candidate_id_column:
+            if candidate_id_column not in reader.fieldnames:
+                raise ValueError(
+                    f"--candidate-id-column {candidate_id_column!r} not in {candidates_path} "
+                    f"(available: {', '.join(reader.fieldnames)})"
+                )
+            cid_key = candidate_id_column
+        else:
             cid_key = "candidate_id"
-            if cid_key not in row:
-                for candidate in ("query_id", "protein_id", "id"):
-                    if candidate in row and row[candidate]:
+            if cid_key not in reader.fieldnames:
+                for candidate in ("query_id", "protein_id", "id", "subject_refseq"):
+                    if candidate in reader.fieldnames:
                         cid_key = candidate
                         break
-            if row.get(cid_key):
-                ids.append(row[cid_key])
+        for row in reader:
+            cid = (row.get(cid_key) or "").strip()
+            if cid:
+                ids.append(cid)
     return ids
 
 
@@ -272,7 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     outdir = pathlib.Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    candidate_ids = read_candidate_ids(candidates_path)
+    candidate_ids = read_candidate_ids(candidates_path, args.candidate_id_column)
     project = read_project(project_path)
     source_map = find_source_map(project)
     signalp = read_signalp(args.signalp_tsv)
@@ -347,24 +365,27 @@ def main(argv: list[str] | None = None) -> int:
         print("No candidate sequences extracted.", file=sys.stderr)
         return 1
 
+    # FedKEA uses the first whitespace-delimited token of each FASTA header as
+    # the accession in its binary/EC output. Use a clean accession-only header
+    # so downstream accession joins do not collapse to "MULTISPECIES:".
     with (outdir / "candidate_proteins.faa").open("w", encoding="utf-8", newline="\n") as f:
         for cid in [r["candidate_id"] for r in rows]:
-            header, seq = protein_all[cid]
-            f.write(header + "\n")
+            _header, seq = protein_all[cid]
+            f.write(f">{cid}\n")
             for i in range(0, len(seq), 60):
                 f.write(seq[i : i + 60] + "\n")
 
     with (outdir / "candidate_cds.ffn").open("w", encoding="utf-8", newline="\n") as f:
         for cid in [r["candidate_id"] for r in rows]:
-            header, seq = cds_all[cid]
-            f.write(header + "\n")
+            _header, seq = cds_all[cid]
+            f.write(f">{cid}\n")
             for i in range(0, len(seq), 60):
                 f.write(seq[i : i + 60] + "\n")
 
     with (outdir / "candidate_gene_sequences.fna").open("w", encoding="utf-8", newline="\n") as f:
         for cid in [r["candidate_id"] for r in rows]:
-            header, seq = gene_all[cid]
-            f.write(header + "\n")
+            _header, seq = gene_all[cid]
+            f.write(f">{cid}\n")
             for i in range(0, len(seq), 60):
                 f.write(seq[i : i + 60] + "\n")
 

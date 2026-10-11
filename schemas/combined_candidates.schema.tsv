@@ -129,6 +129,17 @@ backward compatibility; `priority_order` gives the numeric rank used for sort.
 - `confidence` in FedKEA output is a categorical label (`High`, `Medium`, `Low`). Store it in `fedkea_notes` or add a dedicated `fedkea_ec_confidence` field if needed.
 - Preserve the original FedKEA file paths so every FedKEA field can be traced back to its source.
 - `fedkea_tool_version` should record the FedKEA version or exact software/repository tag when available.
+- FedKEA should be run on the candidate subset submitted for validation, not on
+  the full proteome unless the user requested a whole-proteome enzyme scan.
+  Input FASTA headers should keep the accession as the first field with no
+  description (for example `>WP_...`); multi-word headers can make FedKEA emit
+  `MULTISPECIES:` or truncated accessions that cannot be joined back.
+- `fedkea_notes` should record accession-check status when
+  `--expected-accessions` is used. `accession_check=expected=N actual=M
+  matched=ok` means the output joined cleanly. `partial_missing`,
+  `partial_unexpected`, or `partial_mismatch` are warnings with missing and
+  unexpected accession samples. Zero overlap should be treated as a failed
+  FedKEA step and should not be merged into scoring.
 - `literature_evidence_file` should point to `literature_evidence.tsv` or another verified citation table for the candidate.
 - `literature_evidence_count` is the number of verified literature rows for this candidate or candidate organism.
 - `literature_direct_functional` should be `yes` only when a verified publication directly demonstrates the candidate organism or candidate protein performs the target reaction.
