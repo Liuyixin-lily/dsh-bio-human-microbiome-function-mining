@@ -270,7 +270,7 @@ Agent:
 - Aggressively check each genome and structure repository path; reject empty/missing required input before heavy work
 - Run `preflight_inputs.py` before heavy work and verify each genome's `.faa`, `.ffn`, `.gbff`, and candidate structure directory
 - Run `screen-sequence-candidates` on each genome: CD-HIT deduplication (100%), then DIAMOND screening
-- For each genome, first check whether a DIAMOND hit already matches the neutral sphingomyelinase / EC 3.1.4.12 annotation; only when there is no sequence hit, check all candidate structure files;
+- For each genome, first check whether a DIAMOND hit already matches the neutral sphingomyelinase / EC 3.1.4.12 annotation; only when there is **no sequence hit, or a hit whose annotation does not match**, check all candidate structure files;
 - If structure is missing, run `structure-prediction`, then use `screen-structure-candidates` to US-align all available candidate structure files for that genome directly; treat DEER as a per-genome fallback only when US-align yields no qualifying candidate for that genome, or too few of them, and the user agrees
 - Validate final candidates with FedKEA and keep the binary/enzyme/probability outputs
 - Use `literature-evidence` to attach verifiable PMID/DOI evidence

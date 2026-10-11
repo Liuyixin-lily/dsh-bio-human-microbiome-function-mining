@@ -270,7 +270,7 @@ Agent:
 - 严格检查用户给的基因组和结构仓库路径，缺文件或空文件在重型流程前报错
 - 跑重流程前执行 `preflight_inputs.py`，对三个基因组逐个核对 `.faa`、`.ffn`、`.gbff` 和候选结构目录
 - 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余（100%），再 DIAMOND 筛选
-- 先看每个 DIAMOND 命中是否已有注释匹配 neutral sphingomyelinase /EC 3.1.4.12；只有序列无命中时，才检查全部候选结构文件；
+- 先看每个 DIAMOND 命中是否已有注释匹配 neutral sphingomyelinase /EC 3.1.4.12；只有**序列无命中、或命中但注释不匹配**时，才检查全部候选结构文件；
 - 缺少结构就跑 `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组所有候选结构文件直接 US-align；按基因组分别判断：某基因组**完全没有 US-align 合格候选**、或合格候选不足；此时经用户同意才跑 DEER fallback
 - 用 FedKEA 对最终候选做酶/EC 验证，并保留 binary/enzyme/probability 结果
 - 用 `literature-evidence` 补充可验证的 PMID/DOI 证据链
