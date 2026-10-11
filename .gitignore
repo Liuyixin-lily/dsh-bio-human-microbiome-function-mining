@@ -6,3 +6,10 @@ __pycache__/
 .DS_Store
 project.json
 *.local.json
+
+# Codex / other host-side plugin copies. These are build-time host artifacts that
+# live next to the workspace (e.g. <workspace>/.codex-plugin/, <workspace>/.agents/),
+# not part of this dsh package. This package is dsh-only; do not track them here.
+.codex-plugin/
+.agents/
+README.codex.md
