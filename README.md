@@ -227,15 +227,13 @@ User:
 并给出可以验证的实验方案。"
 
 Agent:
-- 用 `build-target-function-card` 由产物反推反应 sphingomyelin + H2O -> ceramide + phosphocholine（EC 3.1.4.12），
-  写成 `target_function_card.json`
+- 用 `build-target-function-card` 由产物反推反应 sphingomyelin + H2O -> ceramide + phosphocholine（EC 3.1.4.12），写成 `target_function_card.json`
 - 输入清点：把候选蛋白组/基因组、目标序列、目标结构、候选结构目录分成已提供 / 待获取；「已提供」的一律直接用，不下载、不重注释、不预测、不覆盖；仅对「待获取」的候选用 `genome-search` / `genome-download` / `genome-annotation`
   准备候选 proteome；参考酶集同理，用户已给目标序列/结构时直接加载
 - 用 `preflight_inputs.py` 校验并固化这个划分，缺文件或空文件在重型流程前报错
-- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%，多基因组 95%），再 DIAMOND 序列筛选
+- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 序列筛选
 - 用 `parse_source_annotations.py` 解析 `.faa`/`.gbff` 已有的 protein/gene、EC、Pfam/InterPro/KEGG 注释
-- 快速通道优先：DIAMOND 命中且注释匹配目标即标记 `SEQUENCE_ANNOTATION_CONFIRMED`，跳过结构预测、US-align 与 DEER；仅有 `sph` 注释不足以单独成立
-- 只有快速通道未成立时才继续结构路线：缺结构先跑 `structure-prediction`，再用 `screen-structure-candidates` 对全部候选结构直接 US-align；仍无合格候选且用户同意时才跑 DEER fallback
+- 快速通道优先：DIAMOND 命中且注释匹配目标即标记 `SEQUENCE_ANNOTATION_CONFIRMED`
 - 用 `literature-evidence` 补充可验证的 PMID/DOI 证据链（只保留核验过的）
 - 用 `score_candidates.py` 按优先级规则排序，输出 `scored_candidates_full.tsv`、`experimental_hypotheses.tsv` 和 `experimental_design.md`
 

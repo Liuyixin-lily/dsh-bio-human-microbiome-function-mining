@@ -228,35 +228,15 @@ Predict whether the skin microbe Staphylococcus epidermidis
 verifiable experimental design."
 
 Agent:
-- Use `build-target-function-card` to infer the reaction from the reported
-  products: sphingomyelin + H2O -> ceramide + phosphocholine (EC 3.1.4.12),
-  written into `target_function_card.json`
-- Inventory the inputs: split candidate proteome/genome, target sequence, target
-  structure and candidate structure directory into PROVIDED vs TO ACQUIRE.
-  PROVIDED items are used as-is - no download, re-annotation, prediction or
-  overwrite; use `genome-search` / `genome-download` / `genome-annotation` to
-  prepare candidate proteomes **only for TO ACQUIRE items**, and likewise load
-  the reference enzyme set directly when the user already supplied the target
-  sequence/structure
-- Verify and pin that split with `preflight_inputs.py`; fail before heavy work
-  when a required path is missing or empty
-- Use `screen-sequence-candidates` to run CD-HIT deduplication (single-genome
-  100%, multi-genome 95%) then DIAMOND sequence screening
-- Parse existing `.faa`/`.gbff` protein/gene names, ECs and Pfam/InterPro/KEGG
-  annotations with `parse_source_annotations.py`
-- Apply the fast path first: a DIAMOND hit with matching annotation for the
-  target marks the row `SEQUENCE_ANNOTATION_CONFIRMED` and skips
-  structure-prediction, US-align and DEER. A clear `sph` annotation alone does
-  not qualify
-- Only when the fast path does not confirm the target, continue to structure:
-  run `structure-prediction` if structure files are missing, then US-align all
-  candidate structures with `screen-structure-candidates`; use DEER fallback
-  only if still insufficient and the user agrees
-- Attach a verifiable PMID/DOI evidence chain with `literature-evidence`
-  (verified references only)
-- Rank with `score_candidates.py` by the explicit priority rules and output
-  `scored_candidates_full.tsv`, `experimental_hypotheses.tsv` and
-  `experimental_design.md`
+- Use `build-target-function-card` to infer the reaction from the reported products: sphingomyelin + H2O -> ceramide + phosphocholine (EC 3.1.4.12), written into `target_function_card.json`
+- Inventory the inputs: split candidate proteome/genome, target sequence, target structure and candidate structure directory into PROVIDED vs TO ACQUIRE. PROVIDED items are used as-is - no download, re-annotation, prediction or overwrite; use `genome-search` / `genome-download` / `genome-annotation`
+  to prepare candidate proteomes **only for TO ACQUIRE items**, and likewise load the reference enzyme set directly when the user already supplied the target sequence/structure
+- Verify and pin that split with `preflight_inputs.py`; fail before heavy work when a required path is missing or empty
+- Use `screen-sequence-candidates` to run CD-HIT deduplication (single-genome 100%) then DIAMOND sequence screening
+- Parse existing `.faa`/`.gbff` protein/gene names, ECs and Pfam/InterPro/KEGG annotations with `parse_source_annotations.py`
+- Apply the fast path first: a DIAMOND hit with matching annotation for the target marks the row `SEQUENCE_ANNOTATION_CONFIRMED`
+- Attach a verifiable PMID/DOI evidence chain with `literature-evidence` (verified references only)
+- Rank with `score_candidates.py` by the explicit priority rules and output `scored_candidates_full.tsv`, `experimental_hypotheses.tsv` and `experimental_design.md`
 
 The response clearly reports:
 - whether candidate genes are detected
