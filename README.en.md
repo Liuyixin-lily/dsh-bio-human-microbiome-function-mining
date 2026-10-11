@@ -50,7 +50,7 @@ human_microbiome_function_mining/
 - `build-target-function-card`: standardizes target inputs and generates the Target Function Card.
 - `screen-sequence-candidates`: runs or consumes DIAMOND sequence screening; defaults to CD-HIT deduplication first (100% for single-genome datasets, 95% for multi-genome pan-proteomes).
 - `structure-prediction`: retrieves or predicts missing candidate structures with priority experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` > homology model > de novo prediction. The bundled PDB/AFDB/homology helper scripts are under `skills/structure-prediction/scripts/` and produce `structure/<protein_sequence_id>.pdb` for US-align.
-- `screen-structure-candidates`: structural evidence screening. First check whether candidate structure files exist; if structures are missing, run the bundled `structure-prediction` sub-skill before US-aligning all available candidate structures. Use DEER as a fallback only for a genome when US-align does not yield enough suitable candidates and the user agrees. Activate this route only when sequence screening plus existing annotation do not together confirm the target function.
+- `screen-structure-candidates`: structural evidence screening. First check whether candidate structure files exist; if structures are missing, run the bundled `structure-prediction` sub-skill before US-aligning all available candidate structures. Use DEER as a fallback only for a genome when US-align yields no qualifying candidate at all, or not enough of them, and the user agrees. Activate this route only when sequence screening plus existing annotation do not together confirm the target function.
 - `literature-evidence`: literature evidence audit. When MCP literature tools are available, follow a `nature-academic-search` style workflow; otherwise provide search terms or accept user-provided verified citation files. Never fabricate PMID/DOI.
 - `genome-search`: select candidate GCF/GCA assemblies from NCBI Assembly/BioSample metadata.
 - `genome-download`: batch-download RefSeq/GCF or GenBank/GCA genome files.
@@ -75,7 +75,7 @@ target enzyme / EC / substrate-product
   -> otherwise check candidate structure files (PDB/CIF)
   -> if structures missing, run bundled structure-prediction sub-skill
   -> direct US-align against the reference target structure for all available candidate structures
-  -> DEER only as fallback for genomes without enough US-align candidates
+  -> DEER only as fallback for genomes with no US-align candidate or too few of them
   -> optional SignalP cleavage prediction for final candidate proteins
   -> optional catalytic-pocket, genome-context, and ecological evidence
   -> optional FedKEA enzyme/EC evidence
@@ -124,7 +124,7 @@ sub-skill (experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` >
 homology model > de novo) and continue only after the returned structures are
 materialized as `structure/<protein_sequence_id>.pdb`. Then use US-align on all
 available candidate structure files. Use DEER only for a genome when US-align
-does not produce enough suitable candidates for that genome and the user agrees.
+yields no qualifying candidate for that genome, or not enough of them, and the user agrees.
 
 ---
 
@@ -270,7 +270,7 @@ Agent:
 - Run `preflight_inputs.py` before heavy work and verify each genome's `.faa`, `.ffn`, `.gbff`, and candidate structure directory
 - Run `screen-sequence-candidates` on each genome: CD-HIT deduplication (100%), then DIAMOND screening
 - For each genome, first check whether a DIAMOND hit already matches the neutral sphingomyelinase / EC 3.1.4.12 annotation; only when there is no sequence hit, check all candidate structure files;
-- If structure is missing, run `structure-prediction`, then use `screen-structure-candidates` to US-align all available candidate structure files for that genome directly; treat DEER as a per-genome fallback only when US-align lacks enough suitable candidates and the user agrees
+- If structure is missing, run `structure-prediction`, then use `screen-structure-candidates` to US-align all available candidate structure files for that genome directly; treat DEER as a per-genome fallback only when US-align yields no qualifying candidate for that genome, or too few of them, and the user agrees
 - Validate final candidates with FedKEA and keep the binary/enzyme/probability outputs
 - Use `literature-evidence` to attach verifiable PMID/DOI evidence
 - Score with `score_candidates.py` and output per-species candidate tables, representative candidates, and experimental design

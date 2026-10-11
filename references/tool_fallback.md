@@ -120,7 +120,8 @@ helper stages and the wrapper wrote `fedkea_results.tsv` with the expected
   <https://github.com/WangJiuming/deer>
 
 - DEER is a fallback only.
-- Use DEER when US-align does not produce enough suitable candidates. The
+- Use DEER when US-align yields no qualifying candidate for a genome, or does
+  not produce enough suitable candidates. The
   `scripts/run_deer.py` wrapper automatically detects which configured source
   genome has zero US-align structural candidates and triggers DEER for that
   genome, after the user agrees and only when `deer.enabled` is true.

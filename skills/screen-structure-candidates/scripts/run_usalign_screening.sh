@@ -24,9 +24,9 @@ Options:
   --tool-version TEXT  USalign version string
   -h, --help           Show this help
 
-DEER remains a fallback only. Run it manually when US-align does not yield
-enough suitable candidates, then record DEER evidence as additional rows in
-structural_candidates.tsv.
+DEER remains a fallback only. Run it manually when US-align yields no qualifying
+candidate at all for a genome, or not enough suitable candidates, then record
+DEER evidence as additional rows in structural_candidates.tsv.
 EOF
 }
 

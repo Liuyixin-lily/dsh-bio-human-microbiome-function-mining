@@ -11,6 +11,6 @@ only after the returned structures are materialized as
 `structure/<protein_sequence_id>.pdb`.
 
 DEER is a fallback only. It should be attempted only when US-align produces
-insufficient suitable candidates and the user agrees. DEER output can be added
+no qualifying candidate at all, or insufficient suitable candidates, and the user agrees. DEER output can be added
 as extra structure evidence rows, but it never replaces US-align as the primary
 structural screen.

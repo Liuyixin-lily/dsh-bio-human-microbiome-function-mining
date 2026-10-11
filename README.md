@@ -52,7 +52,7 @@ human_microbiome_function_mining/
 - `build-target-function-card`: 标准化目标输入，生成 Target Function Card。
 - `screen-sequence-candidates`: 运行或消费 DIAMOND 序列筛选，默认先做 CD-HIT 去冗余；单菌单基因组默认 100%，多基因组泛蛋白组默认 95%。
 - `structure-prediction`: 当候选蛋白没有已知结构文件时，按 PDB > AlphaFold DB（mean pLDDT >= 60）> homology model > de novo prediction 的优先级检索或预测结构；内置的 PDB/AFDB/homology 辅助脚本在 `skills/structure-prediction/scripts/` 中，为 US-align 准备 `structure/<protein_sequence_id>.pdb`。
-- `screen-structure-candidates`: 结构证据筛选。先检查候选结构文件是否存在；没有结构文件时先运行内置 `structure-prediction` 子 skill 获取候选结构，再对全部候选结构直接 US-align；只有某个基因组 US-align 候选不足时才按用户同意跑 DEER fallback。仅在“序列筛选 + 已有注释”没有共同确认目标功能时才启用。
+- `screen-structure-candidates`: 结构证据筛选。先检查候选结构文件是否存在；没有结构文件时先运行内置 `structure-prediction` 子 skill 获取候选结构，再对全部候选结构直接 US-align；只有某个基因组**完全没有 US-align 合格候选、或合格候选不足**时，才按用户同意跑 DEER fallback。仅在“序列筛选 + 已有注释”没有共同确认目标功能时才启用。
 - `literature-evidence`: 文献证据审计。可用 MCP 文献工具时走 `nature-academic-search` 类流程，否则给出检索词或接收用户提供的已验证引用文件；禁止编造 PMID/DOI。
 - `genome-search`: 从 NCBI Assembly/BioSample 元数据中选择候选 GCF/GCA。
 - `genome-download`: 批量下载 RefSeq/GCF 或 GenBank/GCA 基因组文件。
@@ -77,7 +77,7 @@ target enzyme / EC / substrate-product
   -> otherwise check candidate structure files (PDB/CIF)
   -> if structures missing, run bundled structure-prediction sub-skill
   -> direct US-align against the reference target structure for all available candidate structures
-  -> DEER only as fallback for genomes without enough US-align candidates
+  -> DEER only as fallback for genomes with no US-align candidate or too few of them
   -> optional SignalP cleavage prediction for final candidate proteins
   -> optional catalytic-pocket, genome-context, and ecological evidence
   -> optional FedKEA enzyme/EC evidence
@@ -127,7 +127,7 @@ sub-skill (experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` >
 homology model > de novo) and continue only after the returned structures are
 materialized as `structure/<protein_sequence_id>.pdb`. Then use US-align on all
 available candidate structure files. Use DEER only for a genome when US-align
-does not produce enough suitable candidates for that genome and the user agrees.
+yields no qualifying candidate for that genome, or not enough of them, and the user agrees.
 
 ---
 
@@ -270,7 +270,7 @@ Agent:
 - 跑重流程前执行 `preflight_inputs.py`，对三个基因组逐个核对 `.faa`、`.ffn`、`.gbff` 和候选结构目录
 - 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余（100%），再 DIAMOND 筛选
 - 先看每个 DIAMOND 命中是否已有注释匹配 neutral sphingomyelinase /EC 3.1.4.12；只有序列无命中时，才检查全部候选结构文件；
-- 缺少结构就跑 `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组所有候选结构文件直接 US-align；按基因组分别判断是否 US-align 合格候选不足；不足且用户同意时，才跑 DEER fallback
+- 缺少结构就跑 `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组所有候选结构文件直接 US-align；按基因组分别判断：某基因组**完全没有 US-align 合格候选**、或合格候选不足；此时经用户同意才跑 DEER fallback
 - 用 FedKEA 对最终候选做酶/EC 验证，并保留 binary/enzyme/probability 结果
 - 用 `literature-evidence` 补充可验证的 PMID/DOI 证据链
 - 用 `score_candidates.py` 排序，输出每个物种的候选表、代表候选与实验设计
@@ -306,7 +306,7 @@ Agent:
 - 只有序列命中但注释不匹配或无注释时，才检查候选结构是否存在；无则跑
   `structure-prediction`，有则用 `screen-structure-candidates` 对全部候选
   结构文件直接 US-align
-- 只有当没有 fast-path 候选且 US-align 合格候选不足时，经用户同意才跑
+- 只有当没有 fast-path 候选、且某基因组**完全没有 US-align 合格候选或合格候选不足**时，经用户同意才跑
   DEER fallback
 - 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
 - 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后再按明确

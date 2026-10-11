@@ -4,8 +4,8 @@ description: >-
   Screen candidate protein structures against a reference target structure.
   First check whether candidate structure files exist and, if they are missing,
   run the bundled structure-prediction sub-skill. Then use US-align directly on
-  all available candidate structure files, and try DEER only when US-align does
-  not yield enough suitable candidates for a genome.
+  all available candidate structure files, and try DEER only when US-align
+  yields no qualifying candidate for a genome, or not enough of them.
 language: mixed
 category: protocol
 ---
@@ -20,7 +20,7 @@ structure-supported candidates before final evidence integration.
 configured executables and structure files are accessible from the current
 terminal and `auto_run_local` is enabled. Otherwise the Agent gives the user
 the exact command and consumes the returned output files. DEER remains a
-fallback only and is attempted only after US-align does not produce enough
+fallback only and is attempted only when US-align yields none or does not produce enough
 suitable candidates and the user agrees.
 
 ## Principle
@@ -39,8 +39,9 @@ equivalent options:
 3. Run **US-align** directly against the reference target structure for every
    available candidate structure file.
 4. Keep US-align-passing candidates as structure-supported evidence.
-5. **Only if US-align does not produce enough suitable candidates for a
-   genome**, try **DEER** to retrieve additional structure-based candidates.
+5. **Only if US-align yields no qualifying candidate at all for a genome, or
+   does not produce enough suitable candidates for that genome**, try **DEER**
+   to retrieve additional structure-based candidates.
 6. Do not claim a structural hit as functional proof. All outputs are hypotheses
    for later candidate scoring and experimental validation.
 

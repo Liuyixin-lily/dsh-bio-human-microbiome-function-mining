@@ -163,11 +163,13 @@ Normalize the input into a target function card before searching. Include when a
    structure files are accessible from this terminal, run the configured batch
    command; otherwise instruct the user with the exact batch command and
    consume its `-outfmt 2` output.
-9. If a source genome has no US-align candidate above the configured
-   structural threshold, treat DEER as a fallback for that genome only. Run it
-   locally only when the executable, model checkpoint, and candidate/template
-   structure paths are accessible from this terminal; otherwise give the user
-   the exact command and wait for the returned DEER output.
+9. Treat DEER as a per-genome fallback in either of two cases: the genome has
+   **no US-align candidate at all**, or it has **no candidate above the
+   configured structural threshold** (too few qualifying candidates). Attempt it
+   only with the user's agreement, and run it locally only when the executable,
+   model checkpoint, and candidate/template structure paths are accessible from
+   this terminal; otherwise give the user the exact command and wait for the
+   returned DEER output. Never use DEER to replace US-align.
 10. Keep `structural_candidates.tsv` as the full structure-supported candidate list, not only rescued proteins.
 11. Map reference catalytic residues and compare active pockets for
     structure-screened candidates only.

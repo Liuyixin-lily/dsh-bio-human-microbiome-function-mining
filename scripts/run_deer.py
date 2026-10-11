@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Run DEER retrieval as a fallback after US-align finds no candidates for a genome.
+"""Run DEER retrieval as a fallback when a genome has no qualifying US-align
+candidate at all, or too few of them.
 
 This wrapper follows the DEER command documented by the upstream repository:
 

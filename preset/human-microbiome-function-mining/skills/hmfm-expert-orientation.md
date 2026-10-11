@@ -40,7 +40,7 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 ## 3. 铁律
 
 - 先标准化目标输入，再找候选。
-- 对所有候选结构直接 US-align；没有足够合格候选时才 DEER fallback，且必须
+- 对所有候选结构直接 US-align；某基因组**完全没有合格候选**、或合格候选不足时才 DEER fallback，且必须
   先征求用户同意。
 - 文献检索必须验证 PMID/DOI；MCP 文献工具不可用时只降级 OpenAlex 或等待用户
   提供 verified citation 文件，绝不编造文献。
