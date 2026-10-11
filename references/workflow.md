@@ -15,7 +15,9 @@ taxa / source metadata / GCF/GCA accessions
 ```
 
 If the user already has a candidate proteome `.faa` and/or annotated `.gbff`,
-skip this preparation step.
+skip this preparation step when gene nucleotide output is not requested. When
+the final deliverables must include gene sequences, also require per-genome
+`.fna` genomic FASTA input or download it through `genome-download`.
 
 ```text
 User input

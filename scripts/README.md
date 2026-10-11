@@ -29,6 +29,12 @@ Available scripts:
   directory contains per-genome symlinks so each DEER hit is mapped to its
   actual source genome.
 - `parse_source_annotations.py`: parses existing `.faa` header annotations and `.gbff` CDS annotations into `source_feature_annotations.tsv`.
+- `parse_signalp.py`: parses SignalP GFF3 output (and optionally a SignalP
+  summary table) into `candidate_signal_peptides.tsv` with one normalized row
+  per candidate, including signal peptide/mature boundaries and cleavage site.
+  SignalP 6 `CS pos: <X>-<Y>` is used as the cleavage-site source of truth:
+  the first X amino acids are removed and the mature protein starts at amino
+  acid position Y (1-based).
 - `merge_candidates.py`: merges sequence, structure, FedKEA, and existing
   source annotations into `combined_candidates.tsv`. Pass `--project
   project.json` when the project JSON records `candidate_sequences.candidates`
@@ -90,6 +96,25 @@ Agent-runnable wrappers:
   then calls `parse_fedkea.py`. When not accessible, writes a pending
   checkpoint with the exact `main.py` command and never calls the FedKEA web
   server programmatically.
+- `run_signalp.py`: runs the configured local SignalP executable when
+  accessible and `auto_run_local` is enabled, otherwise writes a pending
+  checkpoint with the exact SignalP command and consumes returned output.
+  It then parses raw SignalP GFF3 output through `parse_signalp.py` and writes
+  `candidate_signal_peptides.tsv`. SignalP is not bundled with the plugin.
+
+Candidate sequence extraction:
+
+- `extract_candidate_sequences.py`: extracts final candidate proteins,
+  CDS, gene nucleotide sequences, and optional SignalP-cleaved mature proteins
+  from source FASTA files. It reads `--candidates`, `--project`, `--outdir`,
+  and optional `--signalp-tsv`. When genomic `.fna` is available and the CDS
+  header carries an NCBI-style `[location=...]`, it writes the true genomic
+  locus as `candidate_gene_sequences.fna`; otherwise it falls back to the CDS
+  sequence from `.ffn`. If SignalP predicts a secreted protein using the
+  `CS pos: <X>-<Y>` convention (mature start = amino acid position Y), it also
+  writes the signal-peptide-removed sequence as `candidate_mature_proteins.faa`.
+  The TSV `candidate_gene_evidence.tsv` records locus, gene, SignalP, and source
+  provenance columns.
 
 Skill-local launchers:
 

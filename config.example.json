@@ -26,6 +26,18 @@
     "output_provenance": "outputs/task/reference_provenance.json",
     "auto_run_local": true
   },
+  "candidate_sequences": {
+    "description": "Per-genome source files used to extract final candidate protein/CDS/gene records. Provide .fna (genomic nucleotide FASTA) or download it through the bundled genome-download skill.",
+    "genomes": {
+      "Example_genome": {
+        "protein_fasta": "inputs/example_organism/example_organism_protein.faa",
+        "cds_fasta": "inputs/example_organism/example_organism_cds.ffn",
+        "fna": "inputs/example_organism/example_organism_genomic.fna",
+        "gbff": "inputs/example_organism/example_organism_genomic.gbff",
+        "structure_dir": "outputs/predictions/esmfold"
+      }
+    }
+  },
   "output": {
     "task_output_dir": "outputs/task",
     "schema_dir": "human_microbiome_function_mining/schemas"
@@ -76,6 +88,18 @@
       "top_k": 20,
       "tmp_dir": "outputs/alignments/deer/tmp",
       "distance_cutoff": 12.0
+    },
+    "signalp": {
+      "name": "SignalP",
+      "enabled": true,
+      "auto_run_local": false,
+      "executable": "/path/to/signalp6",
+      "org": "gram-positive",
+      "format": "txt",
+      "mode": "fast",
+      "prefix": "candidate_signalp",
+      "output_dir": "outputs/signalp",
+      "tool_version": "SignalP 6.0"
     }
   },
   "validation_inputs": {

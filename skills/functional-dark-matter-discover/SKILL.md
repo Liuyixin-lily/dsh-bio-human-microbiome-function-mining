@@ -40,7 +40,7 @@ Normalize the input into a target function card before searching. Include when a
    returned files.
    Before heavy screening, run `scripts/preflight_inputs.py --project
    project.json`. Verify `inputs.candidate_proteome_fasta` and every configured
-   candidate-genome `.faa`, `.ffn`, `.gbff`, and structure directory. Add
+   candidate-genome `.faa`, `.ffn`, `.fna`, `.gbff`, and structure directory. Add
    `--require-genome-complete` for a complete protein/CDS/GenBank route, or
    `--require-target-sequence` / `--require-target-structure` when the chosen
    target route needs them. Never start sequence/structure screening when
@@ -125,19 +125,30 @@ Normalize the input into a target function card before searching. Include when a
    - Map `binary_result.txt` to `fedkea_is_enzyme` and `fedkea_enzyme_probability`.
    - Map `enzyme_result_with_confidence.csv` to `fedkea_final_result`, `fedkea_ec_confidence_file`, `fedkea_accepted_name`, and `fedkea_other_names`.
    - Keep the original FedKEA file paths and tool version in `fedkea_tool_version` so the validation layer is traceable.
-11. Run the `literature-evidence` sub-skill to search and audit published
+13. When final candidate proteins are selected and the user wants secreted
+    protein mature sequences, run SignalP on `candidate_proteins.faa` through
+    `scripts/run_signalp.py` (only when the local executable is accessible and
+    `tools.signalp.auto_run_local` is enabled) or give the user the exact
+    SignalP command and consume returned GFF3 output through
+    `scripts/parse_signalp.py`. Then run
+    `scripts/extract_candidate_sequences.py` with `--signalp-tsv
+    outputs/signalp/candidate_signal_peptides.tsv` and the project JSON to write
+    `candidate_proteins.faa`, `candidate_cds.ffn`,
+    `candidate_gene_sequences.fna`, `candidate_mature_proteins.faa`, and
+    `candidate_gene_evidence.tsv`.
+14. Run the `literature-evidence` sub-skill to search and audit published
     evidence for the target enzyme and for each candidate protein or candidate
     organism. Use `nature-academic-search` when its MCP literature tools are
     available and the user allows; otherwise fall back to OpenAlex-limited
     search or user-provided citations. Write verified literature rows to
     `literature_evidence.tsv`, add `literature_*` fields to candidate rows, and
     cite only verified PMID/DOI sources in the experimental plan.
-12. Build sequence, structural, existing source-annotation, and literature
+15. Build sequence, structural, existing source-annotation, and literature
     evidence tables and combine them into `combined_candidates.tsv`. Then run
     `scripts/score_candidates.py` to apply the default
     structure-first-then-sequence policy: structure-bearing candidates precede
     sequence-only candidates, and structural score is the primary tie-breaker.
-13. Write one functional hypothesis and one experimental validation plan for
+16. Write one functional hypothesis and one experimental validation plan for
     each high-value candidate.
     - Use `scripts/summarize_candidates.py` to write
       `experimental_hypotheses.tsv` after scoring.
@@ -162,6 +173,9 @@ Return machine-readable evidence whenever possible:
 - `structural_hits.tsv`
 - `sequence_candidates.tsv`（仅序列证据候选排序）
 - `structural_candidates.tsv`（结构证据支持的候选排序）
+- `candidate_sequences/candidate_gene_evidence.tsv`
+- `candidate_sequences/candidate_gene_sequences.fna`
+- `candidate_sequences/candidate_mature_proteins.faa` (optional, SignalP-cleaved)
 - `combined_candidates.tsv`（最终合并候选排序）
 - `literature_evidence.tsv`
 - `experimental_hypotheses.tsv`

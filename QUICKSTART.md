@@ -83,17 +83,19 @@ cp human_microbiome_function_mining/config.minimal.example.json project.json
 
 3. Edit `project.json` with:
    - target enzyme FASTA and target structure PDB, or an EC/reaction
-   - candidate proteome FASTA, optional `.gbff`
+   - candidate proteome FASTA, optional `.gbff`, and, for gene-sequence output,
+     per-genome `.fna` genomic FASTA (or download it through the bundled
+     `genome-download` skill)
    - candidate structure directory, optional
-   - tool paths: DIAMOND, CD-HIT, US-align, optional DEER/FedKEA/Bakta
+   - tool paths: DIAMOND, CD-HIT, US-align, optional DEER/FedKEA/Bakta/SignalP
    - literature sources: MCP literature tools when available, otherwise the
      plugin will give you search terms or accept user-provided verified
      citation files
 
 4. Ask the DeepSeek agent to run the workflow. The workflow starts with
    `scripts/preflight_inputs.py --project project.json` and verifies that
-   candidate genome `.faa`, `.ffn`, `.gbff`, and structure paths exist before
-   running DIAMOND, US-align, DEER, FedKEA, or Bakta.
+   candidate genome `.faa`, `.ffn`, `.fna`, `.gbff`, and structure paths exist
+   before running DIAMOND, US-align, DEER, FedKEA, SignalP, or Bakta.
 5. The agent can execute configured
    tools when they are accessible from the current terminal. If a tool is not
    accessible, the agent prints the exact command for you to run on your own
@@ -138,6 +140,9 @@ The final deliverables are:
 - `outputs/task/combined_candidates_full.tsv`
 - `outputs/task/candidate_sequences/candidate_proteins.faa`
 - `outputs/task/candidate_sequences/candidate_cds.ffn`
+- `outputs/task/candidate_sequences/candidate_gene_sequences.fna`
+- `outputs/task/candidate_sequences/candidate_mature_proteins.faa` when SignalP
+  predicts secreted candidate proteins (signal peptide removed)
 - `outputs/task/candidate_sequences/candidate_gene_evidence.tsv`
 - `outputs/task/summary/high_confidence_candidate_summary.tsv`
 - `outputs/task/summary/final_target_candidates.tsv`

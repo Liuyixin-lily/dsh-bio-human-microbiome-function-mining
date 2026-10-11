@@ -42,6 +42,7 @@ def configured_genome_inputs(project: dict[str, Any]) -> list[tuple[str, str, st
     kinds = {
         "protein_fasta": ("file", False),
         "cds_fasta": ("file", True),
+        "fna": ("file", True),
         "gbff": ("file", True),
         "structure_dir": ("directory", True),
     }
@@ -81,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--require-genome-complete",
         action="store_true",
-        help="Treat optional .faa/.ffn/.gbff entries as fatal when missing or empty.",
+        help="Treat optional .faa/.ffn/.fna/.gbff entries as fatal when missing or empty.",
     )
     parser.add_argument(
         "--require-target-sequence",

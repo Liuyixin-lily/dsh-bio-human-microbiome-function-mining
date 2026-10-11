@@ -12,6 +12,8 @@ must follow these schemas when writing new task files.
 - `sequence_candidates.schema.tsv`: candidates supported by sequence evidence.
 - `structural_candidates.schema.tsv`: candidates supported by structure evidence.
 - `source_feature_annotations.schema.tsv`: existing annotations parsed from user-provided `.faa` or `.gbff` files.
+- `candidate_signal_peptides.schema.tsv`: SignalP cleavage prediction output
+  used to build `candidate_mature_proteins.faa`.
 - `combined_candidates.schema.tsv`: final integrated candidate ranking.
 - `experimental_hypotheses.schema.tsv`: falsifiable experimental hypotheses
   generated from each scored candidate, including mechanistic model, critical

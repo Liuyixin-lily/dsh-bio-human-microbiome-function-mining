@@ -22,6 +22,16 @@
     "pdb_ids": "",
     "auto_run_local": true
   },
+  "candidate_sequences": {
+    "description": "Per-genome source files used to extract final candidate protein/CDS/gene records. .fna is required for genomic gene-sequence output.",
+    "genomes": {
+      "Example_genome": {
+        "protein_fasta": "inputs/example_organism/example_organism_protein.faa",
+        "cds_fasta": "inputs/example_organism/example_organism_cds.ffn",
+        "fna": "inputs/example_organism/example_organism_genomic.fna"
+      }
+    }
+  },
   "output": {
     "task_output_dir": "outputs/task",
     "schema_dir": "human_microbiome_function_mining/schemas"
@@ -56,6 +66,17 @@
       "candidate_dir": "outputs/predictions/esmfold",
       "tm_score_threshold": 0.5,
       "output_dir": "outputs/alignments/usalign"
+    },
+    "signalp": {
+      "name": "SignalP",
+      "enabled": true,
+      "auto_run_local": false,
+      "executable": "/path/to/signalp6",
+      "org": "gram-positive",
+      "format": "txt",
+      "prefix": "candidate_signalp",
+      "output_dir": "outputs/signalp",
+      "tool_version": "SignalP 6.0"
     }
   },
   "validation_inputs": {

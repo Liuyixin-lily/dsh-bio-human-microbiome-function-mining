@@ -67,11 +67,13 @@ Use these directly or through the agent skills:
   not leave enough suitable candidates.
 - `run_fedkea.py`: runs local FedKEA when configured; it never calls the web
   server programmatically.
+- `run_signalp.py`: runs or wraps a user-provided local SignalP executable and
+  parses GFF3 output through `parse_signalp.py`.
 - `run_bakta.py`: runs Bakta annotation when a genome is newly downloaded and
   annotated by the plugin.
 - parsers for the raw outputs above: `parse_sequence_hits.py`,
   `parse_usalign.py`, `parse_deer.py`, `parse_fedkea.py`,
-  `parse_source_annotations.py`.
+  `parse_source_annotations.py`, `parse_signalp.py`.
 - `merge_candidates.py`: merges sequence, structure, FedKEA, and source
   annotation evidence into `combined_candidates.tsv`. Pass `--project` when
   the project JSON records candidate sequence source paths.
@@ -82,7 +84,8 @@ Use these directly or through the agent skills:
   scored table. Pass `--literature literature_evidence.tsv` when verified
   citations are available so hypotheses include literature-backed citations.
 - `extract_candidate_sequences.py`: extracts final candidate proteins, CDS,
-  and gene evidence from source FASTA files.
+  gene nucleotide sequences, and optional SignalP-cleaved mature proteins from
+  source FASTA files.
 - `validate_schema.py`: checks output TSVs against `schemas/`.
 - `example_test.py`: end-to-end example test against synthetic inputs. It
   verifies that the parsing, merge, and scoring scripts work together without
@@ -100,7 +103,10 @@ Use these directly or through the agent skills:
    - target enzyme FASTA
    - target structure PDB
    - candidate proteome `.faa` or annotated `.gbff`
-   - DIAMOND/CD-HIT, US-align, optional DEER, optional FedKEA/Bakta paths
+   - per-genome `.fna` genomic FASTA when the user wants the candidate gene's
+     nucleotide sequence output (or obtain it through `genome-download`)
+   - DIAMOND/CD-HIT, US-align, optional DEER, optional FedKEA/Bakta/SignalP
+     paths
    - candidate PDB/CIF structure directory or individual structure files
 4. Run `example_test.py` first to verify that the parser/merge/score logic works
    without external tools.

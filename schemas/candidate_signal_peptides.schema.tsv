@@ -1,0 +1,31 @@
+# Required columns for candidate_signal_peptides.tsv
+
+candidate_id
+signalp_prediction
+signal_peptide_start
+signal_peptide_end
+mature_start
+mature_end
+cleavage_site
+source_file
+tool_version
+
+# Optional but recommended
+
+# Notes
+
+- `candidate_id` should match the protein accession used in candidate tables.
+- `signalp_prediction` is the SignalP prediction class such as `SP`, `LIPO`,
+  `TAT`, `TATLIPO`, `PILIN`, or `No`.
+- `signal_peptide_start` and `signal_peptide_end` are 1-based residue positions.
+- `mature_start` and `mature_end` are 1-based residue positions after signal
+  peptide cleavage.
+- SignalP 6 `CS pos: <X>-<Y>` is the cleavage-site source of truth: the first X
+  amino acids are removed and the mature protein starts at amino acid position
+  Y (1-based). `cleavage_site` is recorded in `<signal_peptide_end>|<mature_start>`
+  form, e.g. `475|476`.
+- `source_file` is the raw SignalP GFF3/summary file path.
+- `tool_version` records the SignalP version or repository tag.
+- Rows with `signalp_prediction` not in `No`/`none`/`not_sec`/`other` are
+  treated as predicted secreted proteins. The extraction step writes
+  `candidate_mature_proteins.faa` only for these rows.

@@ -74,6 +74,7 @@ target enzyme / EC / substrate-product
   -> if structures missing, run bundled structure-prediction sub-skill
   -> direct US-align against the reference target structure for all available candidate structures
   -> DEER only as fallback for genomes without enough US-align candidates
+  -> optional SignalP cleavage prediction for final candidate proteins
   -> optional catalytic-pocket, genome-context, and ecological evidence
   -> optional FedKEA enzyme/EC evidence
   -> literature-evidence audit (verified PMID/DOI evidence)
@@ -159,6 +160,7 @@ Edit `project.json` input and tool paths:
 - optional DEER `do_retrieval.py` and its `ckpt_dir`
 - optional Bakta database and environment
 - optional local FedKEA `main.py`
+- optional local SignalP executable under `tools.signalp`
 
 Sanity check without external tools:
 
@@ -179,6 +181,7 @@ python3 human_microbiome_function_mining/scripts/run_usalign.py --project projec
 python3 human_microbiome_function_mining/scripts/run_deer.py --project project.json
 python3 human_microbiome_function_mining/scripts/run_bakta.py --project project.json
 python3 human_microbiome_function_mining/scripts/run_fedkea.py --project project.json
+python3 human_microbiome_function_mining/scripts/run_signalp.py --project project.json
 ```
 
 External tool sources:
@@ -187,6 +190,7 @@ External tool sources:
 DEER    https://github.com/WangJiuming/deer
 FedKEA  https://github.com/Stevenleizheng/FEDKEA
         https://www.viromelab.com/software/fedkea
+SignalP https://services.healthtech.dtu.dk/services/SignalP-6.0/
 ```
 
 For candidate lists shorter than 20 sequences, the FedKEA web server is usually the fastest validation route. For larger batches, install FedKEA locally and point `validation_inputs.fedkea.script_path` at its `main.py`.
@@ -356,6 +360,11 @@ The response clearly reports:
 - `final_target_candidates.tsv`
 - `experimental_hypotheses.tsv`
 - `experimental_design.md`
+- `candidate_sequences/candidate_proteins.faa`
+- `candidate_sequences/candidate_cds.ffn`
+- `candidate_sequences/candidate_gene_sequences.fna`
+- `candidate_sequences/candidate_mature_proteins.faa` (SignalP-cleaved secreted proteins only)
+- `candidate_sequences/candidate_gene_evidence.tsv`
 
 `scored_candidates_full.tsv` is the final ranked candidate table. The compact deliverables `high_confidence_candidate_summary.tsv` and `final_target_candidates.tsv` point back to the full evidence table.
 

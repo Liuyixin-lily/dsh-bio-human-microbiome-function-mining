@@ -187,6 +187,116 @@ def main() -> int:
         )
         assert "prot1" in source_annotations.read_text(encoding="utf-8")
 
+        # SignalP + candidate sequence extraction with genomic .fna locus
+        protein_fasta = tmp / "source_proteins.faa"
+        write_text(
+            protein_fasta,
+            ">lcl|NZ_ABC123_cds_WP_prot1_1 [location=complement(100..300)] "
+            "[protein_id=prot1] [gene=estP] [protein=test_esterase]\n"
+            "MLAKCGTMNP\n",
+        )
+        cds_fasta = tmp / "source_cds.ffn"
+        write_text(
+            cds_fasta,
+            ">lcl|NZ_ABC123_cds_WP_prot1_1 [location=complement(100..300)] "
+            "[protein_id=prot1] [gene=estP]\n"
+            "ATGCTGGCAAAATGCGGTAC\n",
+        )
+        genomic_fna = tmp / "source_genome.fna"
+        # location=complement(100..300) extracts and reverse-complements fna[99:300]
+        fna_seq = "A" * 99 + "CCTTTG" + "G" * 200
+        write_text(genomic_fna, ">NZ_ABC123\n" + "\n".join(fna_seq[i : i + 60] for i in range(0, len(fna_seq), 60)) + "\n")
+
+        signalp_gff = tmp / "signalp.gff3"
+        write_text(
+            signalp_gff,
+            "prot1\tSignalP\tsig_peptide\t1\t2\t.\t+\t.\tID=prot1;Prediction=SP\n",
+        )
+        signalp_summary = tmp / "signalp_summary.txt"
+        write_text(
+            signalp_summary,
+            "prot1\tProtein\tSP\tCS pos: 2-3\n",
+        )
+        parsed_signalp = tmp / "parsed_signalp.tsv"
+        subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "parse_signalp.py"),
+                "--gff3",
+                str(signalp_gff),
+                "--summary",
+                str(signalp_summary),
+                "--output",
+                str(parsed_signalp),
+            ],
+            check=True,
+        )
+        parsed_text = parsed_signalp.read_text(encoding="utf-8")
+        assert "2|3" in parsed_text
+        assert "SP" in parsed_text
+
+        signalp_tsv = tmp / "candidate_signal_peptides.tsv"
+        write_text(
+            signalp_tsv,
+            "\t".join(
+                [
+                    "candidate_id",
+                    "signalp_prediction",
+                    "signal_peptide_start",
+                    "signal_peptide_end",
+                    "mature_start",
+                    "mature_end",
+                    "cleavage_site",
+                    "source_file",
+                    "tool_version",
+                ]
+            )
+            + "\n"
+            + "\t".join(["prot1", "SP", "1", "2", "3", "10", "2|3", "signalp.gff3", "SignalP 6.0"])
+            + "\n",
+        )
+        project_json = tmp / "project.json"
+        write_text(
+            project_json,
+            (
+                "{\n"
+                f'  "candidate_sequences": {{\n'
+                f'    "candidates": {{\n'
+                f'      "prot1": {{\n'
+                f'        "source_genome": "G1",\n'
+                f'        "protein_fasta": "{protein_fasta}",\n'
+                f'        "cds_fasta": "{cds_fasta}",\n'
+                f'        "fna": "{genomic_fna}"\n'
+                f"      }}\n"
+                f"    }}\n"
+                f"  }}\n"
+                f"}}\n"
+            ),
+        )
+        extracted = tmp / "extracted"
+        subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "extract_candidate_sequences.py"),
+                "--candidates",
+                str(struct_candidates),
+                "--project",
+                str(project_json),
+                "--outdir",
+                str(extracted),
+                "--signalp-tsv",
+                str(signalp_tsv),
+            ],
+            check=True,
+        )
+        gene_text = extracted.joinpath("candidate_gene_sequences.fna").read_text(encoding="utf-8")
+        assert "CAAAGG" in gene_text
+        mature_text = extracted.joinpath("candidate_mature_proteins.faa").read_text(encoding="utf-8")
+        assert "AKCGTMNP" in mature_text
+        evidence_text = extracted.joinpath("candidate_gene_evidence.tsv").read_text(encoding="utf-8")
+        assert "signalp_prediction" in evidence_text
+        assert "is_secreted" in evidence_text
+
         combined = tmp / "combined_candidates.tsv"
         subprocess.run(
             [

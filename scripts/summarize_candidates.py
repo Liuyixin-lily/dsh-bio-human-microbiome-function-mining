@@ -59,6 +59,11 @@ FINAL_FIELDS = [
     "validation_status",
     "protein_fasta",
     "cds_fasta",
+    "gene_fasta",
+    "gene_source",
+    "signalp_prediction",
+    "is_secreted",
+    "mature_protein_fasta",
 ]
 
 HYPOTHESIS_FIELDS = [
@@ -442,6 +447,10 @@ def main(argv: list[str] | None = None) -> int:
             if not cds_fasta and organism in genomes:
                 cds_fasta = (genomes[organism] or {}).get("cds_fasta", "")
             ev = evidence_by_id.get(acc, {})
+            gene_fasta = meta.get("gene_fasta") or ""
+            if not gene_fasta:
+                gene_fasta = "outputs/task/candidate_sequences/candidate_gene_sequences.fna"
+            mature_fasta = "outputs/task/candidate_sequences/candidate_mature_proteins.faa"
             final_rows.append(
                 {
                     "final_rank": str(len(final_rows) + 1),
@@ -460,6 +469,11 @@ def main(argv: list[str] | None = None) -> int:
                     "validation_status": validation_status(row),
                     "protein_fasta": protein_fasta,
                     "cds_fasta": cds_fasta,
+                    "gene_fasta": gene_fasta,
+                    "gene_source": ev.get("gene_seq_source", ""),
+                    "signalp_prediction": ev.get("signalp_prediction", ""),
+                    "is_secreted": ev.get("is_secreted", ""),
+                    "mature_protein_fasta": mature_fasta if ev.get("is_secreted") == "Yes" else "",
                 }
             )
 
