@@ -64,7 +64,12 @@ direct reaction-product synonym), take the sequence+annotation fast path: mark
 the row `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure-prediction,
 US-align, DEER, and catalytic-pocket mapping. Structure screening is only
 required when sequence+annotation evidence is absent, ambiguous, unknown, or
-contradicts the target.
+contradicts the target. If DIAMOND has no sequence hit at all, the workflow must
+not stop: continue to structure screening and FedKEA so that structural and
+functional evidence can still be collected. An existing `.faa`/`.gbff` annotation
+such as `sph` is additional evidence in that case, but it is not equivalent to a
+DIAMOND sequence hit and does not by itself create a
+`SEQUENCE_ANNOTATION_CONFIRMED` row.
 
 Existing annotation fields can add protein/gene names, EC numbers,
 Pfam/InterPro/TIGRFAM/CAZy/KEGG/COG/GO identifiers, and product descriptions

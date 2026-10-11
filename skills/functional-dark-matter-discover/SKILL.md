@@ -97,9 +97,15 @@ Normalize the input into a target function card before searching. Include when a
      those rows. Move directly to FedKEA validation, literature evidence,
      SignalP extraction, hypothesis generation, and experimental design when
      the user requests them.
-   - Run structure workflows only for candidates where sequence evidence alone
-     is ambiguous, unknown, or the existing annotation does not match the target
-     function.
+   - If DIAMOND finds no sequence hit for a candidate gene or genome, do not
+     stop the workflow. Continue to structure screening so that US-align and
+     FedKEA can still provide structural and functional evidence.
+   - Run structure workflows for candidates where sequence evidence alone is
+     absent, ambiguous, unknown, or the existing annotation does not match the
+     target function. Existing `.faa`/`.gbff` annotations such as a clear `sph`
+     label are still useful as additional evidence in these cases, but an
+     annotation alone is not the same as a DIAMOND sequence hit and does not by
+     itself mark a row `SEQUENCE_ANNOTATION_CONFIRMED`.
 6. Check whether candidate structure files exist (PDB/CIF) for the
    sequence-filtered candidates. Do not assume structures are present.
 7. If candidates lack structure files, run the bundled `structure-prediction`
