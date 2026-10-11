@@ -77,7 +77,8 @@ target enzyme / EC / substrate-product
   -> otherwise check candidate structure files (PDB/CIF)
   -> if structures missing, run bundled structure-prediction sub-skill
   -> direct US-align against the reference target structure for all available candidate structures
-  -> DEER only as fallback for genomes with no US-align candidate or too few of them
+  -> DEER only as fallback for genomes with no US-align candidate or too few of them,
+     and when the merged sequence+structure candidate list has no qualifying candidate
   -> optional SignalP cleavage prediction for final candidate proteins
   -> optional catalytic-pocket, genome-context, and ecological evidence
   -> optional FedKEA enzyme/EC evidence

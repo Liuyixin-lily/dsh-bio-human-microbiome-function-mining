@@ -169,7 +169,11 @@ Normalize the input into a target function card before searching. Include when a
    only with the user's agreement, and run it locally only when the executable,
    model checkpoint, and candidate/template structure paths are accessible from
    this terminal; otherwise give the user the exact command and wait for the
-   returned DEER output. Never use DEER to replace US-align.
+   returned DEER output. **Also apply DEER as a whole-study fallback when the
+   merged sequence+structure candidate list contains no qualifying candidate at
+   all** (`run_deer.py --combined-candidates <path>`); in that case no genome
+   yielded a usable candidate, so scope the fallback to all configured genomes.
+   Never use DEER to replace US-align.
 10. Keep `structural_candidates.tsv` as the full structure-supported candidate list, not only rescued proteins.
 11. Map reference catalytic residues and compare active pockets for
     structure-screened candidates only.

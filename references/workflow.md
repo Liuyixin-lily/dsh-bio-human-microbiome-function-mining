@@ -32,7 +32,8 @@ User input
          -> check candidate structure files (PDB/CIF)
          -> if structures missing, run bundled structure-prediction sub-skill
          -> US-align all available candidate structures
-         -> DEER fallback only when a genome has no US-align candidate or lacks enough of them
+         -> DEER fallback when a genome has no US-align candidate or lacks enough of them,
+            and also when the merged candidate list has no qualifying candidate at all
          -> catalytic residue / pocket analysis
     -> genome context
     -> ecological evidence

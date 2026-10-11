@@ -41,7 +41,9 @@ equivalent options:
 4. Keep US-align-passing candidates as structure-supported evidence.
 5. **Only if US-align yields no qualifying candidate at all for a genome, or
    does not produce enough suitable candidates for that genome**, try **DEER**
-   to retrieve additional structure-based candidates.
+   to retrieve additional structure-based candidates. Also apply DEER as a
+   whole-study fallback when the merged sequence+structure candidate list
+   contains no qualifying candidate at all.
 6. Do not claim a structural hit as functional proof. All outputs are hypotheses
    for later candidate scoring and experimental validation.
 

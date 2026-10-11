@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
-"""Run DEER retrieval as a fallback when a genome has no qualifying US-align
-candidate at all, or too few of them.
+"""Run DEER retrieval as a fallback in two situations.
+
+Per genome:
+  * the genome has no qualifying US-align candidate at all, or
+  * it has too few of them.
+
+Whole study (final gate, `--combined-candidates`):
+  * after sequence and structure evidence have been merged, the resulting
+    candidate list contains no qualifying candidate. In that case no genome
+    yields a usable candidate and DEER is attempted across the configured
+    genomes, even when each genome individually showed a US-align hit.
 
 This wrapper follows the DEER command documented by the upstream repository:
 
   python do_retrieval.py --template_pdb_dir ... --database_pdb_dir ... --output_dir ...
 
 DEER is additional structure-based evidence; it is never a replacement for
-US-align. The wrapper only runs for source genomes where US-align produced no
-structure-supported candidates. If US-align output is missing entirely, the
-command still refuses unless the user explicitly passes
---allow-without-usalign.
+US-align. If US-align output is missing entirely, the command still refuses
+unless the user explicitly passes --allow-without-usalign.
 """
 
 from __future__ import annotations
@@ -74,6 +81,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--distance-cutoff",
         type=float,
         help="Distance cutoff used by parse_deer.py to mark structure_support=1.",
+    )
+    parser.add_argument(
+        "--combined-candidates",
+        type=Path,
+        help=(
+            "Path to combined_candidates.tsv. Used for the final gate: when the merged "
+            "sequence+structure candidate list contains no qualifying candidate, DEER is "
+            "triggered for the whole study even if every genome individually had a hit."
+        ),
+    )
+    parser.add_argument(
+        "--coverage-threshold",
+        type=float,
+        default=0.7,
+        help=(
+            "Minimum query_coverage (0-1, or percent) for a sequence-only row to count as a "
+            "qualifying candidate in the final combined gate. Default 0.7."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -182,6 +207,57 @@ def identify_genomes_without_candidates(
     return missing, never_seen
 
 
+def as_float(value: str) -> float:
+    """Parse a numeric cell; return nan when it is absent or not a number."""
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def combined_qualifying_candidates(
+    combined_path: Path,
+    coverage_threshold: float = 0.7,
+) -> list[str]:
+    """Return candidate ids in combined_candidates.tsv that carry usable evidence.
+
+    This is the LAST gate, evaluated after sequence and structure evidence have
+    been merged: if the candidate list is empty, or nothing in it actually
+    carries qualifying evidence, the run has produced no usable candidate at all
+    and DEER is worth attempting as a whole-study fallback.
+
+    A row qualifies when either:
+      * it has structural evidence - structure_support is truthy, or
+        tm_score_mean / structural_score is > 0; or
+      * it has a real sequence hit - sequence_score > 0, and when query_coverage
+        is present it is at least `coverage_threshold` (the same 0.7 rule the
+        DIAMOND screen uses), so a weak/marginal hit does not count as success.
+    """
+    rows = read_tsv(combined_path)
+    qualifying: list[str] = []
+    for row in rows:
+        cid = str(row.get("candidate_id", "")).strip()
+        if not cid:
+            continue
+        support = str(row.get("structure_support", "")).strip().lower()
+        tm = as_float(row.get("tm_score_mean", ""))
+        structural_score = as_float(row.get("structural_score", ""))
+        has_structure = (
+            support in ("1", "true", "yes")
+            or (tm == tm and tm > 0)
+            or (structural_score == structural_score and structural_score > 0)
+        )
+        sequence_score = as_float(row.get("sequence_score", ""))
+        coverage = as_float(row.get("query_coverage", ""))
+        coverage_value = coverage / 100.0 if coverage == coverage and coverage > 1.0 else coverage
+        has_sequence = sequence_score == sequence_score and sequence_score > 0
+        if has_sequence and coverage_value == coverage_value and coverage_value < coverage_threshold:
+            has_sequence = False
+        if has_structure or has_sequence:
+            qualifying.append(cid)
+    return qualifying
+
+
 def configured_source_genomes(project: dict[str, Any]) -> list[str]:
     candidate_seq = project.get("candidate_sequences") or {}
     genomes_cfg = candidate_seq.get("genomes") or {}
@@ -234,7 +310,7 @@ def write_deer_trigger_summary(
     lines = [
         "tool                 DEER",
         "role                 structural retrieval fallback after US-align",
-        "trigger_rule         run only for source genomes with zero US-align structural candidates",
+        "trigger_rule         per genome: zero US-align structural candidates; whole study: no qualifying candidate in combined_candidates.tsv",
         "",
         "genome\tstatus\tcommand",
     ]
@@ -420,7 +496,28 @@ def main(argv: list[str] | None = None) -> int:
     missing_genomes, never_seen_genomes = identify_genomes_without_candidates(
         project, usalign_dir, candidate_dir
     )
-    if not missing_genomes:
+
+    # Final gate: even when every genome individually shows a US-align hit, the
+    # merged sequence+structure candidate table can still contain no qualifying
+    # candidate. In that case DEER is the remaining structure-based option, so
+    # trigger it for the whole study rather than returning "not needed".
+    combined_path = args.combined_candidates
+    if combined_path is not None:
+        combined_path = resolve(combined_path, root)
+    global_trigger = False
+    combined_qualifying: list[str] = []
+    if combined_path is not None:
+        combined_qualifying = combined_qualifying_candidates(
+            combined_path, args.coverage_threshold
+        )
+        if not combined_qualifying:
+            global_trigger = True
+            if not missing_genomes:
+                # No per-genome shortfall to scope the fallback to; DEER has to
+                # cover every configured genome.
+                missing_genomes = configured_source_genomes(project)
+
+    if not missing_genomes and not global_trigger:
         detail_lines = [
             "All configured source genomes have at least one US-align structural candidate.",
             "DEER fallback not triggered.",
@@ -438,8 +535,22 @@ def main(argv: list[str] | None = None) -> int:
     detail_lines = [
         "Missing candidate genomes: " + (", ".join(missing_genomes) or "none"),
         "Never seen in US-align output: " + (", ".join(never_seen_genomes) or "none"),
-        "DEER is only additional structural evidence; US-align remains primary.",
     ]
+    if combined_path is not None:
+        if global_trigger:
+            detail_lines.append(
+                "Final gate: combined_candidates.tsv at "
+                f"{combined_path} contains no qualifying candidate "
+                f"(structural evidence, or a sequence hit with query_coverage >= "
+                f"{args.coverage_threshold}); DEER triggered for the whole study."
+            )
+        else:
+            detail_lines.append(
+                f"Final gate: combined_candidates.tsv at {combined_path} has "
+                f"{len(combined_qualifying)} qualifying candidate(s); DEER limited to the "
+                "genomes missing candidates."
+            )
+    detail_lines.append("DEER is only additional structural evidence; US-align remains primary.")
     for genome in missing_genomes:
         cmd = [
             executable_path(executable, root),
