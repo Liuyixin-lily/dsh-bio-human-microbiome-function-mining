@@ -17,7 +17,7 @@ Start with [QUICKSTART.md](QUICKSTART.md) for installation, loading, and adaptin
 - Organizes sequence screening, structure screening, functional/EC validation, literature evidence, and final ranking.
 - Executes external tools only when the user provides accessible executable and data paths and allows the Agent to run them locally. Otherwise it writes exact commands and consumes returned outputs.
 
-The plugin provides skills, scripts, schemas, and reference rules. It does not replace DIAMOND, CD-HIT, US-align, DEER, FedKEA, Bakta, or literature databases.
+The plugin provides skills, scripts, schemas, and reference rules. It does not replace DIAMOND, CD-HIT, US-align, DEER, FedKEA, Bakta, SignalP, or literature databases.
 
 ---
 

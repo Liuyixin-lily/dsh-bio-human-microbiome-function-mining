@@ -18,7 +18,7 @@ This is a DeepSeek harness plugin: users install or load the package into their 
 - Executes external tools only when the user provides accessible executable and data paths and allows the Agent to run them locally. Otherwise it writes exact commands and consumes returned outputs.
 
 - 输入目标酶、EC 号或底物-产物关系，输出候选蛋白证据表、排序表和实验设计。
-- 插件提供技能、脚本、schema 与资料，不替代 DIAMOND、CD-HIT、US-align、DEER、FedKEA、Bakta 或文献数据库。
+- 插件提供技能、脚本、schema 与资料，不替代 DIAMOND、CD-HIT、US-align、DEER、FedKEA、Bakta、SignalP 或文献数据库。
 - 外部工具是否由 Agent 直接执行，由“路径是否可访问 + 用户是否允许”决定。
 
 ---
