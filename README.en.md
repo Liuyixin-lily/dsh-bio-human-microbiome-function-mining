@@ -242,13 +242,12 @@ Agent:
   `GCF_038181645.1` and prepare candidate proteomes
 - Use `screen-sequence-candidates` to run CD-HIT deduplication (single-genome
   100%, multi-genome 95%) then DIAMOND sequence screening
-- Capture existing `.faa`/`.gbff` annotations for protein/gene names, ECs,
-  Pfam/InterPro/KEGG identifiers, and product descriptions
-- Check whether a DIAMOND hit already has matching existing annotation for the
-  target; only if both the sequence hit and the annotation match are present, mark
-  it `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure-prediction, US-align, and
-  DEER for that row. A clear existing `sph` annotation alone is not the same as a
-  DIAMOND sequence hit
+- Parse existing `.faa`/`.gbff` protein/gene names, ECs, Pfam/InterPro/KEGG
+  identifiers, and product descriptions into `source_feature_annotations.tsv`
+- Only when a DIAMOND hit has matching existing annotation for the target, mark
+  it `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure-prediction, US-align,
+  and DEER for that row. A clear existing `sph` annotation alone is not the same
+  as a DIAMOND sequence hit
 - If DIAMOND has no hit, or hits exist but the annotation is missing or mismatched,
   still check candidate structure files; if missing, run `structure-prediction`
   (PDB > AlphaFold DB > homology model > de novo), then use

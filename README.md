@@ -239,11 +239,11 @@ Agent:
   `GCF_038181645.1` 并准备候选 proteome
 - 用 `screen-sequence-candidates` 先做 CD-HIT 去冗余（单基因组 100%，多基因组
   95%），再 DIAMOND 序列筛选
-- 用 `parse_source_annotations.py` 收集 `.faa`/`.gbff` 已带的 protein/gene、EC、
-  Pfam/InterPro/KEGG 等注释证据
-- 先检查 DIAMOND 命中是否已有 `.faa`/`.gbff` 注释匹配目标；如果“序列命中 +
-  注释匹配”都成立，则标记 `SEQUENCE_ANNOTATION_CONFIRMED`，该行跳过后续结构流程；
-  已有明确 `sph` 注释本身不代替 DIAMOND 命中的判定条件
+- 用 `parse_source_annotations.py` 把 `.faa`/`.gbff` 已带的 protein/gene、EC、
+  Pfam/InterPro/KEGG 等注释解析成 `source_feature_annotations.tsv`
+- 只有 DIAMOND 命中且该命中已有注释匹配目标时，才标记
+  `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过后续结构流程；已有明确 `sph` 注释本身
+  不代替 DIAMOND 命中的判定条件
 - 如果 DIAMOND 未命中、或命中但注释不匹配/无注释，仍然继续检查候选结构文件；
   没有就先跑 `structure-prediction`（PDB > AlphaFold DB > homology model >
   de novo），再用 `screen-structure-candidates` 对全部候选结构文件直接 US-align，
