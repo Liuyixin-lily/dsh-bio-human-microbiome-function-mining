@@ -101,12 +101,20 @@ Optional inputs:
    when available:
 
    ```bash
+   # per-genome fallback: GenomeA had hits, GenomeB had none -> DEER only for GenomeB
+   python3 human_microbiome_function_mining/scripts/run_deer.py \
+     --project project.json
+
+   # whole-study final gate: pass the merged candidate table so DEER also
+   # triggers when nothing in it qualifies, even if every genome had a hit
    python3 human_microbiome_function_mining/scripts/run_deer.py \
      --project project.json \
-     --template-dir inputs/target_structures \
-     --candidate-dir outputs/structure/candidate_structures \
-     --outdir outputs/alignments/deer
+     --combined-candidates outputs/task/combined_candidates.tsv
    ```
+
+   `--template-dir` / `--candidate-dir` / `--outdir` / `--usalign-dir` are read
+   from the project config when omitted, so the two flags above are the whole
+   invocation.
 
    The wrapper reads `candidate_sequences.genomes` from the project config,
    detects which source genomes have zero US-align structural candidates, and

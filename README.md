@@ -195,6 +195,16 @@ python3 human_microbiome_function_mining/scripts/run_fedkea.py --project project
 python3 human_microbiome_function_mining/scripts/run_signalp.py --project project.json
 ```
 
+DEER 的第二道门（合并后无合格候选时触发）需要传入合并表：
+
+```bash
+python3 human_microbiome_function_mining/scripts/run_deer.py \
+  --project project.json \
+  --combined-candidates outputs/task/combined_candidates.tsv
+```
+
+`--template-dir` / `--candidate-dir` / `--outdir` / `--usalign-dir` 省略时会从 `project.json` 读取，所以上面两个参数即完整调用。
+
 External tool sources:
 
 ```text

@@ -192,6 +192,18 @@ python3 human_microbiome_function_mining/scripts/run_fedkea.py --project project
 python3 human_microbiome_function_mining/scripts/run_signalp.py --project project.json
 ```
 
+DEER's second gate (triggered when nothing in the merged candidate list qualifies)
+needs the merged table passed in:
+
+```bash
+python3 human_microbiome_function_mining/scripts/run_deer.py \
+  --project project.json \
+  --combined-candidates outputs/task/combined_candidates.tsv
+```
+
+`--template-dir` / `--candidate-dir` / `--outdir` / `--usalign-dir` are read from
+`project.json` when omitted, so those two flags are the whole invocation.
+
 External tool sources:
 
 ```text
