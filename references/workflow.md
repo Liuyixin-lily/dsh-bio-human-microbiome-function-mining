@@ -25,11 +25,15 @@ User input
     -> reference enzyme set
     -> sequence screening
     -> existing source-file annotation capture (.faa/.gbff annotations)
-    -> check candidate structure files (PDB/CIF)
-    -> if structures missing, run bundled structure-prediction sub-skill
-    -> US-align all available candidate structures
-    -> DEER fallback only when a genome lacks enough US-align candidates
-    -> catalytic residue / pocket analysis
+    -> branch:
+       if sequence hit AND existing annotation match the target function:
+         mark SEQUENCE_ANNOTATION_CONFIRMED and skip structure steps
+       else:
+         -> check candidate structure files (PDB/CIF)
+         -> if structures missing, run bundled structure-prediction sub-skill
+         -> US-align all available candidate structures
+         -> DEER fallback only when a genome lacks enough US-align candidates
+         -> catalytic residue / pocket analysis
     -> genome context
     -> ecological evidence
     -> candidate scoring
@@ -53,7 +57,16 @@ identity when each organism has a single genome; use 95% for multi-genome
 pan-proteomes unless the user overrides it in `project.json` or with
 `--cluster-identity`.
 
-Existing source-file annotations are a lightweight evidence chain, not a
-substitute for sequence or structure screening. They can add protein/gene
-names, EC numbers, Pfam/InterPro/TIGRFAM/CAZy/KEGG/COG/GO identifiers, and
-product descriptions already present in the user's `.faa`/`.gbff` inputs.
+Existing source-file annotations are a lightweight evidence chain when used
+alone. However, when a DIAMOND sequence hit and the existing `.faa`/`.gbff`
+annotation both match the target function (same target EC, enzyme name, or a
+direct reaction-product synonym), take the sequence+annotation fast path: mark
+the row `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure-prediction,
+US-align, DEER, and catalytic-pocket mapping. Structure screening is only
+required when sequence+annotation evidence is absent, ambiguous, unknown, or
+contradicts the target.
+
+Existing annotation fields can add protein/gene names, EC numbers,
+Pfam/InterPro/TIGRFAM/CAZy/KEGG/COG/GO identifiers, and product descriptions
+already present in the user's `.faa`/`.gbff` inputs, and they remain useful for
+FedKEA comparison, literature alignment, and hypothesis generation.

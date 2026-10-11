@@ -47,6 +47,9 @@ traceable back to a source file or command the user supplied.
 - Structure-only hits are marked as hypotheses.
 - FedKEA EC predictions are marked as additional validation.
 - Existing `.faa`/`.gbff` annotations are marked as existing-knowledge evidence.
+  A DIAMOND hit whose existing annotation matches the target EC or enzyme
+  name/product synonym is marked `SEQUENCE_ANNOTATION_CONFIRMED` and skips
+  structure screening.
 - No row claims confirmed biochemical function without experimental evidence.
 
 ## Scoring
@@ -55,9 +58,9 @@ traceable back to a source file or command the user supplied.
   `priority_order` assigned by `scripts/score_candidates.py`, not by a hidden
   weighted `overall_score`. `overall_score` is retained only as a
   backward-compatible display value and does not control final order.
-- The priority order is `USALIGN_TARGET_EC`, `DEER_FEDKEA_CONFIRMED`,
-  `USALIGN_OTHER_EC`, `USALIGN_NOT_ENZYME`, `USALIGN_UNVALIDATED`,
-  `DEER_FALLBACK`, `SEQUENCE_ONLY`, `ANNOTATION_ONLY`.
+- The priority order is `SEQUENCE_ANNOTATION_CONFIRMED`, `USALIGN_TARGET_EC`,
+  `DEER_FEDKEA_CONFIRMED`, `USALIGN_OTHER_EC`, `USALIGN_NOT_ENZYME`,
+  `USALIGN_UNVALIDATED`, `DEER_FALLBACK`, `SEQUENCE_ONLY`, `ANNOTATION_ONLY`.
 - Rows with the same `priority_rule` tie-break by `structural_score`
   descending, then `sequence_score` descending, then annotation strength
   descending, then `candidate_id` ascending.

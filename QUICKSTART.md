@@ -96,6 +96,10 @@ cp human_microbiome_function_mining/config.minimal.example.json project.json
    `scripts/preflight_inputs.py --project project.json` and verifies that
    candidate genome `.faa`, `.ffn`, `.fna`, `.gbff`, and structure paths exist
    before running DIAMOND, US-align, DEER, FedKEA, SignalP, or Bakta.
+   After DIAMOND sequence screening, if a hit already has matching existing
+   `.faa`/`.gbff` annotation for the target EC or enzyme name/product synonym,
+   the plugin assigns `SEQUENCE_ANNOTATION_CONFIRMED` and skips downstream
+   structure-prediction, US-align, and DEER for that candidate.
 5. The agent can execute configured
    tools when they are accessible from the current terminal. If a tool is not
    accessible, the agent prints the exact command for you to run on your own

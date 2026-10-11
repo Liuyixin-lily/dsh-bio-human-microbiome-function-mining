@@ -50,7 +50,7 @@ human_microbiome_function_mining/
 - `build-target-function-card`: standardizes target inputs and generates the Target Function Card.
 - `screen-sequence-candidates`: runs or consumes DIAMOND sequence screening; defaults to CD-HIT deduplication first (100% for single-genome datasets, 95% for multi-genome pan-proteomes).
 - `structure-prediction`: retrieves or predicts missing candidate structures with priority experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` > homology model > de novo prediction. The bundled PDB/AFDB/homology helper scripts are under `skills/structure-prediction/scripts/` and produce `structure/<protein_sequence_id>.pdb` for US-align.
-- `screen-structure-candidates`: structural evidence screening. First check whether candidate structure files exist; if structures are missing, run the bundled `structure-prediction` sub-skill before US-aligning all available candidate structures. Use DEER as a fallback only for a genome when US-align does not yield enough suitable candidates and the user agrees.
+- `screen-structure-candidates`: structural evidence screening. First check whether candidate structure files exist; if structures are missing, run the bundled `structure-prediction` sub-skill before US-aligning all available candidate structures. Use DEER as a fallback only for a genome when US-align does not yield enough suitable candidates and the user agrees. Activate this route only when sequence screening plus existing annotation do not together confirm the target function.
 - `literature-evidence`: literature evidence audit. When MCP literature tools are available, follow a `nature-academic-search` style workflow; otherwise provide search terms or accept user-provided verified citation files. Never fabricate PMID/DOI.
 - `genome-search`: select candidate GCF/GCA assemblies from NCBI Assembly/BioSample metadata.
 - `genome-download`: batch-download RefSeq/GCF or GenBank/GCA genome files.
@@ -70,7 +70,9 @@ target enzyme / EC / substrate-product
   -> CD-HIT deduplication (100% for single-genome datasets; 95% for multi-genome pan-proteomes)
   -> DIAMOND sequence screening
   -> parse existing .faa/.gbff annotations
-  -> check candidate structure files (PDB/CIF)
+  -> fast path: if sequence hit AND existing annotation match the target,
+     mark SEQUENCE_ANNOTATION_CONFIRMED and skip structure steps
+  -> otherwise check candidate structure files (PDB/CIF)
   -> if structures missing, run bundled structure-prediction sub-skill
   -> direct US-align against the reference target structure for all available candidate structures
   -> DEER only as fallback for genomes without enough US-align candidates
@@ -79,25 +81,26 @@ target enzyme / EC / substrate-product
   -> optional FedKEA enzyme/EC evidence
   -> literature-evidence audit (verified PMID/DOI evidence)
   -> merge combined_candidates.tsv
-  -> structure-first candidate ranking
+  -> explicit priority candidate ranking
   -> falsifiable experimental hypotheses
   -> experimental design
 ```
 
-Default ranking is structure-first and sequence-second, produced deterministically by `scripts/score_candidates.py`. The script sorts by priority, then by structural score, sequence score, annotation strength, and `candidate_id` as tie-breakers. `priority_rule` and `priority_order` are optional traceability columns; the externally delivered ranking field is `overall_rank`.
+Default ranking is produced deterministically by `scripts/score_candidates.py`. A DIAMOND sequence hit whose existing `.faa`/`.gbff` annotation also matches the target function is assigned `SEQUENCE_ANNOTATION_CONFIRMED` and skips downstream structure screening; structure evidence is used only when sequence+annotation evidence is absent, ambiguous, unknown, or contradicts the target. The script sorts by priority, then by structural score, sequence score, annotation strength, and `candidate_id` as tie-breakers. `priority_rule` and `priority_order` are optional traceability columns; the externally delivered ranking field is `overall_rank`.
 
 The final ranked table is `scored_candidates_full.tsv`, with `overall_rank` as the explicit deliverable ranking field. Optional `priority_rule` / `priority_order` columns may be present for traceability but are not required by the schema.
 
 Priority policy used by `score_candidates.py`:
 
-1. `USALIGN_TARGET_EC`
-2. `DEER_FEDKEA_CONFIRMED`
-3. `USALIGN_OTHER_EC`
-4. `USALIGN_NOT_ENZYME`
-5. `USALIGN_UNVALIDATED`
-6. `DEER_FALLBACK`
-7. `SEQUENCE_ONLY`
-8. `ANNOTATION_ONLY`
+1. `SEQUENCE_ANNOTATION_CONFIRMED`
+2. `USALIGN_TARGET_EC`
+3. `DEER_FEDKEA_CONFIRMED`
+4. `USALIGN_OTHER_EC`
+5. `USALIGN_NOT_ENZYME`
+6. `USALIGN_UNVALIDATED`
+7. `DEER_FALLBACK`
+8. `SEQUENCE_ONLY`
+9. `ANNOTATION_ONLY`
 
 ---
 
@@ -112,7 +115,9 @@ The plugin does not silently download or install DIAMOND, CD-HIT, US-align, DEER
 5. Never invent tool output. Never call the FedKEA web server programmatically.
 
 For structure evidence, first check whether candidate structure files (PDB/CIF)
-exist. If a candidate lacks a structure, run the bundled `structure-prediction`
+exist. Skip the structure route entirely when a candidate already has a DIAMOND
+sequence hit and its existing `.faa`/`.gbff` annotation matches the target
+function. If a candidate lacks a structure, run the bundled `structure-prediction`
 sub-skill (experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` >
 homology model > de novo) and continue only after the returned structures are
 materialized as `structure/<protein_sequence_id>.pdb`. Then use US-align on all
@@ -239,16 +244,19 @@ Agent:
   100%, multi-genome 95%) then DIAMOND sequence screening
 - Capture existing `.faa`/`.gbff` annotations for protein/gene names, ECs,
   Pfam/InterPro/KEGG identifiers, and product descriptions
-- Check whether candidate structure files exist; if missing, run
-  `structure-prediction` (PDB > AlphaFold DB > homology model > de novo), then
-  use `screen-structure-candidates` to US-align all available structure files
-  directly
-- Use DEER fallback for a genome only after explaining why US-align candidates
-  are insufficient and when the user agrees; never auto-jump straight to DEER
+- Check whether a DIAMOND hit already has matching existing annotation for the
+  target; if yes, mark it `SEQUENCE_ANNOTATION_CONFIRMED` and skip
+  structure-prediction, US-align, and DEER for that row
+- Only when sequence hits exist but annotation is missing or mismatched, check
+  candidate structure files; if missing, run `structure-prediction`
+  (PDB > AlphaFold DB > homology model > de novo), then use
+  `screen-structure-candidates` to US-align all available structure files
+- Use DEER fallback for a genome only when no fast-path candidate exists and
+  US-align candidates are insufficient, with the user's agreement
 - Audit literature evidence with `literature-evidence` and keep only verifiable
   PMID/DOI rows
 - Merge FedKEA, literature, existing annotations, sequence evidence, and
-  structural evidence, then rank structure-first
+  structural evidence, then rank by priority rules
 - Output `scored_candidates_full.tsv`, `experimental_hypotheses.tsv`,
   and `experimental_design.md`
 
@@ -278,9 +286,13 @@ Agent:
   `.ffn`, `.gbff`, and candidate structure directory
 - Run `screen-sequence-candidates` on each genome: CD-HIT deduplication
   (single-genome 100%, multi-genome 95%), then DIAMOND screening
-- For each genome, check existing candidate structure files; if missing, run
-  `structure-prediction`, then use `screen-structure-candidates` to US-align
-  all available candidate structure files for that genome directly
+- For each genome, first check whether a DIAMOND hit already matches the
+  neutral sphingomyelinase / EC 3.1.4.12 annotation; if yes, mark
+  `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure steps
+- Only when sequence hits lack matching annotation, check candidate structure
+  files; if missing, run `structure-prediction`, then use
+  `screen-structure-candidates` to US-align all available candidate structure
+  files for that genome directly
 - Treat DEER as a per-genome fallback only when US-align lacks enough suitable
   candidates and the user agrees (for example, `Staphylococcus_xylosus`)
 - Validate final candidates with FedKEA and keep the binary/enzyme/probability
@@ -316,14 +328,17 @@ Agent:
   Bifidobacterium adolescentis candidate proteomes
 - Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%,
   multi-genome 95%), then DIAMOND screening
-- Check whether candidate structures exist; if missing, run
-  `structure-prediction`, then use `screen-structure-candidates` to US-align
+- Check whether a DIAMOND hit already has P20711/DDC-related annotation; if
+  yes, mark `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure steps
+- Only when sequence hits lack matching annotation, check whether candidate
+  structures exist; if missing, run `structure-prediction`, then use
+  `screen-structure-candidates` to US-align
   all available structure files directly
 - Use DEER fallback only when US-align candidates are insufficient and the user
   agrees; do not replace US-align with DEER
 - Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
 - Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence,
-  then apply the structure-first final ranking
+  then apply the final ranking by priority rules
 
 The response clearly reports:
 - whether DDC-like candidates are detected

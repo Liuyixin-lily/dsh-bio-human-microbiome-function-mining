@@ -204,6 +204,7 @@
       "hypothesis"
     ],
     "priority_tiers": [
+      "SEQUENCE_ANNOTATION_CONFIRMED",
       "USALIGN_TARGET_EC",
       "DEER_FEDKEA_CONFIRMED",
       "USALIGN_OTHER_EC",
@@ -214,12 +215,12 @@
       "ANNOTATION_ONLY"
     ],
     "scoring_overview": {
-      "rank_policy": "priority_rule is primary: USALIGN_TARGET_EC > DEER_FEDKEA_CONFIRMED > USALIGN_OTHER_EC > USALIGN_NOT_ENZYME > USALIGN_UNVALIDATED > DEER_FALLBACK > SEQUENCE_ONLY > ANNOTATION_ONLY; ties break by structural_score desc, sequence_score desc, annotation strength desc, candidate_id asc",
+      "rank_policy": "priority_rule is primary: SEQUENCE_ANNOTATION_CONFIRMED > USALIGN_TARGET_EC > DEER_FEDKEA_CONFIRMED > USALIGN_OTHER_EC > USALIGN_NOT_ENZYME > USALIGN_UNVALIDATED > DEER_FALLBACK > SEQUENCE_ONLY > ANNOTATION_ONLY; ties break by structural_score desc, sequence_score desc, annotation strength desc, candidate_id asc",
       "structural_score": "derived from US-align TM-score mean",
       "sequence_score": "derived from pident and query coverage",
       "priority_rule": "machine-readable rule assigned by scripts/score_candidates.py for every candidate row",
       "priority_order": "numeric order for priority_rule; lower is higher priority",
-      "overall_score": "deterministic structure-first score written by scripts/score_candidates.py for backward compatibility; it does not control overall_rank"
+      "overall_score": "deterministic backward-compatible display score written by scripts/score_candidates.py; it does not control overall_rank"
     }
   }
 }

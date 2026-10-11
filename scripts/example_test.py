@@ -346,14 +346,14 @@ def main() -> int:
             check=True,
         )
         score_text = scored.read_text(encoding="utf-8")
-        assert "structure_first_then_sequence" in score_text
+        assert "sequence_annotation_fast_path" in score_text
         assert "overall_rank" in score_text
         with scored.open("r", encoding="utf-8", newline="") as handle:
             scored_first = next(csv.DictReader(handle, delimiter="\t"))
             assert scored_first["overall_rank"] == "1"
             assert scored_first["structural_score"] == "0.82"
-            assert scored_first["priority_tier"] == "USALIGN_TARGET_EC"
-            assert scored_first["priority_rule"] == "USALIGN_TARGET_EC"
+            assert scored_first["priority_tier"] == "SEQUENCE_ANNOTATION_CONFIRMED"
+            assert scored_first["priority_rule"] == "SEQUENCE_ANNOTATION_CONFIRMED"
             assert scored_first["priority_order"] == "1"
 
         summary_dir = tmp / "summary"

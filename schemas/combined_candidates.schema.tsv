@@ -89,21 +89,24 @@ literature_verified_refs
   then `sequence_score`, then annotation strength, then `candidate_id`.
 
 Priority rules:
-1. `USALIGN_TARGET_EC`: US-align evidence above TM-score threshold and FedKEA
+1. `SEQUENCE_ANNOTATION_CONFIRMED`: DIAMOND sequence hit with positive
+   `sequence_score` and existing `.faa`/`.gbff` annotation matching the target
+   EC or enzyme name/product synonym; structure screening is skipped.
+2. `USALIGN_TARGET_EC`: US-align evidence above TM-score threshold and FedKEA
    assigns the configured target EC.
-2. `DEER_FEDKEA_CONFIRMED`: DEER evidence used because US-align did not leave
+3. `DEER_FEDKEA_CONFIRMED`: DEER evidence used because US-align did not leave
    enough suitable candidates, and FedKEA confirms the candidate as an enzyme.
    Sorted above US-align evidence that arrived at a non-target EC.
-3. `USALIGN_OTHER_EC`: US-align evidence above threshold and FedKEA assigns a
+4. `USALIGN_OTHER_EC`: US-align evidence above threshold and FedKEA assigns a
    different EC number.
-4. `USALIGN_NOT_ENZYME`: US-align evidence above threshold and FedKEA predicts
+5. `USALIGN_NOT_ENZYME`: US-align evidence above threshold and FedKEA predicts
    not an enzyme.
-5. `USALIGN_UNVALIDATED`: US-align evidence above threshold but no FedKEA
+6. `USALIGN_UNVALIDATED`: US-align evidence above threshold but no FedKEA
    result yet.
-6. `DEER_FALLBACK`: DEER evidence used because US-align did not leave enough
+7. `DEER_FALLBACK`: DEER evidence used because US-align did not leave enough
    suitable candidates and FedKEA has not confirmed enzyme function.
-7. `SEQUENCE_ONLY`: sequence evidence only, no structure evidence.
-8. `ANNOTATION_ONLY`: only existing source annotations available.
+8. `SEQUENCE_ONLY`: sequence evidence only, no structure evidence.
+9. `ANNOTATION_ONLY`: only existing source annotations available.
 
 `priority_tier` is the same machine-readable value as `priority_rule` for
 backward compatibility; `priority_order` gives the numeric rank used for sort.
@@ -134,6 +137,8 @@ backward compatibility; `priority_order` gives the numeric rank used for sort.
 - `literature_verified_refs` can list verified PMID/DOI identifiers separated by `;`. Empty means no verified literature was provided.
 - Existing annotations parsed from user-provided `.faa`/`.gbff` files are stored
   in `existing_annotation` and the `source_*` fields. They are an
-  existing-knowledge evidence chain and should not replace screening evidence.
+  existing-knowledge evidence chain. When combined with a positive DIAMOND hit
+  that matches the target EC or enzyme name/product synonym, the row qualifies
+  for the sequence+annotation fast path and structure screening is skipped.
 - `source_annotation_note` should point to the original `.faa`/`.gbff` file path
   and feature type so every `source_*` field is traceable.

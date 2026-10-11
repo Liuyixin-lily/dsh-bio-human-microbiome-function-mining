@@ -52,7 +52,7 @@ human_microbiome_function_mining/
 - `build-target-function-card`: 标准化目标输入，生成 Target Function Card。
 - `screen-sequence-candidates`: 运行或消费 DIAMOND 序列筛选，默认先做 CD-HIT 去冗余；单菌单基因组默认 100%，多基因组泛蛋白组默认 95%。
 - `structure-prediction`: 当候选蛋白没有已知结构文件时，按 PDB > AlphaFold DB（mean pLDDT >= 60）> homology model > de novo prediction 的优先级检索或预测结构；内置的 PDB/AFDB/homology 辅助脚本在 `skills/structure-prediction/scripts/` 中，为 US-align 准备 `structure/<protein_sequence_id>.pdb`。
-- `screen-structure-candidates`: 结构证据筛选。先检查候选结构文件是否存在；没有结构文件时先运行内置 `structure-prediction` 子 skill 获取候选结构，再对全部候选结构直接 US-align；只有某个基因组 US-align 候选不足时才按用户同意跑 DEER fallback。
+- `screen-structure-candidates`: 结构证据筛选。先检查候选结构文件是否存在；没有结构文件时先运行内置 `structure-prediction` 子 skill 获取候选结构，再对全部候选结构直接 US-align；只有某个基因组 US-align 候选不足时才按用户同意跑 DEER fallback。仅在“序列筛选 + 已有注释”没有共同确认目标功能时才启用。
 - `literature-evidence`: 文献证据审计。可用 MCP 文献工具时走 `nature-academic-search` 类流程，否则给出检索词或接收用户提供的已验证引用文件；禁止编造 PMID/DOI。
 - `genome-search`: 从 NCBI Assembly/BioSample 元数据中选择候选 GCF/GCA。
 - `genome-download`: 批量下载 RefSeq/GCF 或 GenBank/GCA 基因组文件。
@@ -72,7 +72,9 @@ target enzyme / EC / substrate-product
   -> CD-HIT deduplication (100% for single-genome datasets; 95% for multi-genome pan-proteomes)
   -> DIAMOND sequence screening
   -> parse existing .faa/.gbff annotations
-  -> check candidate structure files (PDB/CIF)
+  -> fast path: if sequence hit AND existing annotation match the target,
+     mark SEQUENCE_ANNOTATION_CONFIRMED and skip structure steps
+  -> otherwise check candidate structure files (PDB/CIF)
   -> if structures missing, run bundled structure-prediction sub-skill
   -> direct US-align against the reference target structure for all available candidate structures
   -> DEER only as fallback for genomes without enough US-align candidates
@@ -81,25 +83,26 @@ target enzyme / EC / substrate-product
   -> optional FedKEA enzyme/EC evidence
   -> literature-evidence audit (verified PMID/DOI evidence)
   -> merge combined_candidates.tsv
-  -> structure-first candidate ranking
+  -> explicit priority candidate ranking
   -> falsifiable experimental hypotheses
   -> experimental design
 ```
 
-默认排序是“结构证据优先、序列证据次之”，由 `scripts/score_candidates.py` 给出确定性的 `overall_rank`。脚本内部按优先级排序，再按结构分、序列分、注释强度、`candidate_id` 破平。`priority_rule`、`priority_order` 只作为可选溯源列保留，最终对外交付表以 `overall_rank` 为准。
+默认排序由 `scripts/score_candidates.py` 给出确定性的 `overall_rank`。如果 DIAMOND 序列命中且 `.faa`/`.gbff` 已有注释同时匹配目标功能，则该候选走 `SEQUENCE_ANNOTATION_CONFIRMED` 快速路径，不做后续结构比对；只有序列和注释证据不足或不一致时才进入结构证据流程。脚本内部按优先级排序，再按结构分、序列分、注释强度、`candidate_id` 破平。`priority_rule`、`priority_order` 只作为可选溯源列保留，最终对外交付表以 `overall_rank` 为准。
 
 The final ranked table is `scored_candidates_full.tsv`, with `overall_rank` as the explicit deliverable ranking field. Optional `priority_rule` / `priority_order` columns may be present for traceability but are not required by the schema.
 
 Priority policy used by `score_candidates.py`:
 
-1. `USALIGN_TARGET_EC`
-2. `DEER_FEDKEA_CONFIRMED`
-3. `USALIGN_OTHER_EC`
-4. `USALIGN_NOT_ENZYME`
-5. `USALIGN_UNVALIDATED`
-6. `DEER_FALLBACK`
-7. `SEQUENCE_ONLY`
-8. `ANNOTATION_ONLY`
+1. `SEQUENCE_ANNOTATION_CONFIRMED`
+2. `USALIGN_TARGET_EC`
+3. `DEER_FEDKEA_CONFIRMED`
+4. `USALIGN_OTHER_EC`
+5. `USALIGN_NOT_ENZYME`
+6. `USALIGN_UNVALIDATED`
+7. `DEER_FALLBACK`
+8. `SEQUENCE_ONLY`
+9. `ANNOTATION_ONLY`
 
 ---
 
@@ -114,7 +117,9 @@ The plugin does not silently download or install DIAMOND, CD-HIT, US-align, DEER
 5. Never invent tool output. Never call the FedKEA web server programmatically.
 
 For structure evidence, first check whether candidate structure files (PDB/CIF)
-exist. If a candidate lacks a structure, run the bundled `structure-prediction`
+exist. Skip this structure route entirely when a candidate already has a DIAMOND
+sequence hit and its existing `.faa`/`.gbff` annotation matches the target
+function. If a candidate lacks a structure, run the bundled `structure-prediction`
 sub-skill (experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` >
 homology model > de novo) and continue only after the returned structures are
 materialized as `structure/<protein_sequence_id>.pdb`. Then use US-align on all
@@ -236,11 +241,13 @@ Agent:
   95%），再 DIAMOND 序列筛选
 - 用 `parse_source_annotations.py` 收集 `.faa`/`.gbff` 已带的 protein/gene、EC、
   Pfam/InterPro/KEGG 等注释证据
-- 检查候选结构文件是否存在：没有就先跑 `structure-prediction`
-  （PDB > AlphaFold DB > homology model > de novo），有则用
-  `screen-structure-candidates` 对全部候选结构文件直接 US-align
-- 只有当某个基因组 US-align 没有足够合格候选时，才说明原因并经用户同意跑
-  DEER fallback，不自动跳过 US-align
+- 先检查 DIAMOND 命中是否已有 `.faa`/`.gbff` 注释匹配目标；匹配则标记
+  `SEQUENCE_ANNOTATION_CONFIRMED`，跳过结构预测、US-align 和 DEER
+- 只有序列命中但注释不匹配/无注释时，才检查候选结构文件；没有就先跑
+  `structure-prediction`（PDB > AlphaFold DB > homology model > de novo），
+  有则用 `screen-structure-candidates` 对全部候选结构文件直接 US-align
+- 只有当没有 fast-path 候选且某个基因组 US-align 没有足够合格候选时，
+  才说明原因并经用户同意跑 DEER fallback
 - 通过 `literature-evidence` skill 审计文献证据，只保留可验证的 PMID/DOI
 - 合并 FedKEA、文献证据、已有注释和结构/序列证据，按结构优先原则排序
 - 输出 `scored_candidates_full.tsv`、`experimental_hypotheses.tsv`
@@ -271,11 +278,13 @@ Agent:
   `.ffn`、`.gbff` 和候选结构目录
 - 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余
   （单基因组 100%，多基因组 95%），再 DIAMOND 筛选
-- 每个基因组先检查候选结构文件是否存在；缺少结构就跑
+- 先看每个 DIAMOND 命中是否已有注释匹配 neutral sphingomyelinase /
+  EC 3.1.4.12；匹配则标记 `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过结构流程
+- 只有序列命中但注释不匹配或无注释时，才检查候选结构文件；缺少结构就跑
   `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组
   所有候选结构文件直接 US-align
 - 按基因组分别判断是否 US-align 合格候选不足；不足且用户同意时，
-  才跑 DEER fallback（例如 Staphylococcus_xylosus 之前就是这样）
+  才跑 DEER fallback（例如之前 Staphylococcus_xylosus 的情况）
 - 用 FedKEA 对最终候选做酶/EC 验证，并保留 binary/enzyme/probability 结果
 - 用 `literature-evidence` 补充可验证的 PMID/DOI 证据链
 - 用 `score_candidates.py` 排序，输出每个物种的候选表、代表候选与实验设计
@@ -306,9 +315,13 @@ Agent:
   Bifidobacterium adolescentis 候选 proteome
 - 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%，多基因组
   95%），再 DIAMOND 筛选
-- 检查候选结构是否存在；无则跑 `structure-prediction`，有则用
-  `screen-structure-candidates` 对全部候选结构文件直接 US-align
-- 只有当 US-align 合格候选不足时，经用户同意才跑 DEER fallback
+- 先检查 DIAMOND 命中是否已有 P20711/DDC 相关注释；匹配则标记
+  `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过结构流程
+- 只有序列命中但注释不匹配或无注释时，才检查候选结构是否存在；无则跑
+  `structure-prediction`，有则用 `screen-structure-candidates` 对全部候选
+  结构文件直接 US-align
+- 只有当没有 fast-path 候选且 US-align 合格候选不足时，经用户同意才跑
+  DEER fallback
 - 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
 - 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后再按结构优先
   原则做最终排序

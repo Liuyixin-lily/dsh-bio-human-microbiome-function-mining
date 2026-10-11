@@ -42,16 +42,19 @@ Available scripts:
   values are filled from that metadata instead of remaining blank.
 - `score_candidates.py`: assigns deterministic `overall_score`, `overall_rank`,
   `priority_tier`, `priority_rule`, and `priority_order` to the combined table
-  using the explicit structure-first priority rules documented in the script
-  and in `schemas/combined_candidates.schema.tsv`. Pass `--target-ec` to match
-  the configured target EC inside `USALIGN_TARGET_EC`. DEER candidates that
-  FedKEA confirms as enzymes are placed in `DEER_FEDKEA_CONFIRMED`, above
-  `USALIGN_OTHER_EC`.
+  using the explicit priority rules documented in the script and in
+  `schemas/combined_candidates.schema.tsv`. Pass `--target-ec` to match the
+  configured target EC for FedKEA target EC validation and for the
+  sequence+annotation fast path; pass `--target-name` with comma-separated
+  enzyme names/synonyms to let existing `.faa`/`.gbff` annotations trigger
+  `SEQUENCE_ANNOTATION_CONFIRMED` when paired with a positive DIAMOND hit.
+  DEER candidates that FedKEA confirms as enzymes are placed in
+  `DEER_FEDKEA_CONFIRMED`, above `USALIGN_OTHER_EC`.
 - `summarize_candidates.py`: reads `scored_candidates_full.tsv`, optional
   `candidate_gene_evidence.tsv`, and an optional project JSON, then writes
   `high_confidence_candidate_summary.tsv` (all scored rows with validation
   verdicts), `final_target_candidates.tsv` (the rows matching
-  `--final-rules`, default `USALIGN_TARGET_EC`), and
+  `--final-rules`, default `USALIGN_TARGET_EC,SEQUENCE_ANNOTATION_CONFIRMED`), and
   `experimental_hypotheses.tsv` (one falsifiable hypothesis per scored
   candidate) in `--outdir`. Pass `--literature` to merge verified
   `literature_evidence.tsv` into candidate hypothesis tables.

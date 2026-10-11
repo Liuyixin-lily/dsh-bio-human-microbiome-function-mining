@@ -93,31 +93,45 @@ available:
    descriptions, EC numbers, Pfam/InterPro/TIGRFAM/CAZy/KEGG/COG/GO identifiers,
    and the original source file path.
 4. Classify hits as `known`, `ambiguous`, or `unknown`.
-5. Check whether candidate structure files (PDB or CIF) exist for the
+5. Apply the sequence+annotation fast path before any structure work:
+   - If a DIAMOND sequence hit has a positive `sequence_score` and its existing
+     `.faa`/`.gbff` annotation matches the target (for example
+     `source_ec_number` equals the target EC, or `source_product`/annotation
+     contains the target enzyme name or a direct reaction-product synonym),
+     mark it `SEQUENCE_ANNOTATION_CONFIRMED`.
+   - Skip structure-prediction, US-align, DEER, and catalytic-pocket mapping for
+     those rows. Move directly to FedKEA validation, literature evidence,
+     SignalP extraction, hypothesis generation, and experimental design when
+     requested.
+   - Run structure workflows only for candidates where sequence evidence alone
+     is ambiguous, unknown, or the existing annotation does not match the target
+     function.
+6. Check whether candidate structure files (PDB or CIF) exist for the
    sequence-filtered candidates. Do not assume structures are present.
-6. If candidates lack structure files, run the bundled `structure-prediction`
+7. If candidates lack structure files, run the bundled `structure-prediction`
    sub-skill to retrieve known structures or predict missing structures.
    Priority for final structures:
    experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` >
    homology model > de novo prediction. Only continue to US-align after the
    candidate structures are materialized as `structure/<protein_sequence_id>.pdb`.
-7. Run US-align directly against the reference target structure for every
+8. Run US-align directly against the reference target structure for every
    candidate structure file supplied by the user. If the executable and
    structure files are accessible from this terminal, run the configured batch
    command; otherwise instruct the user with the exact batch command and
    consume its `-outfmt 2` output.
-8. If a source genome has no US-align candidate above the configured
+9. If a source genome has no US-align candidate above the configured
    structural threshold, treat DEER as a fallback for that genome only. Run it
    locally only when the executable, model checkpoint, and candidate/template
    structure paths are accessible from this terminal and the user agrees;
    otherwise give the user the exact command and wait for the returned DEER
    output.
-9. Keep `structural_candidates.tsv` as the full structure-supported candidate
+10. Keep `structural_candidates.tsv` as the full structure-supported candidate
    list, not only rescued proteins.
-10. Map reference catalytic residues and compare active pockets.
-11. Collect genome-context and ecological evidence when the user supplies those
+11. Map reference catalytic residues and compare active pockets for
+    structure-screened candidates only.
+12. Collect genome-context and ecological evidence when the user supplies those
     datasets.
-12. When the user supplies FedKEA output, merge Enzyme Identification and EC
+13. When the user supplies FedKEA output, merge Enzyme Identification and EC
     Number Prediction results into `combined_candidates.tsv` using the
     `fedkea_*` fields. If an accessible local FedKEA executable is configured,
     run it and parse the result files; otherwise instruct the user that they
@@ -135,19 +149,20 @@ available:
      `fedkea_other_names`.
    - Keep the original FedKEA file paths and tool version in
      `fedkea_tool_version`.
-13. Run the `literature-evidence` sub-skill to search and audit published
+14. Run the `literature-evidence` sub-skill to search and audit published
     evidence for the target enzyme and for each candidate protein or candidate
     organism. Use `nature-academic-search` when its MCP literature tools are
     available and the user allows; otherwise fall back to OpenAlex-limited
     search or user-provided citations. Write verified literature rows to
     `literature_evidence.tsv`, add `literature_*` fields to candidate rows, and
     cite only verified PMID/DOI sources in the experimental plan.
-14. Build sequence, structural, existing source-annotation, and literature
+15. Build sequence, structural, existing source-annotation, and literature
     evidence tables and combine them into `combined_candidates.tsv`. Then run
-    `scripts/score_candidates.py` to apply the default structure-first-then-
-    sequence policy. Structure-bearing candidates precede sequence-only
-    candidates, and structural score is the primary tie-breaker.
-15. Write one functional hypothesis and one experimental validation plan for
+    `scripts/score_candidates.py` to apply the explicit priority policy above.
+    Sequence+annotation matches that already confirm the target function are
+    the fast path; structure evidence is only required when sequence and
+    annotation do not together confirm the target function.
+16. Write one functional hypothesis and one experimental validation plan for
     each high-value candidate.
     - Use `scripts/summarize_candidates.py` to write
       `experimental_hypotheses.tsv` after scoring.
@@ -164,17 +179,20 @@ available:
 
 ## Ranking policy
 
-The default final-ranking policy is explicit structure-first priority rules in
+The default final-ranking policy is the explicit priority rules in
 `scripts/score_candidates.py`. Priority order:
 
-1. `USALIGN_TARGET_EC`: US-align above threshold and FedKEA assigns target EC.
-2. `DEER_FEDKEA_CONFIRMED`: DEER used as fallback and FedKEA confirms enzyme.
-3. `USALIGN_OTHER_EC`: US-align above threshold, FedKEA assigns different EC.
-4. `USALIGN_NOT_ENZYME`: US-align above threshold, FedKEA predicts not enzyme.
-5. `USALIGN_UNVALIDATED`: US-align above threshold, no FedKEA result yet.
-6. `DEER_FALLBACK`: DEER used, FedKEA has not confirmed enzyme function.
-7. `SEQUENCE_ONLY`: sequence evidence only.
-8. `ANNOTATION_ONLY`: only existing source annotations available.
+1. `SEQUENCE_ANNOTATION_CONFIRMED`: DIAMOND sequence hit and existing
+   `.faa`/`.gbff` annotation both match the target function, so structure
+   screening is skipped.
+2. `USALIGN_TARGET_EC`: US-align above threshold and FedKEA assigns target EC.
+3. `DEER_FEDKEA_CONFIRMED`: DEER used as fallback and FedKEA confirms enzyme.
+4. `USALIGN_OTHER_EC`: US-align above threshold, FedKEA assigns different EC.
+5. `USALIGN_NOT_ENZYME`: US-align above threshold, FedKEA predicts not enzyme.
+6. `USALIGN_UNVALIDATED`: US-align above threshold, no FedKEA result yet.
+7. `DEER_FALLBACK`: DEER used, FedKEA has not confirmed enzyme function.
+8. `SEQUENCE_ONLY`: sequence evidence only.
+9. `ANNOTATION_ONLY`: only existing source annotations available.
 
 Within the same rule, ties break by structure score descending, then sequence
 score descending, then annotation strength descending, then `candidate_id`

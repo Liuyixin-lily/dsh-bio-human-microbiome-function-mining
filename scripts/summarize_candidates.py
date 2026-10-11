@@ -8,7 +8,7 @@ genome paths. Writes two deterministic artifacts:
 - high_confidence_candidate_summary.tsv: every scored row with a short
   human-readable validation status and a machine-readable verdict.
 - final_target_candidates.tsv: only the priority rules configured by
-  --final-rules, defaulting to `USALIGN_TARGET_EC`.
+  --final-rules, defaulting to `USALIGN_TARGET_EC,SEQUENCE_ANNOTATION_CONFIRMED`.
 - experimental_hypotheses.tsv: one explict falsifiable hypothesis per scored
   candidate, with mechanistic model, testable prediction, critical
   experiments, falsification criteria, ambient/alternative hypothesis,
@@ -109,6 +109,9 @@ def load_candidate_paths(project_path: str | None) -> tuple[dict[str, dict[str, 
 
 
 def evidence_base(row: dict[str, str]) -> str:
+    rule = row.get("priority_rule", row.get("priority_tier", ""))
+    if rule == "SEQUENCE_ANNOTATION_CONFIRMED":
+        return "sequence+annotation"
     if row.get("deer_distance", "").strip() or row.get("deer_rank", "").strip():
         return "DEER"
     if row.get("structural_score", "").strip() or row.get("tm_score_mean", "").strip():
@@ -120,6 +123,8 @@ def evidence_base(row: dict[str, str]) -> str:
 
 def validation_status(row: dict[str, str]) -> str:
     rule = row.get("priority_rule", row.get("priority_tier", ""))
+    if rule == "SEQUENCE_ANNOTATION_CONFIRMED":
+        return "high-confidence: DIAMOND sequence hit with matching existing source annotation; structure screening skipped"
     if rule == "USALIGN_TARGET_EC":
         return "high-confidence: US-align near-native + FedKEA target EC " + row.get("fedkea_final_result", "")
     if rule == "DEER_FEDKEA_CONFIRMED":
@@ -146,6 +151,8 @@ def validation_status(row: dict[str, str]) -> str:
 
 def verdict(row: dict[str, str]) -> str:
     rule = row.get("priority_rule", row.get("priority_tier", ""))
+    if rule == "SEQUENCE_ANNOTATION_CONFIRMED":
+        return "high:sequence+annotation"
     if rule == "USALIGN_TARGET_EC":
         return "high:US-align+target_EC"
     if rule == "DEER_FEDKEA_CONFIRMED":
@@ -189,7 +196,9 @@ def hypothesis_statement(row: dict[str, str], project: dict[str, Any], target: s
     acc = row.get("protein_accession") or row.get("candidate_id") or ""
     organism = row.get("organism_or_strain") or ""
     rule = row.get("priority_rule", row.get("priority_tier", ""))
-    if rule == "USALIGN_TARGET_EC":
+    if rule == "SEQUENCE_ANNOTATION_CONFIRMED":
+        basis = "strong DIAMOND sequence similarity and existing source annotation matching the target function"
+    elif rule == "USALIGN_TARGET_EC":
         basis = "high structural similarity to the reference enzyme and FedKEA-predicted target EC"
     elif rule == "USALIGN_OTHER_EC":
         basis = "high structural similarity to the reference enzyme, although FedKEA predicts a different EC"
@@ -229,6 +238,8 @@ def mechanistic_model(row: dict[str, str], project: dict[str, Any]) -> str:
         model += f" The source annotation describes it as: {source}."
     if rule in ("USALIGN_TARGET_EC", "USALIGN_OTHER_EC", "DEER_FEDKEA_CONFIRMED"):
         model += " Structural and/or functional prediction support an enzyme active site that can accommodate the target substrate."
+    elif rule == "SEQUENCE_ANNOTATION_CONFIRMED":
+        model += " Existing functional annotation and sequence similarity together support enzyme activity; structural validation was not required."
     elif rule == "SEQUENCE_ONLY":
         model += " Sequence similarity supports an evolutionary relationship, but the active site geometry is unverified."
     return model
@@ -236,7 +247,7 @@ def mechanistic_model(row: dict[str, str], project: dict[str, Any]) -> str:
 
 def testable_prediction(row: dict[str, str]) -> str:
     rule = row.get("priority_rule", row.get("priority_tier", ""))
-    if rule == "USALIGN_TARGET_EC":
+    if rule in ("SEQUENCE_ANNOTATION_CONFIRMED", "USALIGN_TARGET_EC"):
         return "Purified recombinant protein will catalyze the target reaction in vitro with detectable substrate depletion and product formation."
     if rule in ("USALIGN_OTHER_EC", "DEER_FEDKEA_CONFIRMED"):
         return "Purified recombinant protein will show enzyme activity in vitro; the EC assignment will be reconciled by substrate/product assays."
@@ -259,6 +270,8 @@ def critical_experiments(row: dict[str, str]) -> str:
 
 def falsification_criteria(row: dict[str, str]) -> str:
     rule = row.get("priority_rule", row.get("priority_tier", ""))
+    if rule == "SEQUENCE_ANNOTATION_CONFIRMED":
+        return "No substrate conversion above the negative-control limit after at least three biological replicates, or the existing annotation fails to reproduce in the source organism, would falsify the hypothesis."
     if rule == "USALIGN_TARGET_EC":
         return "No substrate conversion above the negative-control limit after at least three biological replicates, or a catalytically dead mutant retains full activity, would falsify the hypothesis."
     if rule in ("DEER_FEDKEA_CONFIRMED", "USALIGN_OTHER_EC"):
@@ -364,7 +377,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--final-rules",
-        default="USALIGN_TARGET_EC",
+        default="USALIGN_TARGET_EC,SEQUENCE_ANNOTATION_CONFIRMED",
         help="Comma-separated priority rules included in final_target_candidates.tsv.",
     )
     return parser.parse_args(argv)

@@ -78,7 +78,9 @@ Use these directly or through the agent skills:
   annotation evidence into `combined_candidates.tsv`. Pass `--project` when
   the project JSON records candidate sequence source paths.
 - `score_candidates.py`: produces `scored_candidates_full.tsv` with explicit
-  structure-first `priority_rule` / `priority_order`.
+  `priority_rule` / `priority_order`. A DIAMOND hit whose existing `.faa`/
+  `.gbff` annotation matches the target EC or enzyme name/product synonym is
+  assigned `SEQUENCE_ANNOTATION_CONFIRMED` and skips structure screening.
 - `summarize_candidates.py`: produces `high_confidence_candidate_summary.tsv`,
   `final_target_candidates.tsv`, and `experimental_hypotheses.tsv` from a
   scored table. Pass `--literature literature_evidence.tsv` when verified
@@ -111,7 +113,8 @@ Use these directly or through the agent skills:
 4. Run `example_test.py` first to verify that the parser/merge/score logic works
    without external tools.
 5. Ask the agent to run the target-specific workflow from `README.md` or
-   `references/workflow.md`.
+   `references/workflow.md`. Structure screening is only run when sequence hits
+   and existing annotations do not together confirm the target function.
 6. If external tools are not accessible from the terminal, the plugin writes
    pending checkpoints with exact commands for the user to run. The user
    returns the resulting files and the same parsers merge and score them.

@@ -87,28 +87,42 @@ Normalize the input into a target function card before searching. Include when a
    descriptions, EC numbers, Pfam/InterPro/TIGRFAM/CAZy/KEGG/COG/GO identifiers,
    and the original source file path.
 4. Classify hits as `known`, `ambiguous`, or `unknown`.
-5. Check whether candidate structure files exist (PDB/CIF) for the
+5. Apply the sequence+annotation fast path before any structure work:
+   - If a DIAMOND sequence hit has a positive `sequence_score` and its existing
+     `.faa`/`.gbff` annotation matches the target (for example
+     `source_ec_number` equals the target EC, or `source_product`/annotation
+     contains the target enzyme name or a direct reaction-product synonym),
+     mark it `SEQUENCE_ANNOTATION_CONFIRMED`.
+   - Skip structure-prediction, US-align, DEER, and catalytic-pocket mapping for
+     those rows. Move directly to FedKEA validation, literature evidence,
+     SignalP extraction, hypothesis generation, and experimental design when
+     the user requests them.
+   - Run structure workflows only for candidates where sequence evidence alone
+     is ambiguous, unknown, or the existing annotation does not match the target
+     function.
+6. Check whether candidate structure files exist (PDB/CIF) for the
    sequence-filtered candidates. Do not assume structures are present.
-6. If candidates lack structure files, run the bundled `structure-prediction`
+7. If candidates lack structure files, run the bundled `structure-prediction`
    sub-skill to retrieve known structures or predict missing structures.
    Priority for final structures:
    experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` >
    homology model > de novo prediction. Only continue to US-align after the
    candidate structures are materialized as `structure/<protein_sequence_id>.pdb`.
-7. Run US-align directly against the reference target structure for every
+8. Run US-align directly against the reference target structure for every
    candidate structure file supplied by the user. If the executable and
    structure files are accessible from this terminal, run the configured batch
    command; otherwise instruct the user with the exact batch command and
    consume its `-outfmt 2` output.
-8. If a source genome has no US-align candidate above the configured
+9. If a source genome has no US-align candidate above the configured
    structural threshold, treat DEER as a fallback for that genome only. Run it
    locally only when the executable, model checkpoint, and candidate/template
    structure paths are accessible from this terminal; otherwise give the user
    the exact command and wait for the returned DEER output.
-9. Keep `structural_candidates.tsv` as the full structure-supported candidate list, not only rescued proteins.
-10. Map reference catalytic residues and compare active pockets.
-11. Collect genome-context and ecological evidence when the user supplies those datasets.
-12. When the user supplies FedKEA output, merge Enzyme Identification and EC
+10. Keep `structural_candidates.tsv` as the full structure-supported candidate list, not only rescued proteins.
+11. Map reference catalytic residues and compare active pockets for
+    structure-screened candidates only.
+12. Collect genome-context and ecological evidence when the user supplies those datasets.
+13. When the user supplies FedKEA output, merge Enzyme Identification and EC
     Number Prediction results into `combined_candidates.tsv` using the
     `fedkea_*` fields. If an accessible local FedKEA executable is configured,
     run it and parse the result files; otherwise instruct the user that they
@@ -125,7 +139,7 @@ Normalize the input into a target function card before searching. Include when a
    - Map `binary_result.txt` to `fedkea_is_enzyme` and `fedkea_enzyme_probability`.
    - Map `enzyme_result_with_confidence.csv` to `fedkea_final_result`, `fedkea_ec_confidence_file`, `fedkea_accepted_name`, and `fedkea_other_names`.
    - Keep the original FedKEA file paths and tool version in `fedkea_tool_version` so the validation layer is traceable.
-13. When final candidate proteins are selected and the user wants secreted
+14. When final candidate proteins are selected and the user wants secreted
     protein mature sequences, run SignalP on `candidate_proteins.faa` through
     `scripts/run_signalp.py` (only when the local executable is accessible and
     `tools.signalp.auto_run_local` is enabled) or give the user the exact
@@ -136,19 +150,20 @@ Normalize the input into a target function card before searching. Include when a
     `candidate_proteins.faa`, `candidate_cds.ffn`,
     `candidate_gene_sequences.fna`, `candidate_mature_proteins.faa`, and
     `candidate_gene_evidence.tsv`.
-14. Run the `literature-evidence` sub-skill to search and audit published
+15. Run the `literature-evidence` sub-skill to search and audit published
     evidence for the target enzyme and for each candidate protein or candidate
     organism. Use `nature-academic-search` when its MCP literature tools are
     available and the user allows; otherwise fall back to OpenAlex-limited
     search or user-provided citations. Write verified literature rows to
     `literature_evidence.tsv`, add `literature_*` fields to candidate rows, and
     cite only verified PMID/DOI sources in the experimental plan.
-15. Build sequence, structural, existing source-annotation, and literature
+16. Build sequence, structural, existing source-annotation, and literature
     evidence tables and combine them into `combined_candidates.tsv`. Then run
-    `scripts/score_candidates.py` to apply the default
-    structure-first-then-sequence policy: structure-bearing candidates precede
-    sequence-only candidates, and structural score is the primary tie-breaker.
-16. Write one functional hypothesis and one experimental validation plan for
+    `scripts/score_candidates.py` to apply the explicit priority policy above.
+    Sequence+annotation matches that already confirm the target function are the
+    fast path; structure evidence is only required when sequence and annotation
+    do not together confirm the target function.
+17. Write one functional hypothesis and one experimental validation plan for
     each high-value candidate.
     - Use `scripts/summarize_candidates.py` to write
       `experimental_hypotheses.tsv` after scoring.
@@ -190,5 +205,10 @@ Return machine-readable evidence whenever possible:
 - FedKEA EC predictions are supplementary, orthogonal validation; do not treat them as biochemical proof.
 - Existing `.faa`/`.gbff` annotations are surrogate existing-knowledge evidence;
   do not treat a product name or EC annotation alone as biochemical proof.
+- A DIAMOND hit plus a matching existing annotation is the sequence+annotation
+  fast path: do not force downstream structure screening when the two evidence
+  sources already agree on the target function.
+- Run structure screening only when sequence+annotation evidence is absent,
+  ambiguous, unknown, or contradicts the target function.
 - Treat structure-only hits as hypotheses until biochemical activity is measured.
 - If a tool/database is not available, say what external tool is needed instead of inventing results.

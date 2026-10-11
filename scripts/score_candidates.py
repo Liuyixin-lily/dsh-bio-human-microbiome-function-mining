@@ -8,21 +8,25 @@ then annotation strength, then a stable identifier.
 
 Priority rules:
 
-1. USALIGN_TARGET_EC: US-align evidence meets the TM-score threshold and
+1. SEQUENCE_ANNOTATION_CONFIRMED: DIAMOND sequence hit with positive
+   `sequence_score` and existing source annotation that matches the configured
+   target EC or target enzyme name/product synonym. Structure screening is
+   skipped for these rows.
+2. USALIGN_TARGET_EC: US-align evidence meets the TM-score threshold and
    FedKEA assigns the configured target EC.
-2. DEER_FEDKEA_CONFIRMED: DEER evidence was used because US-align did not
+3. DEER_FEDKEA_CONFIRMED: DEER evidence was used because US-align did not
    leave enough suitable candidates, and FedKEA confirms the candidate as an
    enzyme. Above US-align evidence that arrived at a non-target EC.
-3. USALIGN_OTHER_EC: US-align evidence meets the threshold and FedKEA assigns
+4. USALIGN_OTHER_EC: US-align evidence meets the threshold and FedKEA assigns
    a different EC number.
-4. USALIGN_NOT_ENZYME: US-align evidence meets the threshold and FedKEA
+5. USALIGN_NOT_ENZYME: US-align evidence meets the threshold and FedKEA
    predicts the candidate is not an enzyme.
-5. USALIGN_UNVALIDATED: US-align evidence meets the threshold, but no FedKEA
+6. USALIGN_UNVALIDATED: US-align evidence meets the threshold, but no FedKEA
    result has been provided yet.
-6. DEER_FALLBACK: DEER evidence was used because US-align did not leave enough
+7. DEER_FALLBACK: DEER evidence was used because US-align did not leave enough
    suitable candidates, and FedKEA has not confirmed enzyme function.
-7. SEQUENCE_ONLY: sequence evidence only, no structure evidence.
-8. ANNOTATION_ONLY: only existing source annotations are available.
+8. SEQUENCE_ONLY: sequence evidence only, no structure evidence.
+9. ANNOTATION_ONLY: only existing source annotations are available.
 """
 
 from __future__ import annotations
@@ -36,7 +40,7 @@ from typing import Any
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Assign structure-first overall_rank, overall_score, and priority_tier."
+        description="Assign explicit priority overall_rank, overall_score, and priority_tier."
     )
     parser.add_argument("--input", type=Path, required=True, help="combined_candidates.tsv.")
     parser.add_argument(
@@ -56,9 +60,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Comma-separated target EC numbers used to identify FedKEA target matches.",
     )
     parser.add_argument(
+        "--target-name",
+        default="",
+        help="Comma-separated target enzyme names/synonyms used by the "
+        "sequence+annotation fast path to detect matching existing source annotations.",
+    )
+    parser.add_argument(
         "--policy",
-        default="structure_first_then_sequence",
-        help="Label recorded in rank_policy, default structure_first_then_sequence.",
+        default="sequence_annotation_fast_path",
+        help="Label recorded in rank_policy, default sequence_annotation_fast_path.",
     )
     parser.add_argument(
         "--no-sort",
@@ -156,6 +166,26 @@ def fedkea_target_match(row: dict[str, str], target_ecs: set[str]) -> bool:
     return normalized in target_ecs
 
 
+def annotation_matches_target(row: dict[str, str], target_ecs: set[str], target_names: set[str]) -> bool:
+    source_ec = (row.get("source_ec_number", "") or "").strip()
+    if target_ecs and source_ec:
+        source_norm = source_ec.replace(" ", "").lstrip("EC:")
+        if source_norm in target_ecs:
+            return True
+    if target_names:
+        text_parts = [
+            row.get("source_product", ""),
+            row.get("source_description", ""),
+            row.get("source_protein_name", ""),
+            row.get("existing_annotation", ""),
+            row.get("annotation", ""),
+        ]
+        haystack = " ".join(part.lower() for part in text_parts if part).strip()
+        if haystack and any(name in haystack for name in target_names):
+            return True
+    return False
+
+
 def is_usalign_structure(row: dict[str, str]) -> bool:
     support = (row.get("structure_support", "") or "").strip().lower()
     if support and support in ("1", "true", "yes", "usalign"):
@@ -169,34 +199,49 @@ def is_deer_structure(row: dict[str, str]) -> bool:
     return support in ("deer", "deer_results") or bool(row.get("deer_distance") or row.get("deer_rank"))
 
 
-def priority_rule(row: dict[str, str], threshold: float, target_ecs: set[str]) -> tuple[int, str]:
+def priority_rule(
+    row: dict[str, str],
+    threshold: float,
+    target_ecs: set[str],
+    target_names: set[str] = frozenset(),
+) -> tuple[int, str]:
     structural = structural_component(row)
     tm = numeric(row.get("tm_score_mean", ""))
     tm_threshold_met = tm == tm and tm >= threshold
+    sequence = numeric(row.get("sequence_score", ""))
+
+    if sequence > 0 and annotation_matches_target(row, target_ecs, target_names):
+        return 1, "SEQUENCE_ANNOTATION_CONFIRMED"
 
     if structural > 0 and not is_deer_structure(row):
-        # US-align-style structure evidence is primary for ranking.
+        # Structure evidence is used when the sequence+annotation fast path
+        # did not already confirm the target function.
         if fedkea_is_enzyme(row):
             if fedkea_target_match(row, target_ecs):
-                return 1, "USALIGN_TARGET_EC"
-            return 3, "USALIGN_OTHER_EC"
+                return 2, "USALIGN_TARGET_EC"
+            return 4, "USALIGN_OTHER_EC"
         if (row.get("fedkea_is_enzyme", "") or "").strip():
-            return 4, "USALIGN_NOT_ENZYME"
-        return 5, "USALIGN_UNVALIDATED"
+            return 5, "USALIGN_NOT_ENZYME"
+        return 6, "USALIGN_UNVALIDATED"
 
     if structural > 0 and is_deer_structure(row):
         if fedkea_is_enzyme(row):
-            return 2, "DEER_FEDKEA_CONFIRMED"
-        return 6, "DEER_FALLBACK"
+            return 3, "DEER_FEDKEA_CONFIRMED"
+        return 7, "DEER_FALLBACK"
 
-    if numeric(row.get("sequence_score", "")) == numeric(row.get("sequence_score", "")):
-        return 7, "SEQUENCE_ONLY"
+    if sequence > 0:
+        return 8, "SEQUENCE_ONLY"
 
-    return 8, "ANNOTATION_ONLY"
+    return 9, "ANNOTATION_ONLY"
 
 
-def tier_outputs(row: dict[str, str], threshold: float, target_ecs: set[str]) -> None:
-    order, rule = priority_rule(row, threshold, target_ecs)
+def tier_outputs(
+    row: dict[str, str],
+    threshold: float,
+    target_ecs: set[str],
+    target_names: set[str],
+) -> None:
+    order, rule = priority_rule(row, threshold, target_ecs, target_names)
     row["priority_order"] = str(order)
     row["priority_rule"] = rule
     row["priority_tier"] = rule
@@ -213,6 +258,7 @@ def score_rows(
     rows: list[dict[str, str]],
     threshold: float,
     target_ecs: set[str],
+    target_names: set[str],
     policy: str,
     no_sort: bool,
 ) -> list[dict[str, str]]:
@@ -224,7 +270,7 @@ def score_rows(
         structure = has_structure_evidence(row)
         sequence = sequence_component(row, max_sequence_score)
         annotation = annotation_component(row)
-        tier_outputs(row, threshold, target_ecs)
+        tier_outputs(row, threshold, target_ecs, target_names)
         priority_order = int(row["priority_order"])
         # Keep an overall_score for backward compatibility, but make the actual
         # ranking driven by the explicit priority_order rules documented above.
@@ -278,7 +324,8 @@ def main(argv: list[str] | None = None) -> int:
             fields.append(field)
 
     target_ecs = {ec.strip() for ec in args.target_ec.split(",") if ec.strip()}
-    scored = score_rows(rows, args.tm_threshold, target_ecs, args.policy, args.no_sort)
+    target_names = {name.strip().lower() for name in args.target_name.split(",") if name.strip()}
+    scored = score_rows(rows, args.tm_threshold, target_ecs, target_names, args.policy, args.no_sort)
     output = args.output or args.input
     write_tsv(output, fields, scored)
     print(f"wrote {output} ({len(scored)} rows; policy={args.policy})")
