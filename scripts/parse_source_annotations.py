@@ -137,11 +137,19 @@ def parse_gbff(path: Path) -> list[dict[str, str]]:
                 "ec_number": "",
                 "db_xref": "",
                 "go_terms": "",
+                "old_locus_tag": "",
                 "description": "",
+                "_last_qual": "",
             }
             continue
         if in_cds and line.startswith("                     /"):
             current = _parse_qualifier_line(current, line)
+            continue
+        if in_cds and line.startswith("                     ") and current.get("_last_qual"):
+            # wrapped continuation of the previous qualifier value (no leading /)
+            cont = line.strip()
+            if cont and not cont.startswith("/"):
+                _append_qualifier(current, current["_last_qual"], cont)
             continue
         if in_cds and line.startswith("     ") and not line.startswith("                     /"):
             current_text = line[2:].strip()
@@ -155,23 +163,59 @@ def parse_gbff(path: Path) -> list[dict[str, str]]:
     return rows
 
 
-def _parse_qualifier_line(row: dict[str, str], line: str) -> dict[str, str]:
-    qualifier = line.split("/", 1)[1]
-    key, value = qualifier.split("=", 1)
-    value = value.strip().strip('"')
+def _append_qualifier(row: dict[str, str], key: str, text: str) -> None:
+    """Append a value/continuation to the row field for `key`.
+
+    Only `protein_id` maps to `protein_accession`. `old_locus_tag` is a locus
+    tag, not an accession: mapping it there used to yield values like
+    "AADX83_08005 WP_002468583.1", which then failed to join against candidate
+    tables keyed by protein accession.
+    """
+    text = text.strip()
+    if not text:
+        return
     if key == "product":
-        row["product"] = value
-        row["description"] = (row.get("description", "") + " " + value).strip()
+        row["product"] = (row.get("product", "") + " " + text).strip()
+        row["description"] = (row.get("description", "") + " " + text).strip()
     elif key == "gene":
-        row["gene"] = value
+        row["gene"] = (row.get("gene", "") + " " + text).strip()
     elif key == "locus_tag":
-        row["locus_tag"] = value
+        row["locus_tag"] = (row.get("locus_tag", "") + " " + text).strip()
+    elif key == "old_locus_tag":
+        row["old_locus_tag"] = (row.get("old_locus_tag", "") + " " + text).strip()
     elif key == "protein_id":
-        row["protein_accession"] = value
+        row["protein_accession"] = (row.get("protein_accession", "") + " " + text).strip()
     elif key == "EC_number":
-        row["ec_number"] = value
+        row["ec_number"] = (row.get("ec_number", "") + " " + text).strip()
+    elif key == "GO":
+        row["go_terms"] = (row.get("go_terms", "") + " " + text).strip()
     elif key == "db_xref":
-        if "PFAM:" in value:
+        row["db_xref"] = (row.get("db_xref", "") + " " + text).strip()
+    elif key == "note":
+        row["description"] = (row.get("description", "") + " " + text).strip()
+    # other qualifiers (inference, codon_start, transl_table, pseudo, ...) are
+    # bookkeeping and are deliberately not folded into `description`.
+
+
+def _parse_qualifier_line(row: dict[str, str], line: str) -> dict[str, str]:
+    """Parse one `/key=value` qualifier line, tolerating wrapped values.
+
+    GenBank wraps long values and continues them on following lines that carry
+    no leading `/`. Those continuations must extend the PREVIOUS qualifier, not
+    be treated as free text (which used to leak note text into `description`).
+    Flag qualifiers such as `/pseudo` and `/codon_start` have no `=`, so the
+    split must not be assumed to yield two parts.
+    """
+    qualifier = line.split("/", 1)[1]
+    if "=" in qualifier:
+        key, value = qualifier.split("=", 1)
+    else:
+        key, value = qualifier, ""
+    key = key.strip()
+    value = value.strip().strip('"')
+    row["_last_qual"] = key
+    if key == "db_xref":
+        if "PFAM:" in value.upper():
             row["pfam"] = value
         elif "InterPro:" in value:
             row["interpro"] = value
@@ -184,10 +228,8 @@ def _parse_qualifier_line(row: dict[str, str], line: str) -> dict[str, str]:
         elif "COG:" in value:
             row["cog"] = value
         row["db_xref"] = (row.get("db_xref", "") + " " + value).strip()
-    elif key == "GO":
-        row["go_terms"] = (row.get("go_terms", "") + " " + value).strip()
-    else:
-        row["description"] = (row.get("description", "") + f" /{key}={value}").strip()
+    elif value:
+        _append_qualifier(row, key, value)
     return row
 
 
