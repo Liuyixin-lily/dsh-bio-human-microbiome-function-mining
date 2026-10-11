@@ -234,13 +234,12 @@ Agent:
 - Inventory the inputs: split candidate proteome/genome, target sequence, target
   structure and candidate structure directory into PROVIDED vs TO ACQUIRE.
   PROVIDED items are used as-is - no download, re-annotation, prediction or
-  overwrite
+  overwrite; use `genome-search` / `genome-download` / `genome-annotation` to
+  prepare candidate proteomes **only for TO ACQUIRE items**, and likewise load
+  the reference enzyme set directly when the user already supplied the target
+  sequence/structure
 - Verify and pin that split with `preflight_inputs.py`; fail before heavy work
   when a required path is missing or empty
-- Use `genome-search` / `genome-download` / `genome-annotation` to prepare
-  candidate proteomes **only for TO ACQUIRE items**; likewise load the reference
-  enzyme set directly when the user already supplied the target
-  sequence/structure
 - Use `screen-sequence-candidates` to run CD-HIT deduplication (single-genome
   100%, multi-genome 95%) then DIAMOND sequence screening
 - Parse existing `.faa`/`.gbff` protein/gene names, ECs and Pfam/InterPro/KEGG
