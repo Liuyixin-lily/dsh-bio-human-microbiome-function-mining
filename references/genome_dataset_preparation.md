@@ -31,6 +31,37 @@ scripts and NCBI access are reachable from the current terminal, run them
 directly; otherwise give the user the exact commands and wait for returned
 files.
 
+## Supplied files must not be re-acquired
+
+Before running any of the three sub-skills, establish a PROVIDED / TO ACQUIRE
+split over **all** task inputs, not just the candidate proteome:
+
+| Input | If supplied | If absent |
+| --- | --- | --- |
+| candidate proteome `.faa` / genome `.gbff` | PROVIDED - use as-is, no download, no re-annotation | TO ACQUIRE - run the relevant sub-skill |
+| target sequence (`inputs.target_sequence_fasta`) | PROVIDED - use as the screening query, no UniProt/NCBI re-fetch | TO ACQUIRE - fetch from UniProt/NCBI |
+| target structure (`inputs.target_structure_pdb`) | PROVIDED - use as the US-align reference as-is, no RCSB/PDB re-download, no prediction | TO ACQUIRE - retrieve from PDB/AlphaFold DB or predict |
+| candidate structure directory | PROVIDED - those PDB/CIF files are the candidate structures; skip retrieval and prediction | TO ACQUIRE - run `structure-prediction` |
+
+Record the split in `project.json` and verify it with
+`scripts/preflight_inputs.py --project project.json`. A supplied path is never
+re-downloaded, re-annotated, re-predicted, or overwritten. If the user points at
+a host directory (for example a server path), inventory it before assuming
+anything is missing.
+
+Consequence for the reference enzyme step: when the user supplies the target
+sequence or structure, that **is** the reference enzyme - do not also run
+`fetch_reference_enzymes.py` to obtain another copy of the same thing. Use the
+fetcher only for additional reference/synonym records the route actually needs.
+
+### What is still required
+
+Supplying sequence and structure files skips **acquisition and prediction**, not
+the analysis itself. Sequence screening (DIAMOND vs CD-HIT-deduplicated
+proteome), the sequence+annotation fast path, and US-align against the supplied
+structure still run as the workflow specifies - unless the fast path confirms
+the target function, in which case structure screening is skipped as well.
+
 ## Output layout expected by the plugin
 
 Place prepared files where `project.json`/`config.example.json` points:

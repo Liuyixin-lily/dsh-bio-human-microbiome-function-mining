@@ -17,6 +17,19 @@ and US-align.
 
 ## Workflow
 
+0. **Inventory supplied structures first. Do not fetch or predict what the user
+   already provided.** For every query, check in this order:
+   - the path(s) the user supplied (target structure, candidate structure
+     directory, `project.json` structure settings);
+   - an already-materialized `structure/<protein_sequence_id>.pdb`.
+
+   Classify each query as `EXISTS` (final structure already present, including a
+   user-supplied model), `FOUND` (retrieved from PDB/AFDB), `MISSING` (needs
+   prediction), or `LOW_QUALITY`. Process **only** `MISSING` and `LOW_QUALITY`
+   entries with the remaining steps. `EXISTS` entries are used as-is: no
+   retrieval, no prediction, no overwrite. Report the classification counts so
+   it is visible which work was actually necessary.
+
 1. Read configured structure-prediction settings from `project.json`:
    `tools.structure_prediction`. Honor `enabled`, `auto_run_local`,
    `executable`, and `output_dir` when present.

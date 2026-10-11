@@ -30,7 +30,27 @@ Normalize the input into a target function card before searching. Include when a
 
 ## Workflow
 
-0. If the user already has a candidate proteome `.faa` and/or annotated `.gbff`,
+0. **Check what the user already supplied BEFORE any acquisition step.** This
+   rule overrides every later step that would download or predict something.
+   Inventory, for this task:
+   - candidate proteome `.faa` and/or annotated `.gbff`
+   - **target sequence** (`inputs.target_sequence_fasta`)
+   - **target structure** (`inputs.target_structure_pdb`), plus any catalytic
+     residue / pocket table
+   - **candidate structure directory** (existing PDB/CIF models per candidate)
+
+   For each item: if the user supplied a readable, non-empty file (or a
+   directory that already contains the candidate structures), that item is
+   **PROVIDED** - use it directly and do **NOT** download, re-fetch, re-annotate
+   or predict it. Only items that are absent or empty are **TO ACQUIRE**.
+   State that split explicitly and record it in `project.json`, then verify the
+   PROVIDED paths with `scripts/preflight_inputs.py --project project.json`
+   (add `--require-target-sequence` / `--require-target-structure` /
+   `--require-genome-complete` for the route in use). Never re-download or
+   re-predict a path the user already handed over, and never overwrite a
+   user-supplied file.
+
+   If the user already has a candidate proteome `.faa` and/or annotated `.gbff`,
    skip dataset preparation. If the user instead has taxa, a source such as
    `gut` or `skin`, or `GCF`/`GCA` accessions, run the bundled
    `genome-search`, `genome-download`, and `genome-annotation` sub-skills first
@@ -47,6 +67,11 @@ Normalize the input into a target function card before searching. Include when a
    required paths are missing or empty.
 1. Build or load a reference enzyme set from UniProt, BRENDA, KEGG, PDB,
    AlphaFold DB, Pfam, and experimentally validated microbial homologs.
+   **Load it when the user already supplied the target sequence/structure, an
+   existing `reference_enzyme_set.tsv`, or a reference FASTA.** A supplied
+   target sequence or structure already serves as the primary reference - do not
+   re-fetch it. Run the fetcher below only for records that are still
+   TO ACQUIRE.
    Use `scripts/fetch_reference_enzymes.py` to fetch the reference set
    automatically from public NCBI and RCSB endpoints. For a target EC number:
 
@@ -108,9 +133,12 @@ Normalize the input into a target function card before searching. Include when a
      itself mark a row `SEQUENCE_ANNOTATION_CONFIRMED`.
 6. Check whether candidate structure files exist (PDB/CIF) for the
    sequence-filtered candidates. Do not assume structures are present.
-7. If candidates lack structure files, run the bundled `structure-prediction`
-   sub-skill to retrieve known structures or predict missing structures.
-   Priority for final structures:
+7. Run the `structure-prediction` sub-skill **only for candidates that are TO
+   ACQUIRE**. If the user already supplied candidate structure files (or a
+   structure directory that covers them), that is PROVIDED evidence: use those
+   files directly as `structure/<protein_sequence_id>.pdb`, skip retrieval and
+   prediction, and never overwrite them. When a target structure was supplied,
+   use it as the US-align reference as-is. Priority for final structures:
    experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` >
    homology model > de novo prediction. Only continue to US-align after the
    candidate structures are materialized as `structure/<protein_sequence_id>.pdb`.
