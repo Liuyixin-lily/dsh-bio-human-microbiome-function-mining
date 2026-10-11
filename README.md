@@ -212,7 +212,7 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 | 输入类型 | 触发点 | 举例 |
 | --- | --- | --- |
-| 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC。 | 神经酰胺合成 → ceramide + phosphocholine |
+| 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC。 | sphingomyelin → ceramide + phosphocholine |
 | 已知酶名/EC | 有酶功能或功能类别注释。 | neutral sphingomyelinase / EC 3.1.4.12 |
 | 已知参考序列 | 有模板蛋白 FASTA 或 UniProt accession。 | DDC / P20711 |
 
@@ -227,33 +227,53 @@ User:
 并给出可以验证的实验方案。"
 
 Agent:
-- 用 `build-target-function-card` 把
-  sphingomyelin -> ceramide + phosphocholine 写成
+- 先用 `build-target-function-card` 把「产物为神经酰胺和磷酸胆碱」反推为反应
+  sphingomyelin + H2O -> ceramide + phosphocholine（EC 3.1.4.12），写成
   `target_function_card.json`
-- 如果用户没有给出模板序列或参考酶集，先用
-  `fetch_reference_enzymes.py` 从 NCBI/PDB 等公开接口获取参考酶记录，
-  并在没有网络时只给用户抓取命令，不自行编造序列
-- 先跑 `scripts/preflight_inputs.py --project project.json`，检查候选基因组的
-  `.faa`/`.ffn`/`.gbff` 和结构目录是否存在
-- 用 `genome-search` / `genome-download` / `genome-annotation` 解析
-  `GCF_038181645.1` 并准备候选 proteome
+- 再做输入清点：把本次任务用到的各项输入先分成 **已提供 / 待获取**
+  （候选蛋白组 `.faa`/`.gbff`、候选基因组 `.ffn`/`.fna`、目标序列
+  `inputs.target_sequence_fasta`、目标结构 `inputs.target_structure_pdb`、
+  候选结构目录），并写进 `project.json`。用户已提供且可读、非空的项就是
+  **已提供**：直接使用，**不再下载、不再重新注释、不再做结构预测、不覆盖**；
+  **不要因为文件在用户自己的服务器上就当作缺失**
+- 用 `scripts/preflight_inputs.py --project project.json` 校验并固化这个划分
+  （按所选路线加 `--require-target-sequence` / `--require-target-structure` /
+  `--require-genome-complete`）；所需路径缺失或为空时不要启动重型流程
+- **只有**当候选 proteome 或注释属于「待获取」时，才用 `genome-search` /
+  `genome-download` / `genome-annotation` 解析 `GCF_038181645.1` 并准备
+  candidate proteome；用户已给出 `.faa`/`.gbff` 时这三步整体跳过
+- 参考酶集同样区分「加载」与「获取」：用户已给出目标序列/结构或已有
+  `reference_enzyme_set.tsv` 时直接加载（用户给的目标序列/结构**本身就是**
+  主参考酶）；仅对「待获取」的记录才运行 `fetch_reference_enzymes.py`，
+  没有网络时只给用户抓取命令，不自行编造序列
 - 用 `screen-sequence-candidates` 先做 CD-HIT 去冗余（单基因组 100%，多基因组
   95%），再 DIAMOND 序列筛选
 - 用 `parse_source_annotations.py` 把 `.faa`/`.gbff` 已带的 protein/gene、EC、
   Pfam/InterPro/KEGG 等注释解析成 `source_feature_annotations.tsv`
-- 只有 DIAMOND 命中且该命中已有注释匹配目标时，才标记
-  `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过后续结构流程；已有明确 `sph` 注释本身
-  不代替 DIAMOND 命中的判定条件
-- 如果 DIAMOND 未命中、或命中但注释不匹配/无注释，仍然继续检查候选结构文件；
-  没有就先跑 `structure-prediction`（PDB > AlphaFold DB > homology model >
-  de novo），再用 `screen-structure-candidates` 对全部候选结构文件直接 US-align，
-  并将已有 `sph` 注释作为增强证据一起合并
-- 只有当没有 fast-path 候选且某个基因组 US-align 没有足够合格候选时，
+- **快速通道优先**：DIAMOND 有命中且该命中已有注释匹配目标
+  （`source_ec_number` 命中目标 EC，或 `source_product`/annotation 含目标酶名
+  或直接产物同义词）即标记 `SEQUENCE_ANNOTATION_CONFIRMED`，**跳过**
+  structure-prediction、US-align、DEER 与催化口袋映射。注意：仅有明确的
+  `sph` 注释**不能**单独当作快速通道依据，必须有 DIAMOND 命中
+- 只有快速通道未成立时（DIAMOND 未命中，或命中但注释不匹配/无注释）才继续
+  结构路线：先检查候选结构文件；缺失时才跑 `structure-prediction`
+  （PDB > AlphaFold DB > homology model > de novo），再用
+  `screen-structure-candidates` 对全部候选结构文件直接 US-align，并把已有
+  `sph` 注释作为增强证据合并
+- 只有当没有 fast-path 候选、且某个基因组 US-align 没有足够合格候选时，
   才说明原因并经用户同意跑 DEER fallback
-- 通过 `literature-evidence` skill 审计文献证据，只保留可验证的 PMID/DOI
-- 合并 FedKEA、文献证据、已有注释和序列/结构证据，按明确优先级规则排序
+- 通过 `literature-evidence` 审计文献证据，实际检索走
+  `scripts/run_literature_search.sh "<query>" --resolve`（DOI → 已核验 PMID +
+  摘要）；三种查询形状都要覆盖（酶名+物种、物种+产物/通路/表型、基因名+物种），
+  且**必须读摘要**，不得只凭标题判为 `no_evidence`；只保留可验证的 PMID/DOI
+- 合并 FedKEA（可选正交证据；快速通道下不需要）、文献证据、已有注释和
+  序列/结构证据，按明确优先级规则排序，并给出分层结果
+  （按实际优先级：`SEQUENCE_ANNOTATION_CONFIRMED` > `USALIGN_TARGET_EC` >
+  `DEER_FEDKEA_CONFIRMED` > `USALIGN_OTHER_EC` > `USALIGN_NOT_ENZYME` >
+  `USALIGN_UNVALIDATED` > `DEER_FALLBACK` > `SEQUENCE_ONLY` > `ANNOTATION_ONLY`）
 - 输出 `scored_candidates_full.tsv`、`experimental_hypotheses.tsv`
-  和 `experimental_design.md`
+  和 `experimental_design.md`，并在 `high_confidence_candidate_summary.tsv`
+  给出 `validation_status` 与 `verdict`
 
 回答会明确：
 - 是否检出候选基因
