@@ -130,8 +130,24 @@ terminal and `auto_run_local` is enabled. Otherwise the user supplies their own
 dataset and runs external tools on their own compute; these scripts parse and
 merge the evidence tables the user produces.
 
-Literature evidence is deliberately not script-driven: the
-`skills/literature-evidence.md` skill routes through the
+Literature evidence is not a bundled search engine, but it now has an
+executable bridge rather than a prose-only reference:
+
+- `scripts/run_literature_search.sh` locates the external
+  `nature-academic-search` skill and a Python >= 3.10 interpreter, then runs its
+  OpenAlex search. `--resolve` pipes the hits through
+  `scripts/resolve_literature_hits.py`, which converts DOIs to verified PMIDs
+  and fetches abstracts from PubMed XML.
+- `--check` reports which skill directory and interpreter were resolved, so the
+  route can be verified before it is relied on.
+
+```bash
+bash scripts/run_literature_search.sh --check
+bash scripts/run_literature_search.sh "sphingomyelinase Staphylococcus epidermidis" --limit 10 --resolve
+```
+
+The `skills/literature-evidence.md` skill routes through the
 `nature-academic-search` workflow when MCP literature tools are available, and
-otherwise consumes OpenAlex-only search results or user-provided verified
-citation files (`.nbib`, `.ris`, `.bib`).
+otherwise consumes this OpenAlex route or user-provided verified citation files
+(`.nbib`, `.ris`, `.bib`). A `no_evidence` verdict must be based on abstracts
+(not titles) and must record the queries used.

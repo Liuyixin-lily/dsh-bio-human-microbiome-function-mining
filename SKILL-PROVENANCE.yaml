@@ -64,10 +64,36 @@ sources:
       - target: skills/literature-evidence.md
       - target: skills/literature-evidence/SKILL.md
       - target: references/literature_evidence.md
+      - target: scripts/run_literature_search.sh
+      - target: scripts/resolve_literature_hits.py
+    resolution:
+      # The bridge resolves the external skill at run time, in this order.
+      search_order:
+        - $NATURE_ACADEMIC_SEARCH_DIR
+        - <plugin>/../nature-academic-search
+        - <plugin>/skills/nature-academic-search
+        - ~/.codex/skills/nature-academic-search
+        - ~/.dsh/skills/nature-academic-search
+        - ~/.config/dsh/skills/nature-academic-search
+      python_requirement: ">=3.10 (academic_search.py uses PEP-604 unions; 3.9 raises TypeError)"
+      python_discovery:
+        - $LITERATURE_PYTHON
+        - python3.13, python3.12, python3.11, python3.10 on PATH
+        - <workspace>/.venv/bin/python
+        - ~/miniconda3/bin/python3, ~/anaconda3/bin/python3
+      verify_command: "bash scripts/run_literature_search.sh --check"
     note: >-
       literature-evidence is not a bundled literature engine. It routes to
-      nature-academic-search when MCP literature tools are available, and
-      falls back to OpenAlex-only discovery or user-provided citation files.
+      nature-academic-search when MCP literature tools are available, and falls
+      back to OpenAlex discovery plus PubMed resolution (verified PMIDs and
+      abstracts) or user-provided citation files. The delegation is executable
+      via scripts/run_literature_search.sh, which resolves both the skill
+      location and a suitable Python interpreter and exits non-zero with
+      remedies when either is missing. Evidence triage must be based on
+      abstracts, not titles: PMID 35123653 proves sphingomyelin ->
+      ceramide + phosphocholine in Staphylococcus epidermidis while its title
+      never mentions sphingomyelinase, and title-only triage previously produced
+      a false no_evidence verdict.
   - upstream: FEDKEA
     repo: Stevenleizheng/FEDKEA
     url: https://github.com/Stevenleizheng/FEDKEA

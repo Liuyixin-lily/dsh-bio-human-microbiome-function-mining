@@ -8,6 +8,28 @@ search and audit work through the `nature-academic-search` skill when that
 skill and its MCP literature servers are available and the user allows direct
 execution.
 
+## Executable bridge
+
+Because a prose-only delegation is fragile (the agent must know where the skill
+lives and must pick a new-enough Python), the plugin ships
+`scripts/run_literature_search.sh`. It:
+
+- finds `nature-academic-search` via `NATURE_ACADEMIC_SEARCH_DIR`, the plugin
+  tree, `~/.codex/skills`, `~/.dsh/skills`, or `~/.config/dsh/skills`;
+- picks a Python >= 3.10 (the skill's `academic_search.py` uses PEP-604 unions
+  and crashes on 3.9) via `LITERATURE_PYTHON` or auto-discovery;
+- pipes hits through `scripts/resolve_literature_hits.py`, which converts
+  DOIs to **verified PMIDs** and fetches **abstracts** from PubMed XML.
+
+```bash
+bash scripts/run_literature_search.sh --check
+bash scripts/run_literature_search.sh "<query>" --limit 10 --resolve
+bash scripts/run_literature_search.sh --doi 10.1016/j.chom.2022.01.004
+```
+
+If the skill is absent, the wrapper exits non-zero with the searched paths and a
+remedy. Then fall back to the manual route in point 2 or 3 below.
+
 ## Routes
 
 1. **MCP available (default when configured and allowed)**
@@ -41,6 +63,23 @@ For each candidate organism or strain:
 - direct functional evidence versus related phospholipase or esterase activity
 - existing experimental validation of homologs that supports or opposes the
   candidate hypothesis
+
+## Mandatory search coverage and triage
+
+Search by at least three shapes, not just the enzyme name:
+
+1. `<enzyme name>` AND `<genus species>`
+2. `<genus species>` AND (`<expected product>` OR `<pathway>` OR `<phenotype>`)
+3. `<gene name>` AND `<genus species>`
+
+Then **read the abstract of every hit before classifying it**. Titles routinely
+omit the mechanism: PMID 35123653 is titled "*Commensal Staphylococcus
+epidermidis contributes to skin barrier homeostasis by generating protective
+ceramides*", contains no occurrence of "sphingomyelinase", and yet directly
+proves the sphingomyelin -> ceramide + phosphocholine reaction in this species.
+An under-specified search once produced a false `no_evidence` verdict for exactly
+this reason. Record the queries used in `source_search` so a negative result is
+auditable.
 
 ## Output contract
 

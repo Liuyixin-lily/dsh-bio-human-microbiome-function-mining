@@ -16,12 +16,42 @@ candidate organisms and before final candidate scoring or experimental design.
 It adds a traceable literature evidence chain so experimental plans can cite
 verified PMID/DOI sources instead of relying only on computational evidence.
 
-**Tool boundary**: literature search is not bundled. Use the
-`nature-academic-search` skill router when its MCP literature servers are
-available and the user allows. If MCP is unavailable, use its no-MCP fallback
-(OpenAlex-limited) or give the user exact PubMed / Google Scholar search terms
-and wait for returned citations. Never fabricate PMID, DOI, title, journal,
-year, or finding.
+**Tool boundary**: the plugin does not bundle a literature search engine. It
+delegates to the external `nature-academic-search` skill. A working bridge is
+shipped at `scripts/run_literature_search.sh`, which locates that skill and a
+Python >= 3.10 automatically:
+
+```bash
+# 0. confirm the route is live (do this first; if it fails, see the wrapper's
+#    error message for remedies)
+bash scripts/run_literature_search.sh --check
+
+# 1. search -> resolve to verified PMIDs WITH ABSTRACTS
+bash scripts/run_literature_search.sh "sphingomyelinase Staphylococcus epidermidis" \
+  --limit 10 --resolve
+
+# 2. or resolve a specific known DOI
+bash scripts/run_literature_search.sh --doi 10.1016/j.chom.2022.01.004
+```
+
+If MCP literature tools are unavailable and the wrapper cannot run, fall back to
+the skill's OpenAlex-limited search or give the user exact PubMed / Google
+Scholar search terms and wait for returned citations. Never fabricate PMID, DOI,
+title, journal, year, or finding.
+
+**MANDATORY triage rule**: never classify a hit as `no_evidence` or irrelevant
+from its **title** alone. Read the abstract (`--resolve` fetches it). A decisive
+paper can be missed this way - e.g. "*Commensal Staphylococcus epidermidis
+contributes to skin barrier homeostasis by generating protective ceramides*"
+(PMID 35123653) does not contain the word "sphingomyelinase" in its title but
+directly proves the sphingomyelinase reaction. Before writing any `no_evidence`
+row, confirm that you used at least these three query shapes:
+
+1. `"<enzyme name>" AND "<genus species>"`
+2. `"<genus species>" AND (<product> OR <pathway> OR <phenotype>)` - i.e. search
+   by the **biological outcome**, not only the enzyme name
+3. `"<gene name>" AND "<genus species>"` - gene symbols (`sph`, `hlb`, ...) often
+   carry the literature when the enzyme name does not
 
 ## Inputs
 
@@ -42,13 +72,20 @@ Read where available:
      catalytic-residue studies, mutation validation, and structural biochemistry.
    - **Candidate organism evidence**: for each candidate organism or strain,
      published evidence that it produces or secretes the target enzyme.
-2. Follow `nature-academic-search` workflow routing.
+2. Run the search through the bundled bridge (see Tool boundary above):
+   `bash scripts/run_literature_search.sh "<query>" --limit 10 --resolve`.
+   Follow `nature-academic-search` workflow routing underneath:
    - Use `multi-source-search` for enzyme/method papers.
    - Use `candidate-evidence-audit` when the user needs per-candidate-organism
      direct-evidence screening and exclusion.
-3. Build search terms from the target function card:
+   **Read every returned abstract before classifying it.**
+3. Build search terms from the target function card. Cover all three shapes:
    - `"<enzyme name>" AND ("EC <ec>" OR "<enzyme name>" OR "<gene name>")`
    - `"<genus species>" AND ("<enzyme name>" OR "<EC number>" OR "<gene name>")`
+   - `"<genus species>" AND (<expected product> OR <pathway> OR <phenotype>)`
+
+   **Record the exact queries used** in the `source_search` column, so an empty
+   result is auditable rather than an assertion.
 4. Verify every returned reference before writing it anywhere. Prefer MCP
    lookup (`get_paper_by_id`, `pubmed_fetch_articles`) or user-confirmed
    records. Replace bad PMID/DOI with verified metadata; do not copy noise.
@@ -97,3 +134,9 @@ Read where available:
   excluded-taxa evidence files exactly as the audit workflow specifies.
 - When MCP tools are unavailable, say which coverage was used (OpenAlex,
   manual, or user-provided citations) and do not claim full PubMed coverage.
+- **Never write a `no_evidence` row from titles alone.** Read abstracts, and
+  record the queries and coverage that justify the negative claim. A
+  `no_evidence` verdict that comes from an under-specified search is a
+  fabrication-adjacent error: it asserts absence without evidence of searching.
+- If a `no_evidence` row is later contradicted, correct the row and note the
+  correction instead of silently deleting it.

@@ -157,11 +157,19 @@ available:
      `fedkea_tool_version`.
 14. Run the `literature-evidence` sub-skill to search and audit published
     evidence for the target enzyme and for each candidate protein or candidate
-    organism. Use `nature-academic-search` when its MCP literature tools are
-    available and the user allows; otherwise fall back to OpenAlex-limited
-    search or user-provided citations. Write verified literature rows to
-    `literature_evidence.tsv`, add `literature_*` fields to candidate rows, and
-    cite only verified PMID/DOI sources in the experimental plan.
+    organism. Run `bash scripts/run_literature_search.sh --check` first to
+    confirm the route, then search with `--resolve` so hits come back as
+    verified PMIDs WITH ABSTRACTS. Use `nature-academic-search` when its MCP
+    literature tools are available and the user allows; otherwise the bridge
+    falls back to OpenAlex discovery plus PubMed resolution, or accept
+    user-provided citations. Search by at least three shapes: enzyme name +
+    species, species + expected product/pathway/phenotype, and gene name +
+    species - gene symbols and biological-outcome terms often carry the
+    literature when the enzyme name does not. **Read every abstract before
+    classifying a hit**; never write a `no_evidence` row from titles alone, and
+    record the queries used in `source_search`. Write verified literature rows
+    to `literature_evidence.tsv`, add `literature_*` fields to candidate rows,
+    and cite only verified PMID/DOI sources in the experimental plan.
 15. Build sequence, structural, existing source-annotation, and literature
     evidence tables and combine them into `combined_candidates.tsv`. Then run
     `scripts/score_candidates.py` to apply the explicit priority policy above.
