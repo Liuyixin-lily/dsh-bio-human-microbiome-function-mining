@@ -231,62 +231,33 @@ Agent:
 - Use `build-target-function-card` to infer the reaction from the reported
   products: sphingomyelin + H2O -> ceramide + phosphocholine (EC 3.1.4.12),
   written into `target_function_card.json`
-- Then inventory the inputs and split them into PROVIDED vs TO ACQUIRE
-  (candidate proteome `.faa`/`.gbff`, candidate genome `.ffn`/`.fna`, target
-  sequence `inputs.target_sequence_fasta`, target structure
-  `inputs.target_structure_pdb`, candidate structure directory) and record the
-  split in `project.json`. Anything the user supplied that is readable and
-  non-empty is PROVIDED: use it as-is with no download, no re-annotation, no
-  structure prediction and no overwrite. Do not treat a file as missing merely
-  because it lives on the user's own server
-- Verify and pin that split with
-  `scripts/preflight_inputs.py --project project.json` (add
-  `--require-target-sequence` / `--require-target-structure` /
-  `--require-genome-complete` for the route in use); do not start heavy work when
-  a required path is missing or empty
-- Use `genome-search` / `genome-download` / `genome-annotation` to resolve
-  `GCF_038181645.1` and prepare candidate proteomes **only when the candidate
-  proteome or its annotation is TO ACQUIRE**; if the user already supplied
-  `.faa`/`.gbff`, skip all three
-- Treat the reference enzyme set the same way: load it when the user already
-  supplied the target sequence/structure or an existing
-  `reference_enzyme_set.tsv` (a supplied target sequence or structure IS the
-  primary reference); run `fetch_reference_enzymes.py` only for records that are
-  still TO ACQUIRE. With no network access, give the user the exact fetch
-  command instead of fabricating a sequence
+- Inventory the inputs: split candidate proteome/genome, target sequence, target
+  structure and candidate structure directory into PROVIDED vs TO ACQUIRE.
+  PROVIDED items are used as-is - no download, re-annotation, prediction or
+  overwrite
+- Verify and pin that split with `preflight_inputs.py`; fail before heavy work
+  when a required path is missing or empty
+- Use `genome-search` / `genome-download` / `genome-annotation` to prepare
+  candidate proteomes **only for TO ACQUIRE items**; likewise load the reference
+  enzyme set directly when the user already supplied the target
+  sequence/structure
 - Use `screen-sequence-candidates` to run CD-HIT deduplication (single-genome
   100%, multi-genome 95%) then DIAMOND sequence screening
-- Parse existing `.faa`/`.gbff` protein/gene names, ECs, Pfam/InterPro/KEGG
-  identifiers, and product descriptions into `source_feature_annotations.tsv`
-- Apply the fast path FIRST: when a DIAMOND hit has matching existing annotation
-  for the target (`source_ec_number` equals the target EC, or
-  `source_product`/annotation contains the target enzyme name or a direct
-  product synonym), mark it `SEQUENCE_ANNOTATION_CONFIRMED` and skip
-  structure-prediction, US-align, DEER and catalytic-pocket mapping for that row.
-  A clear existing `sph` annotation alone is not sufficient - a DIAMOND hit is
-  still required
-- Only when the fast path does not confirm the target (no DIAMOND hit, or a hit
-  whose annotation is missing or mismatched) continue to structure: check
-  candidate structure files; if missing, run `structure-prediction`
-  (PDB > AlphaFold DB > homology model > de novo), then use
-  `screen-structure-candidates` to US-align all available structure files and
-  merge the existing `sph` annotation as additional evidence
-- Use DEER fallback for a genome only when no fast-path candidate exists and
-  US-align candidates are insufficient, with the user's agreement
-- Audit literature evidence with `literature-evidence`, driving the actual search
-  through `scripts/run_literature_search.sh "<query>" --resolve` (DOI -> verified
-  PMID + abstract). Cover all three query shapes (enzyme name + species, species
-  + product/pathway/phenotype, gene name + species) and read the abstracts - never
-  record `no_evidence` from titles alone. Keep only verifiable PMID/DOI rows
-- Merge FedKEA (optional orthogonal evidence; not needed on the fast path),
-  literature, existing annotations, sequence evidence and structural evidence,
-  then rank by the explicit priority rules and report the tier
-  (actual priority order: `SEQUENCE_ANNOTATION_CONFIRMED` > `USALIGN_TARGET_EC` >
-  `DEER_FEDKEA_CONFIRMED` > `USALIGN_OTHER_EC` > `USALIGN_NOT_ENZYME` >
-  `USALIGN_UNVALIDATED` > `DEER_FALLBACK` > `SEQUENCE_ONLY` > `ANNOTATION_ONLY`)
-- Output `scored_candidates_full.tsv`, `experimental_hypotheses.tsv` and
-  `experimental_design.md`, plus `validation_status` and `verdict` in
-  `high_confidence_candidate_summary.tsv`
+- Parse existing `.faa`/`.gbff` protein/gene names, ECs and Pfam/InterPro/KEGG
+  annotations with `parse_source_annotations.py`
+- Apply the fast path first: a DIAMOND hit with matching annotation for the
+  target marks the row `SEQUENCE_ANNOTATION_CONFIRMED` and skips
+  structure-prediction, US-align and DEER. A clear `sph` annotation alone does
+  not qualify
+- Only when the fast path does not confirm the target, continue to structure:
+  run `structure-prediction` if structure files are missing, then US-align all
+  candidate structures with `screen-structure-candidates`; use DEER fallback
+  only if still insufficient and the user agrees
+- Attach a verifiable PMID/DOI evidence chain with `literature-evidence`
+  (verified references only)
+- Rank with `score_candidates.py` by the explicit priority rules and output
+  `scored_candidates_full.tsv`, `experimental_hypotheses.tsv` and
+  `experimental_design.md`
 
 The response clearly reports:
 - whether candidate genes are detected
