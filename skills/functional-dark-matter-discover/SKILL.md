@@ -59,12 +59,28 @@ Normalize the input into a target function card before searching. Include when a
    current terminal; otherwise give the user the exact commands and wait for
    returned files.
    Before heavy screening, run `scripts/preflight_inputs.py --project
-   project.json`. Verify `inputs.candidate_proteome_fasta` and every configured
-   candidate-genome `.faa`, `.ffn`, `.fna`, `.gbff`, and structure directory. Add
-   `--require-genome-complete` for a complete protein/CDS/GenBank route, or
-   `--require-target-sequence` / `--require-target-structure` when the chosen
-   target route needs them. Never start sequence/structure screening when
-   required paths are missing or empty.
+   project.json --require-tools`. Verify `inputs.candidate_proteome_fasta` and
+   every configured candidate-genome `.faa`, `.ffn`, `.fna`, `.gbff`, and
+   structure directory. Add `--require-genome-complete` for a complete
+   protein/CDS/GenBank route, or `--require-target-sequence` /
+   `--require-target-structure` when the chosen target route needs them. Never
+   start sequence/structure screening when required paths are missing or empty.
+
+   **Ask the user for the concrete locations, don't guess.** When a path is not
+   already configured, request it explicitly, in one message, covering both
+   categories - see `references/input_paths.md` for the full checklist:
+   - **data locations**: candidate proteome `.faa`; genome `.gbff`/`.ffn`/`.fna`;
+     target sequence FASTA; target structure PDB/CIF; candidate structure
+     directory.
+   - **software paths**: the executable for every tool the route actually needs
+     (DIAMOND, CD-HIT, US-align, and optionally DEER, FedKEA, Bakta, SignalP),
+     plus its version, and any model/checkpoint or database directory
+     (`deer.ckpt_dir`, Bakta database) and `auto_run_local` intent.
+   - **where they live**: if the files are on a remote host rather than this
+     machine, ask for `user@host` and the absolute path there, and record both.
+
+   Report the resolved PROVIDED / TO ACQUIRE split back to the user before
+   running anything heavy, so a wrong location is caught before compute is spent.
 1. Build or load a reference enzyme set from UniProt, BRENDA, KEGG, PDB,
    AlphaFold DB, Pfam, and experimentally validated microbial homologs.
    **Load it when the user already supplied the target sequence/structure, an

@@ -108,11 +108,13 @@ Priority policy used by `score_candidates.py`:
 
 The plugin does not silently download or install DIAMOND, CD-HIT, US-align, DEER, FedKEA, or Bakta.
 
-1. Read executable and data paths from `project.json` / config example, or ask the user.
-2. Check whether the executable and required inputs are accessible from the current terminal.
-3. If accessible and `auto_run_local` is enabled, run the configured command and parse the output.
-4. If not accessible, or the user does not want direct execution, write a pending checkpoint with the exact command and consume returned files.
-5. Never invent tool output. Never call the FedKEA web server programmatically.
+1. Ask the user for the **concrete locations** first: the data file paths **and** the executable paths of every tool the route needs (DIAMOND/CD-HIT/US-align, optionally DEER/FedKEA/Bakta/SignalP, including version and `auto_run_local` intent). Ask explicitly whenever a path is absent, still an example placeholder `/path/to/...`, or lives on a remote host - never guess and never assume. Checklist:
+   [`references/input_paths.md`](references/input_paths.md).
+2. If the data or tools sit on a **remote host**, ask for `user@host` and the absolute path there, and confirm access before running anything.
+3. Check whether the executable and required inputs are accessible from the current terminal: `python3 scripts/preflight_inputs.py --project project.json --require-tools` reports `ok` / `placeholder` / `missing` / `invalid` for every configured data and tool path.
+4. If accessible and `auto_run_local` is enabled, run the configured command and record the command and version for provenance.
+5. If accessible but the user wants only instructions, or it is not accessible, write the exact pending command and consume returned files.
+6. Never invent tool output. Never call the FedKEA web server programmatically.
 
 For structure evidence, first check whether candidate structure files (PDB/CIF)
 exist. Skip the structure route entirely when a candidate already has a DIAMOND

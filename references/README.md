@@ -6,6 +6,8 @@ plugin maps to the existing workspace.
 Intended files:
 
 - `workflow.md`: the target workflow steps and expected intermediate files.
+- `input_paths.md`: the checklist of data locations and software paths to ask the
+  user for, including the remote-host convention and the `--require-tools` checks.
 - `evidence_sources.md`: existing `data/`, `results/`, and `scripts/` files that
   can be used as input evidence.
 - `thresholds.md`: the threshold policy used for sequence and structure screening.

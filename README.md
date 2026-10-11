@@ -110,11 +110,14 @@ Priority policy used by `score_candidates.py`:
 
 The plugin does not silently download or install DIAMOND, CD-HIT, US-align, DEER, FedKEA, or Bakta.
 
-1. Read executable and data paths from `project.json` / config example, or ask the user.
-2. Check whether the executable and required inputs are accessible from the current terminal.
-3. If accessible and `auto_run_local` is enabled, run the configured command and parse the output.
-4. If not accessible, or the user does not want direct execution, write a pending checkpoint with the exact command and consume returned files.
-5. Never invent tool output. Never call the FedKEA web server programmatically.
+1. 先向用户索取**具体位置**：数据文件路径 **和** 所需软件的可执行文件路径（DIAMOND/CD-HIT/US-align，可选 DEER/FedKEA/Bakta/SignalP，含版本与 `auto_run_local` 意图）。路径缺失、仍是示例占位符 `/path/to/...`、或位于远程主机时，都要明确询问，不要让用户猜、也不要自行假设。清单见
+   [`references/input_paths.md`](references/input_paths.md)。
+2. 若数据/工具在**远程主机**上，请用户给出 `user@host` 与该主机上的绝对路径，并先确认可访问，再执行。
+3. 检查可执行文件与所需输入从当前终端是否可达：`python3 scripts/preflight_inputs.py --project project.json --require-tools`
+   会为每个已配置的数据与工具路径报告 `ok` / `placeholder` / `missing` / `invalid`。
+4. 可达且 `auto_run_local` 已启用时，直接运行并把命令与版本记入 provenance。
+5. 可达但用户只想要命令，或不可达时，写出确切的待运行命令，等待用户返回结果文件。
+6. 绝不编造工具输出。绝不程序化调用 FedKEA 网页服务器。
 
 For structure evidence, first check whether candidate structure files (PDB/CIF)
 exist. Skip this structure route entirely when a candidate already has a DIAMOND

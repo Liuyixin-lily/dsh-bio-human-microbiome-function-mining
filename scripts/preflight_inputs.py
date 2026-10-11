@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -73,6 +75,75 @@ def probe_path(path: Path, expected_kind: str) -> dict[str, str]:
     return {"status": "ok", "note": ""}
 
 
+# Tool-path specifications: (tool key, config key, expectation).
+# `auto_run_local` is read from the same tool block to decide whether a missing
+# path is fatal: a tool the Agent will not run locally only needs to be listed
+# so the user can run it themselves.
+TOOL_PATH_SPECS: tuple[tuple[str, str, str], ...] = (
+    ("sequence_screen", "executable", "program"),
+    ("sequence_screen", "cdhit_executable", "program"),
+    ("structure_prediction", "executable", "program"),
+    ("usalign", "executable", "program"),
+    ("deer", "executable", "program"),
+    ("deer", "script_path", "file"),
+    ("signalp", "executable", "program"),
+)
+FEDKEA_PATH_SPECS: tuple[tuple[str, str, str], ...] = (
+    ("fedkea", "executable", "program"),
+    ("fedkea", "script_path", "file"),
+)
+PLACEHOLDER_PREFIXES = ("/path/to", "path/to/", "yourlab.example.com")
+
+
+def configured_tool_paths(project: dict[str, Any]) -> list[tuple[str, str, bool, str]]:
+    """Yield (label, value, auto_run_local, expectation) for every configured tool path."""
+    rows: list[tuple[str, str, bool, str]] = []
+    tools = project.get("tools") or {}
+    for tool, key, expected in TOOL_PATH_SPECS:
+        block = tools.get(tool) or {}
+        if not isinstance(block, dict):
+            continue
+        value = str(block.get(key, "") or "").strip()
+        if not value:
+            continue
+        rows.append((f"tools.{tool}.{key}", value, bool(block.get("auto_run_local")), expected))
+    fedkea = (project.get("validation_inputs") or {}).get("fedkea") or {}
+    if isinstance(fedkea, dict):
+        for tool, key, expected in FEDKEA_PATH_SPECS:
+            value = str(fedkea.get(key, "") or "").strip()
+            if not value:
+                continue
+            rows.append((f"validation_inputs.{tool}.{key}", value, bool(fedkea.get("auto_run_local")), expected))
+    return rows
+
+
+def probe_executable_path(value: str, expected: str = "program") -> tuple[str, str]:
+    """Classify a configured tool path.
+
+    Distinguishes an untouched example placeholder from a genuinely absent tool,
+    because the fix differs: the first needs the user to supply a real path, the
+    second needs the tool installed (or running elsewhere).
+    """
+    if not value:
+        return "not_configured", "tool path is not configured"
+    low = value.lower()
+    if any(p in low for p in PLACEHOLDER_PREFIXES):
+        return "placeholder", "still an example placeholder; replace it with the real path"
+    path = Path(value).expanduser()
+    if path.is_absolute() or os.sep in value:
+        if path.exists():
+            if expected == "file" and path.is_dir():
+                return "invalid", "expected a file but found a directory"
+            if not os.access(path, os.X_OK):
+                return "invalid", "path exists but is not executable"
+            return "ok", ""
+        return "missing", "path not found"
+    found = shutil.which(value)
+    if found:
+        return "ok", f"resolved on PATH -> {found}"
+    return "missing", "not found on PATH"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Preflight candidate microbial input paths from a project JSON."
@@ -93,6 +164,15 @@ def main(argv: list[str] | None = None) -> int:
         "--require-target-structure",
         action="store_true",
         help="Treat target structure and catalytic-residue inputs as fatal when missing.",
+    )
+    parser.add_argument(
+        "--require-tools",
+        action="store_true",
+        help=(
+            "Also check the tools.* executable/script paths. A path is fatal when it is "
+            "still an example placeholder (/path/to/...), or when it does not resolve AND "
+            "the tool has auto_run_local enabled (meaning the Agent intends to run it)."
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -179,6 +259,25 @@ def main(argv: list[str] | None = None) -> int:
             "optional genome input is not configured",
         )
 
+    if args.require_tools:
+        for label, value, auto_run, expected in configured_tool_paths(project):
+            tool_status, tool_note = probe_executable_path(value, expected)
+            fatal = tool_status in ("placeholder", "missing", "invalid")
+            # A tool the Agent will not run locally is only informative.
+            if fatal and not auto_run:
+                fatal = False
+            if tool_status != "ok" and not fatal:
+                tool_status = f"optional_{tool_status}"
+            checks.append(
+                {
+                    "path": str(value) if value else "",
+                    "kind": label,
+                    "status": tool_status,
+                    "note": tool_note,
+                    "resolved_path": str(value) if value else "",
+                }
+            )
+
     if args.report:
         report = args.report.expanduser()
         report = report if report.is_absolute() else root / report
@@ -190,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
                     "\t".join(str(check[field]) for field in FIELDS) + "\n"
                 )
 
-    terminal_statuses = {"missing", "invalid", "empty"}
+    terminal_statuses = {"missing", "invalid", "empty", "placeholder"}
     fatal_rows = [
         row
         for row in checks

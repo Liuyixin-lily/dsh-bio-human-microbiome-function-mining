@@ -9,20 +9,37 @@ environment.
 When a workflow needs an external tool, the Agent follows this order:
 
 1. Read the user-supplied tool paths and data paths from `project.json`/
-   `config.example.json` or ask the user for the exact executable, script,
-   output directory, and compute parameters.
-2. Check whether the executable exists/is callable and whether required inputs
-   exist from the current terminal (`command -v`, `test -f`, `ls`, etc.).
-3. If accessible and `auto_run_local` is enabled, run the tool directly and
+   `config.example.json`. **For every path that is missing, still an example
+   placeholder (`/path/to/...`), or on a different host, ask the user for the
+   concrete location before doing anything else** - the exact executable, script
+   or database directory, the output directory, compute parameters, and whether
+   the Agent may run it (`auto_run_local`). Work through the checklist in
+   `input_paths.md` and ask for all of it in one message rather than one item at
+   a time. Ask the user to run `command -v <tool>` if they do not know a path.
+   Never invent or guess a path.
+2. If the data or tools are on a **remote host** rather than this machine, ask
+   for `user@host` and the absolute path there, record both, and confirm access
+   before running anything. A path that is absent locally is not thereby missing
+   - it may simply live on the other machine.
+3. Check whether the executable exists/is callable and whether required inputs
+   exist from the current terminal (`command -v`, `test -f`, `ls`, etc.), or run
+   `scripts/preflight_inputs.py --project project.json --require-tools`, which
+   reports `ok` / `placeholder` / `missing` / `invalid` for each configured data
+   and tool path.
+4. If accessible and `auto_run_local` is enabled, run the tool directly and
    record the command and version for provenance.
-4. If accessible but the user wants only instructions, give the exact command
+5. If accessible but the user wants only instructions, give the exact command
    and wait for the output files.
-5. If not accessible from the current terminal, give the exact command/install
+6. If not accessible from the current terminal, give the exact command/install
    notes for the user to run on their own compute and wait for returned output.
-6. Validate that the returned output files exist and have the expected format.
-7. Parse the returned output into the plugin's TSV schemas.
-8. Merge that parsed evidence into `combined_candidates.tsv`.
-9. Mark the evidence as pending when the user has not yet returned output.
+7. Validate that the returned output files exist and have the expected format.
+8. Parse the returned output into the plugin's TSV schemas.
+9. Merge that parsed evidence into `combined_candidates.tsv`.
+10. Mark the evidence as pending when the user has not yet returned output.
+
+Before heavy work, report the resolved split back to the user: which data and
+tool paths are PROVIDED, which must still be ACQUIRED, and which exact commands
+they will need to run themselves.
 
 ## FedKEA
 
