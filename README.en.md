@@ -245,12 +245,15 @@ Agent:
 - Capture existing `.faa`/`.gbff` annotations for protein/gene names, ECs,
   Pfam/InterPro/KEGG identifiers, and product descriptions
 - Check whether a DIAMOND hit already has matching existing annotation for the
-  target; if yes, mark it `SEQUENCE_ANNOTATION_CONFIRMED` and skip
-  structure-prediction, US-align, and DEER for that row
-- Only when sequence hits exist but annotation is missing or mismatched, check
-  candidate structure files; if missing, run `structure-prediction`
+  target; only if both the sequence hit and the annotation match are present, mark
+  it `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure-prediction, US-align, and
+  DEER for that row. A clear existing `sph` annotation alone is not the same as a
+  DIAMOND sequence hit
+- If DIAMOND has no hit, or hits exist but the annotation is missing or mismatched,
+  still check candidate structure files; if missing, run `structure-prediction`
   (PDB > AlphaFold DB > homology model > de novo), then use
-  `screen-structure-candidates` to US-align all available structure files
+  `screen-structure-candidates` to US-align all available structure files, and merge
+  the existing `sph` annotation as additional evidence
 - Use DEER fallback for a genome only when no fast-path candidate exists and
   US-align candidates are insufficient, with the user's agreement
 - Audit literature evidence with `literature-evidence` and keep only verifiable

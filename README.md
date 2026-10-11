@@ -241,11 +241,13 @@ Agent:
   95%），再 DIAMOND 序列筛选
 - 用 `parse_source_annotations.py` 收集 `.faa`/`.gbff` 已带的 protein/gene、EC、
   Pfam/InterPro/KEGG 等注释证据
-- 先检查 DIAMOND 命中是否已有 `.faa`/`.gbff` 注释匹配目标；匹配则标记
-  `SEQUENCE_ANNOTATION_CONFIRMED`，跳过结构预测、US-align 和 DEER
-- 只有序列命中但注释不匹配/无注释时，才检查候选结构文件；没有就先跑
-  `structure-prediction`（PDB > AlphaFold DB > homology model > de novo），
-  有则用 `screen-structure-candidates` 对全部候选结构文件直接 US-align
+- 先检查 DIAMOND 命中是否已有 `.faa`/`.gbff` 注释匹配目标；如果“序列命中 +
+  注释匹配”都成立，则标记 `SEQUENCE_ANNOTATION_CONFIRMED`，该行跳过后续结构流程；
+  已有明确 `sph` 注释本身不代替 DIAMOND 命中的判定条件
+- 如果 DIAMOND 未命中、或命中但注释不匹配/无注释，仍然继续检查候选结构文件；
+  没有就先跑 `structure-prediction`（PDB > AlphaFold DB > homology model >
+  de novo），再用 `screen-structure-candidates` 对全部候选结构文件直接 US-align，
+  并将已有 `sph` 注释作为增强证据一起合并
 - 只有当没有 fast-path 候选且某个基因组 US-align 没有足够合格候选时，
   才说明原因并经用户同意跑 DEER fallback
 - 通过 `literature-evidence` skill 审计文献证据，只保留可验证的 PMID/DOI
