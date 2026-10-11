@@ -338,7 +338,7 @@ Agent:
   agrees; do not replace US-align with DEER
 - Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
 - Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence,
-  then apply the final ranking by priority rules
+  then apply the final explicit priority rules for ranking
 
 The response clearly reports:
 - whether DDC-like candidates are detected
@@ -353,7 +353,10 @@ The response clearly reports:
 
 1. Put the user's data paths and tool paths into `project.json`.
 2. If the target is not NSMase/DDC, change `inputs.target_sequence_fasta`, `reference_enzyme.enzyme_name`, and `reference_enzyme.ec`, or start from a substrate/product reaction.
-3. Ask the Agent to run the light workflow first: CD-HIT + DIAMOND -> US-align -> existing annotations/FedKEA -> literature evidence / experimental hypotheses -> final ranking.
+3. Ask the Agent to run the light workflow first: CD-HIT + DIAMOND -> existing-annotation
+   match (which can take the `SEQUENCE_ANNOTATION_CONFIRMED` fast path) -> US-align / DEER
+   only when needed -> FedKEA -> literature evidence / experimental hypotheses -> final
+   ranking.
 4. Experimental design should be generated with verified literature and the user's assay context; do not fabricate citations when literature support is absent.
 
 ---

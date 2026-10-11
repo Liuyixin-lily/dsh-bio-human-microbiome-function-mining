@@ -249,7 +249,7 @@ Agent:
 - 只有当没有 fast-path 候选且某个基因组 US-align 没有足够合格候选时，
   才说明原因并经用户同意跑 DEER fallback
 - 通过 `literature-evidence` skill 审计文献证据，只保留可验证的 PMID/DOI
-- 合并 FedKEA、文献证据、已有注释和结构/序列证据，按结构优先原则排序
+- 合并 FedKEA、文献证据、已有注释和序列/结构证据，按明确优先级规则排序
 - 输出 `scored_candidates_full.tsv`、`experimental_hypotheses.tsv`
   和 `experimental_design.md`
 
@@ -323,8 +323,8 @@ Agent:
 - 只有当没有 fast-path 候选且 US-align 合格候选不足时，经用户同意才跑
   DEER fallback
 - 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
-- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后再按结构优先
-  原则做最终排序
+- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后再按明确
+  优先级规则做最终排序
 
 回答会明确：
 - 是否检出 DDC 类候选
@@ -339,7 +339,9 @@ Agent:
 
 1. 在 `project.json` 中填入用户自己的数据路径和工具路径。
 2. 如果目标不是 NSMase/DDC，修改 `inputs.target_sequence_fasta`、`reference_enzyme.enzyme_name`、`reference_enzyme.ec`，或用底物/产物起动。
-3. 让 Agent 按主 skill 先跑 light 流程：CD-HIT + DIAMOND -> US-align -> 已有注释/FedKEA -> 文献证据/实验假设 -> 最终排序。
+3. 让 Agent 按主 skill 先跑 light 流程：CD-HIT + DIAMOND -> 已有注释匹配（可走
+   `SEQUENCE_ANNOTATION_CONFIRMED` 快速路径）-> 必要时才 US-align / DEER -> FedKEA
+   -> 文献证据/实验假设 -> 最终排序。
 4. 实验方案由 Agent 结合已验证文献和实验体系生成；没有文献支持时不要伪造引用。
 
 ---
