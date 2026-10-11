@@ -1,6 +1,6 @@
 # Target workflow
 
-Follow the functional dark matter discovery workflow when this plugin is used.
+Follow the functional discovery workflow when this plugin is used.
 Heavy tools run when their executables and inputs are accessible from the
 current terminal; otherwise the user's runner or the user runs them.
 

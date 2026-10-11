@@ -1,7 +1,7 @@
 {
   "name": "human-microbiome-function-mining",
   "version": "0.1.0",
-  "description": "Human microbiome functional dark matter discovery: target enzyme / EC / reaction to candidate microbial proteins, evidence integration, ranking, hypotheses, and wet-lab experimental design.",
+  "description": "Human microbiome function discovery: target enzyme / EC / reaction to candidate microbial proteins, evidence integration, ranking, hypotheses, and wet-lab experimental design.",
   "author": {
     "name": "Liuyixin-lily",
     "url": "https://github.com/Liuyixin-lily"

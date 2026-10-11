@@ -28,7 +28,7 @@
           抓取、候选基因组准备、CD-HIT 去冗余、DIAMOND 序列筛选、已有 .faa/.gbff
           注释证据、对所有候选结构直接 US-align、DEER fallback、FedKEA 酶学/EC
           验证、结构优先排序和实验验证设计。装插件后切换到本预设，AI 即成为功能
-          暗物质挖掘流程的可审计科学助理。
+          挖掘流程的可审计科学助理。
         order: 10
         plugins:
           - id: persona

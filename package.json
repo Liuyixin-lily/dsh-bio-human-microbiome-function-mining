@@ -1,7 +1,7 @@
 {
   "name": "@dsh-bio/human-microbiome-function-mining",
   "version": "0.1.0",
-  "description": "DeepSeek Harness plugin for human microbiome functional dark matter discovery. Turns a target enzyme, EC number, or substrate/product reaction into candidate discovery, literature-aware evidence integration, and experimental design.",
+  "description": "DeepSeek Harness plugin for human microbiome function discovery. Turns a target enzyme, EC number, or substrate/product reaction into candidate discovery, literature-aware evidence integration, and experimental design.",
   "type": "module",
   "main": "index.js",
   "exports": {
