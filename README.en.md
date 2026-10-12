@@ -311,7 +311,7 @@ Agent:
 - Run `scripts/preflight_inputs.py --project project.json` to check that the candidate genome files and structure directory exist
 - Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND screening
 - Check whether a DIAMOND hit already has P20711/DDC-related annotation; if yes, mark `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure steps
-- When there is no sequence hit, use `screen-structure-candidates` to US-align all candidate structure files directly
+- Only when there is **no sequence hit, or a hit whose annotation does not match**, use `screen-structure-candidates` to US-align all candidate structure files directly
 - Use DEER fallback only when there is no fast-path candidate and a genome has no qualifying US-align candidate or too few of them, with the user's agreement
 - Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
 - Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then apply the final explicit priority rules for ranking
