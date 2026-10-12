@@ -301,8 +301,8 @@ The response clearly reports:
 
 ```text
 User:
-"Predict whether the gut microbe Bifidobacterium adolescentis may encode
-the key melatonin synthesis enzyme DDC (P20711) and provide a
+"Predict whether the given gut microbe Bifidobacterium adolescentis may encode
+the key enzyme of human melatonin synthesis, DDC (P20711), and provide a
 verifiable experimental design."
 
 Agent:
@@ -343,8 +343,8 @@ The response clearly reports:
 
 ```text
 User:
-"Predict whether the gut microbe Bifidobacterium adolescentis may encode
-the key melatonin synthesis enzyme AANAT (Q16613) and provide a
+"Predict whether the given gut microbe Bifidobacterium adolescentis may encode
+the key enzyme of human melatonin synthesis, AANAT (Q16613), and provide a
 verifiable experimental design."
 
 Agent:
@@ -356,7 +356,7 @@ Agent:
 - If the sequence layer has no significant hit (as in this example), use `screen-structure-candidates` to US-align all candidate structures against **both** the target template and the fold-control template, and compare the two TM values per candidate; prefer **experimental** target templates (e.g. 1CJW/1KUV) and follow them when a predicted model disagrees with them
 - Use the DEER fallback only when there is no fast-path candidate and no candidate receives the target EC, with the user's agreement; the DEER template set **must include the fold control**, and the ranking should be read against the internal scale of the same run (self ~ 0; a true same-family pair is far closer than a true cross-family pair) instead of the default distance cutoff
 - Cross-check with FedKEA (correct environment, bare-accession FASTA headers); FedKEA returns the **most likely single EC (canonical function)** and cannot be used to exclude a secondary activity
-- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then apply the final explicit priority rules for ranking
+- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (**TM-score-first by default**; `--rank-by priority` restores priority-tier ordering)
 
 The response clearly reports:
 - whether a canonical AANAT ortholog exists, and the size of the candidate universe (GNAT family members)

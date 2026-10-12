@@ -301,8 +301,8 @@ Agent:
 
 ```text
 User:
-"预测肠道微生物青春双歧杆菌 Bifidobacterium adolescentis
-是否可能编码褪黑素合成的关键酶 DDC（P20711），并给出
+"预测给定的肠道微生物青春双歧杆菌 Bifidobacterium adolescentis
+是否可能编码人类褪黑素合成的关键酶 DDC（P20711），并给出
 可以验证的实验方案。"
 
 Agent:
@@ -329,8 +329,8 @@ Agent:
 
 ```text
 User:
-"预测肠道微生物青春双歧杆菌 Bifidobacterium adolescentis
-是否可能编码褪黑素合成的关键酶 AANAT（Q16613），并给出
+"预测给定的肠道微生物青春双歧杆菌 Bifidobacterium adolescentis
+是否可能编码人类褪黑素合成的关键酶 AANAT（Q16613），并给出
 可以验证的实验方案。"
 
 Agent:
@@ -342,7 +342,7 @@ Agent:
 - 序列层若无显著命中（本例正是如此），用 `screen-structure-candidates` 对全部候选结构做 US-align：**同时**对靶点模板与折叠对照模板各跑一遍，逐个候选比较两个 TM 值；靶点模板优先用**实验结构**（如 1CJW/1KUV），当预测模型与实验结构给出的排序不一致时以实验结构为准
 - 只有当没有 fast-path 候选、且候选都没有拿到靶 EC 时，经用户同意才跑 DEER fallback；DEER 模板里**必须包含折叠对照**，并按同一次检索的内部标尺（自身 ≈ 0、同家族对远小于跨家族对）解读排序，不要直接套用默认 distance cutoff
 - 用 FedKEA 交叉核对（要带上正确环境、并提交 accession 干净的 FASTA 表头）；FedKEA 给出的是**最可能的单一 EC（正统功能）**，不能用来排除兼职活性
-- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后按明确优先级规则做最终排序
+- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认**以 TM-score 为主键**；`--rank-by priority` 可回到优先级规则排序）
 
 回答会明确：
 - 是否存在 AANAT 的正交同源物，以及候选全集（GNAT 家族成员数）
