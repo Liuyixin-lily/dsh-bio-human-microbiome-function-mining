@@ -2,9 +2,22 @@
 """Rank combined candidates with explicit, deterministic rules.
 
 The ranking is intentionally not a black-box weighted sum. Every row is
-assigned a `priority_tier` and a `priority_rule` from the rules below. Sorting
-uses the numeric `priority_order`, then structural score, then sequence score,
-then annotation strength, then a stable identifier.
+assigned a `priority_tier` and a `priority_rule` from the rules below.
+
+Default sort (`--rank-by structure`): structural similarity (TM-score) is the
+primary key. Rows carrying a TM-score are ordered by it descending; rows with no
+TM-score - fast-path rows that skipped structure, DEER rows that carry only a
+distance, sequence-only and annotation-only rows - follow, ordered among
+themselves by `priority_order`. Ties then break by sequence score, annotation
+strength, and a stable identifier. `--rank-by priority` restores the earlier
+tier-first ordering, where `priority_order` is primary and the structural score
+only breaks ties.
+
+Note on the two modes: `--rank-by structure` deliberately does NOT let a
+`priority_rule` tier outrank a better structural match. That matters for
+convergent / moonlighting targets, where the validated enzyme typically carries
+an annotation and a FedKEA EC that differ from the target EC, so a tier-first
+ordering demotes it below candidates whose EC merely happens to match.
 
 Priority rules:
 
@@ -38,6 +51,22 @@ from pathlib import Path
 from typing import Any
 
 
+# Every column this script sets must be guaranteed present in the output header,
+# otherwise write_tsv silently drops it. overall_score and priority_tier are
+# required columns of combined_candidates.schema.tsv, so losing them breaks the
+# schema contract.
+OUTPUT_FIELDS = (
+    "overall_rank",
+    "overall_score",
+    "rank_policy",
+    "priority_order",
+    "priority_rule",
+    "priority_tier",
+    "sequence_rank",
+    "structural_rank",
+)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Assign explicit priority overall_rank, overall_score, and priority_tier."
@@ -67,8 +96,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--policy",
-        default="sequence_annotation_fast_path",
-        help="Label recorded in rank_policy, default sequence_annotation_fast_path.",
+        default=None,
+        help=(
+            "Label recorded in rank_policy. Defaults to a label derived from "
+            "--rank-by: structure_first_tm_score for 'structure', "
+            "priority_rule_first for 'priority'."
+        ),
+    )
+    parser.add_argument(
+        "--rank-by",
+        choices=("structure", "priority"),
+        default="structure",
+        help=(
+            "Primary sort key. 'structure' (default) ranks by structural similarity "
+            "(TM-score) descending: rows carrying a TM-score come first, and rows with "
+            "no TM-score (fast-path rows that skipped structure, DEER rows, "
+            "sequence-only, annotation-only) follow, ordered among themselves by "
+            "priority_order. 'priority' restores the earlier behaviour where the "
+            "priority_rule tier is the primary key."
+        ),
     )
     parser.add_argument(
         "--no-sort",
@@ -254,6 +300,14 @@ def annotate_ranks(rows: list[dict[str, str]], field: str, score_field: str) -> 
         row[field] = str(rank)
 
 
+def annotate_ranks_by(rows: list[dict[str, str]], field: str, key) -> None:
+    """Rank rows by an arbitrary non-negative key function, highest first."""
+    ranked = [row for row in rows if key(row) > 0]
+    ranked.sort(key=key, reverse=True)
+    for rank, row in enumerate(ranked, start=1):
+        row[field] = str(rank)
+
+
 def score_rows(
     rows: list[dict[str, str]],
     threshold: float,
@@ -261,39 +315,50 @@ def score_rows(
     target_names: set[str],
     policy: str,
     no_sort: bool,
+    rank_by: str = "structure",
 ) -> list[dict[str, str]]:
     sequence_scores = [value for row in rows if (value := numeric(row.get("sequence_score", ""))) == value and value > 0]
     max_sequence_score = max(sequence_scores, default=0.0)
 
-    augmented: list[tuple[float, float, float, float, str, str, dict[str, str]]] = []
+    # `rank_by="structure"` makes structural similarity (TM-score) the primary key:
+    # rows carrying a TM-score are ordered by it descending, and rows without one
+    # (fast-path rows that skipped structure, DEER rows with only a distance,
+    # sequence-only, annotation-only) follow, ordered among themselves by
+    # priority_order. `rank_by="priority"` keeps the earlier tier-first ordering.
+    structure_first = rank_by == "structure"
+
+    augmented: list[tuple[float, ...]] = []
     for row in rows:
-        structure = has_structure_evidence(row)
         sequence = sequence_component(row, max_sequence_score)
         annotation = annotation_component(row)
         tier_outputs(row, threshold, target_ecs, target_names)
         priority_order = int(row["priority_order"])
-        # Keep an overall_score for backward compatibility, but make the actual
-        # ranking driven by the explicit priority_order rules documented above.
-        score = 1000.0 - float(priority_order) * 100.0 + 20.0 * structural_component(row) + 10.0 * sequence + 2.0 * annotation
+        structural = structural_component(row)
+        # overall_score is a display value; overall_rank is the deliverable field.
+        # In structure-first mode the structural term dominates so score and rank
+        # agree, and the priority term only breaks near-ties.
+        if structure_first:
+            score = (
+                10000.0 * structural
+                + 10.0 * (9 - priority_order)
+                + 2.0 * sequence
+                + 0.2 * annotation
+            )
+        else:
+            score = 1000.0 - float(priority_order) * 100.0 + 20.0 * structural + 10.0 * sequence + 2.0 * annotation
         row["overall_score"] = f"{score:.4f}"
         row["rank_policy"] = policy
         candidate_id = row.get("candidate_id", row.get("protein_accession", ""))
-        # Explicit sort: priority_order primary, then structural_score,
-        # then sequence_score, then annotation strength, then candidate_id.
-        augmented.append(
-            (
-                priority_order,
-                -structural_component(row),
-                -sequence,
-                -annotation,
-                str(candidate_id),
-                f"{score:.10f}",
-                row,
-            )
-        )
+        key = (
+            (-structural, priority_order) if structure_first else (priority_order, -structural)
+        ) + (-sequence, -annotation, str(candidate_id), f"{score:.10f}")
+        augmented.append(key + (row,))
 
     annotate_ranks(rows, "sequence_rank", "sequence_score")
-    annotate_ranks(rows, "structural_rank", "structural_score")
+    # structural_rank must use the same TM component as the structure-first
+    # ordering, otherwise a row carrying only tm_score_mean (no structural_score)
+    # would be treated as having no structure by one and not the other.
+    annotate_ranks_by(rows, "structural_rank", structural_component)
 
     if no_sort:
         ordered = rows
@@ -312,23 +377,44 @@ def main(argv: list[str] | None = None) -> int:
 
     rows, fields = read_tsv(args.input)
     if not rows:
-        for field in ("overall_rank", "rank_policy", "priority_order", "priority_rule"):
+        for field in OUTPUT_FIELDS:
             if field not in fields:
                 fields.append(field)
         write_tsv(args.output or args.input, fields, [])
         print(f"wrote {args.output or args.input} (0 rows: no candidates to score)")
         return 0
 
-    for field in ("overall_rank", "rank_policy", "priority_order", "priority_rule"):
+    for field in OUTPUT_FIELDS:
         if field not in fields:
             fields.append(field)
 
     target_ecs = {ec.strip() for ec in args.target_ec.split(",") if ec.strip()}
     target_names = {name.strip().lower() for name in args.target_name.split(",") if name.strip()}
-    scored = score_rows(rows, args.tm_threshold, target_ecs, target_names, args.policy, args.no_sort)
+    if not target_names:
+        # The annotation half of the fast path can only be evaluated by name. Say so
+        # rather than silently leaving SEQUENCE_ANNOTATION_CONFIRMED unreachable: a
+        # quiet no-op here previously produced two different tiers for one dataset.
+        carries_annotation = any(
+            (row.get("source_product") or row.get("existing_annotation") or row.get("annotation"))
+            for row in rows
+        )
+        if carries_annotation:
+            print(
+                "warning: --target-name not given, so the sequence+annotation fast path "
+                "(SEQUENCE_ANNOTATION_CONFIRMED) cannot be evaluated even though some rows "
+                "carry annotations. Pass --target-name with comma-separated enzyme "
+                "names/synonyms to enable it.",
+                file=sys.stderr,
+            )
+    policy = args.policy or (
+        "structure_first_tm_score" if args.rank_by == "structure" else "priority_rule_first"
+    )
+    scored = score_rows(
+        rows, args.tm_threshold, target_ecs, target_names, policy, args.no_sort, args.rank_by
+    )
     output = args.output or args.input
     write_tsv(output, fields, scored)
-    print(f"wrote {output} ({len(scored)} rows; policy={args.policy})")
+    print(f"wrote {output} ({len(scored)} rows; policy={policy}; rank_by={args.rank_by})")
     return 0
 
 

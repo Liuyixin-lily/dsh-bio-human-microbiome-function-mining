@@ -47,6 +47,12 @@ traceable back to a source file or command the user supplied.
   the user should execute and which output files to return.
 - DEER was used as a fallback only after US-align was attempted or explicitly
   decided to be skipped with the user's agreement.
+- When the DEER fallback gate is triggered (a genome has no qualifying US-align
+  candidate, or the merged candidate list has no qualifying candidate) but the
+  DEER software/checkpoint has not been made available, the task report
+  explicitly records `DEER status: pending` and prints the exact `do_retrieval.py`
+  command the user needs to run. It must not imply that DEER was already
+  attempted or completed.
 
 ## Scientific interpretation
 
@@ -67,9 +73,11 @@ traceable back to a source file or command the user supplied.
 - The priority order is `SEQUENCE_ANNOTATION_CONFIRMED`, `USALIGN_TARGET_EC`,
   `DEER_FEDKEA_CONFIRMED`, `USALIGN_OTHER_EC`, `USALIGN_NOT_ENZYME`,
   `USALIGN_UNVALIDATED`, `DEER_FALLBACK`, `SEQUENCE_ONLY`, `ANNOTATION_ONLY`.
-- Rows with the same `priority_rule` tie-break by `structural_score`
-  descending, then `sequence_score` descending, then annotation strength
-  descending, then `candidate_id` ascending.
+- Default ranking is TM-score-first: rows carrying a TM-score are ordered by it
+  descending, and rows without one follow, ordered among themselves by
+  `priority_order`, then `sequence_score` descending, then annotation strength
+  descending, then `candidate_id` ascending. `--rank-by priority` selects the
+  tier-first ordering instead, and `rank_policy` must record which mode was used.
 - When `--target-ec` is supplied, FedKEA rows matching the target EC are
   upgraded to `USALIGN_TARGET_EC`; non-matching EC rows become
   `USALIGN_OTHER_EC`.

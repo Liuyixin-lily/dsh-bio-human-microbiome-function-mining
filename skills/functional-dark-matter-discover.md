@@ -205,7 +205,12 @@ available:
     and cite only verified PMID/DOI sources in the experimental plan.
 15. Build sequence, structural, existing source-annotation, and literature
     evidence tables and combine them into `combined_candidates.tsv`. Then run
-    `scripts/score_candidates.py` to apply the explicit priority policy above.
+    `scripts/score_candidates.py` to rank the candidates. Ranking is
+    **TM-score-first** by default (`--rank-by structure`): structural similarity
+    is the primary key and rows with no TM-score follow, so a validated
+    convergent/moonlighting enzyme is not demoted merely because its annotation
+    or FedKEA EC differs from the target EC. `--rank-by priority` restores
+    tier-first ordering.
     Sequence+annotation matches that already confirm the target function are
     the fast path; structure evidence is only required when sequence and
     annotation do not together confirm the target function.
@@ -241,9 +246,12 @@ The default final-ranking policy is the explicit priority rules in
 8. `SEQUENCE_ONLY`: sequence evidence only.
 9. `ANNOTATION_ONLY`: only existing source annotations available.
 
-Within the same rule, ties break by structure score descending, then sequence
+By default the primary sort key is **structural similarity (TM-score)
+descending**, not the rule tier: rows carrying a TM-score come first and rows
+without one (fast-path confirmed, DEER-only, sequence-only, annotation-only)
+follow. Within the same TM-score, ties break by `priority_order`, then sequence
 score descending, then annotation strength descending, then `candidate_id`
-ascending.
+ascending. Pass `--rank-by priority` to sort by the rule tier first instead.
 
 ## Outputs
 

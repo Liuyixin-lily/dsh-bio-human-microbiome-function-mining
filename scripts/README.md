@@ -47,8 +47,10 @@ Available scripts:
   source genome paths; missing `organism_or_strain` and `assembly_accession`
   values are filled from that metadata instead of remaining blank.
 - `score_candidates.py`: assigns deterministic `overall_score`, `overall_rank`,
-  `priority_tier`, `priority_rule`, and `priority_order` to the combined table
-  using the explicit priority rules documented in the script and in
+  `priority_tier`, `priority_rule`, and `priority_order` to the combined table.
+  Ranking is TM-score-first by default (`--rank-by structure`); `--rank-by
+  priority` selects the tier-first ordering. The priority rules themselves are
+  documented in the script and in
   `schemas/combined_candidates.schema.tsv`. Pass `--target-ec` to match the
   configured target EC for FedKEA target EC validation and for the
   sequence+annotation fast path; pass `--target-name` with comma-separated

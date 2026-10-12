@@ -89,9 +89,13 @@ target enzyme / EC / substrate-product
   -> experimental design
 ```
 
-默认排序由 `scripts/score_candidates.py` 给出确定性的 `overall_rank`。如果 DIAMOND 序列命中且 `.faa`/`.gbff` 已有注释同时匹配目标功能，则该候选走 `SEQUENCE_ANNOTATION_CONFIRMED` 快速路径，不做后续结构比对；只有序列和注释证据不足或不一致时才进入结构证据流程。脚本内部按优先级排序，再按结构分、序列分、注释强度、`candidate_id` 破平。`priority_rule`、`priority_order` 只作为可选溯源列保留，最终对外交付表以 `overall_rank` 为准。
+默认排序由 `scripts/score_candidates.py` 给出确定性的 `overall_rank`，**以结构相似性（TM-score）为主键**（`--rank-by structure`，默认）：有 TM 值的行按 TM 降序排在前；没有 TM 值的行（快速通道跳过结构的行、只有距离的 DEER 行、仅序列、仅注释）排在其后，内部再按 `priority_order`，然后按序列分、注释强度、`candidate_id` 破平。
 
-The final ranked table is `scored_candidates_full.tsv`, with `overall_rank` as the explicit deliverable ranking field. Optional `priority_rule` / `priority_order` columns may be present for traceability but are not required by the schema.
+之所以以 TM 而非 `priority_rule` 层级为主键：对**趋同/兼职酶**靶点，被验证的酶往往自带一个与目标 EC **不同**的注释和 FedKEA EC，按层级优先会把真阳性压到「EC 恰好对上」的候选之后。需要旧行为时用 `--rank-by priority` 恢复层级优先排序。`priority_rule`/`priority_order`/`rank_policy` 作为溯源列保留，最终对外交付仍以 `overall_rank` 为准。
+
+如果 DIAMOND 序列命中且 `.faa`/`.gbff` 已有注释同时匹配目标功能，该候选走 `SEQUENCE_ANNOTATION_CONFIRMED` 快速路径、不做结构比对（因此没有 TM 值，落在无 TM 组内按优先级居首）；只有序列和注释证据不足或不一致时才进入结构证据流程。
+
+The final ranked table is `scored_candidates_full.tsv`, with `overall_rank` as the explicit deliverable ranking field. `priority_rule` / `priority_order` / `rank_policy` are retained for traceability. Ranking is TM-score-first by default; pass `--rank-by priority` to sort by the priority tier instead.
 
 Priority policy used by `score_candidates.py`:
 
@@ -320,8 +324,8 @@ Agent:
 - 只有当没有 fast-path 候选、且某基因组**完全没有 US-align 合格候选或合格候选不足**时，经用户同意才跑
   DEER fallback
 - 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
-- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后再按明确
-  优先级规则做最终排序
+- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用
+  `score_candidates.py` 做最终排序（默认**以 TM-score 为主键**）
 
 回答会明确：
 - 是否检出 DDC 类候选

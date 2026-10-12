@@ -346,8 +346,9 @@ def main() -> int:
             check=True,
         )
         score_text = scored.read_text(encoding="utf-8")
-        assert "sequence_annotation_fast_path" in score_text
+        assert "structure_first_tm_score" in score_text
         assert "overall_rank" in score_text
+        assert "overall_score" in score_text
         with scored.open("r", encoding="utf-8", newline="") as handle:
             scored_first = next(csv.DictReader(handle, delimiter="\t"))
             assert scored_first["overall_rank"] == "1"
@@ -355,6 +356,25 @@ def main() -> int:
             assert scored_first["priority_tier"] == "SEQUENCE_ANNOTATION_CONFIRMED"
             assert scored_first["priority_rule"] == "SEQUENCE_ANNOTATION_CONFIRMED"
             assert scored_first["priority_order"] == "1"
+
+        # --rank-by priority must still be selectable and must say so.
+        scored_priority = tmp / "scored_priority.tsv"
+        subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "score_candidates.py"),
+                "--input",
+                str(combined),
+                "--output",
+                str(scored_priority),
+                "--target-ec",
+                "3.1.1.-",
+                "--rank-by",
+                "priority",
+            ],
+            check=True,
+        )
+        assert "priority_rule_first" in scored_priority.read_text(encoding="utf-8")
 
         summary_dir = tmp / "summary"
         subprocess.run(

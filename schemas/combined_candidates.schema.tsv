@@ -83,10 +83,15 @@ literature_verified_refs
 # Notes
 
 - `evidence_class_definition` should explain what evidence_class means in this task.
-- `overall_score` and `overall_rank` use the deterministic
-  explicit `priority_rule` policy from `scripts/score_candidates.py`.
-  `priority_order` is the primary sort key, then `structural_score`,
-  then `sequence_score`, then annotation strength, then `candidate_id`.
+- `overall_rank` comes from `scripts/score_candidates.py`. By default
+  (`--rank-by structure`) the primary sort key is structural similarity:
+  `structural_score`/`tm_score_mean` descending, with rows carrying no TM-score
+  (fast-path confirmed, DEER-only, sequence-only, annotation-only) placed after
+  them and ordered by `priority_order`, then `sequence_score`, then annotation
+  strength, then `candidate_id`. With `--rank-by priority` the primary key is
+  `priority_order`, then `structural_score`, then `sequence_score`, then
+  annotation strength, then `candidate_id`. `rank_policy` records the mode used.
+  `overall_score` is a display value and does not control the order.
 
 Priority rules:
 1. `SEQUENCE_ANNOTATION_CONFIRMED`: DIAMOND sequence hit with positive
