@@ -334,7 +334,7 @@ User:
 
 Agent:
 - 用 `build-target-function-card` 以 AANAT / aralkylamine N-acetyltransferase（EC 2.3.1.87）建目标卡片，UniProt 参考 = Q16613，并记下辅因子 acetyl-CoA 与折叠 GNAT（Pfam PF00583）
-- 参考酶集合分两组准备并保留角色标记：**靶点参考**（reviewed EC 2.3.1.87：人/鼠/羊/牛/鸡/猕猴/果蝇/水稻/拟南芥/酵母条目）与**折叠对照**（同属 GNAT、底物不同：RimI、SpeG、Eis、AAC/APH 等）
+- 参考酶集合分两组准备并保留角色标记：**靶点参考**（仅人类 human AANAT，reviewed EC 2.3.1.87）与**折叠对照**（同属 GNAT、底物不同：RimI、SpeG、Eis、AAC/APH 等）
 - 先跑 `scripts/preflight_inputs.py --project project.json --require-target-sequence --require-target-structure`，核对候选基因组文件与候选结构目录
 - 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选；除默认阈值外，再补一次 `--sensitive`（宽 E 值）扫"远缘同源尾巴"，并**把两次结果分开报告**
 - 因为靶点属于 GNAT 超家族，先做**家族普查**：用 Pfam PF00583（`hmmsearch`）枚举候选基因组里的全部 GNAT 蛋白，并在同一次检索中带上阳性对照（人 AANAT、古菌 TvSNAT、*E. coli* RimI）；**这一层定义候选全集，而不是 DIAMOND 命中表**

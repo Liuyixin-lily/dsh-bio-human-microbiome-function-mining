@@ -348,7 +348,7 @@ verifiable experimental design."
 
 Agent:
 - Use `build-target-function-card` for AANAT / aralkylamine N-acetyltransferase (EC 2.3.1.87), with UniProt reference = Q16613, and record the cofactor (acetyl-CoA) and the fold (GNAT, Pfam PF00583)
-- Prepare the reference set in two tagged groups: **target references** (reviewed EC 2.3.1.87 from human/mouse/sheep/bovine/chicken/macaque/Drosophila/rice/Arabidopsis/yeast) and **fold controls** (same GNAT fold, different substrate: RimI, SpeG, Eis, AAC/APH)
+- Prepare the reference set in two tagged groups: **target references** (reviewed EC 2.3.1.87, human AANAT only) and **fold controls** (same GNAT fold, different substrate: RimI, SpeG, Eis, AAC/APH)
 - Run `scripts/preflight_inputs.py --project project.json --require-target-sequence --require-target-structure` to check the candidate genome files and the candidate structure directory
 - Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND; add a second `--sensitive` pass with a permissive E-value for the remote-homolog tail and **report the two passes separately**
 - Because the target is one branch of the GNAT superfamily, run a **family census** first: `hmmsearch` with Pfam PF00583 to enumerate every GNAT protein in the candidate genome, including positive controls in the same run (human AANAT, archaeal TvSNAT, E. coli RimI). **This census, not the DIAMOND hit list, defines the candidate universe**
