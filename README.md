@@ -339,18 +339,17 @@ Agent:
 - 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选；除默认阈值外，再补一次 `--sensitive`（宽 E 值）扫"远缘同源尾巴"，并把两次结果分开报告
 - 因为靶点属于 GNAT 超家族，先做家族普查：用 Pfam PF00583（`hmmsearch`）枚举候选基因组里的全部 GNAT 蛋白，并在同一次检索中带上阳性对照（仅人 AANAT）；这一层定义候选全集，而不是 DIAMOND 命中表
 - 序列层若无显著命中（本例正是如此），用 `screen-structure-candidates` 对全部候选结构做 US-align，只用靶点模板；靶点模板优先用实验结构（如 1CJW/1KUV），当预测模型与实验结构给出的排序不一致时以实验结构为准
-- 只有当没有 fast-path 候选、且候选都没有拿到靶 EC 时，经用户同意才跑 DEER fallback；DEER 排序按同一次检索的内部标尺解读，不要直接套用默认 distance cutoff
 - 用 FedKEA 交叉核对（要带上正确环境、并提交 accession 干净的 FASTA 表头）；FedKEA 给出的是最可能的单一 EC（正统功能），不能用来排除兼职活性
 - 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认以 TM-score 为主键；`--rank-by priority` 可回到优先级规则排序）
 
 回答会明确：
 - 是否存在 AANAT 的正交同源物，以及候选全集（GNAT 家族成员数）
-- 代表候选 accession 与基因坐标，及其序列/结构/DEER/FedKEA 证据链
+- 代表候选 accession 与基因坐标，及其序列/结构/FedKEA 证据链
 - 哪些候选已有文献实验验证、哪些仍只是假设
 - 验证 5-羟色胺/色胺乙酰化的实验路径（重组表达 + LC-MS/MS 产物确证 + 动力学与已知细菌 SNAT 比较 + 敲除/回补）
 ```
 
-> 与 Example 3 的关键差别：靶点属于超大超家族时，必须额外加两步 —— **家族普查（Pfam HMM）+ DEER 内部标尺**；结论也要把"没有正统同源物"和"没有该活性"分开说。
+> 与 Example 3 的关键差别：靶点属于超大超家族时，必须额外加一步 —— **家族普查（Pfam HMM）**；结论也要把"没有正统同源物"和"没有该活性"分开说。
 
 ### 如何把这些示例变成你自己的 demo
 
