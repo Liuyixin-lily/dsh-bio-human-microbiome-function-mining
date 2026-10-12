@@ -306,26 +306,15 @@ User:
 可以验证的实验方案。"
 
 Agent:
-- 用 `build-target-function-card` 以 DDC / aromatic L-amino acid
-  decarboxylase（EC 4.1.1.28）建目标卡片，UniProt 参考 = P20711
-- 没有用户提供的 FASTA 时，先给 UniProt 获取命令，不要自己编序列；如项目配置了
-  参考酶抓取，也会用 `fetch_reference_enzymes.py` 自动准备参考酶记录
-- 先跑 `scripts/preflight_inputs.py --project project.json`，检查候选基因组的
-  文件和结构目录是否存在
-- 用 `genome-search` / `genome-download` / `genome-annotation` 准备
-  Bifidobacterium adolescentis 候选 proteome
-- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%，多基因组
-  95%），再 DIAMOND 筛选
-- 先检查 DIAMOND 命中是否已有 P20711/DDC 相关注释；匹配则标记
-  `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过结构流程
-- 只有序列命中但注释不匹配或无注释时，才检查候选结构是否存在；无则跑
-  `structure-prediction`，有则用 `screen-structure-candidates` 对全部候选
-  结构文件直接 US-align
-- 只有当没有 fast-path 候选、且某基因组**完全没有 US-align 合格候选或合格候选不足**时，经用户同意才跑
-  DEER fallback
+- 用 `build-target-function-card` 以 DDC / aromatic L-amino acid decarboxylase（EC 4.1.1.28）建目标卡片，UniProt 参考 = P20711
+- 没有用户提供的 FASTA 时，先给 UniProt 获取命令，不要自己编序列；如项目配置了参考酶抓取，也会用 `fetch_reference_enzymes.py` 自动准备参考酶记录
+- 先跑 `scripts/preflight_inputs.py --project project.json`，检查候选基因组的文件和结构目录是否存在
+- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选
+- 先检查 DIAMOND 命中是否已有 P20711/DDC 相关注释；匹配则标记 `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过结构流程
+- 无序列命中时，用 `screen-structure-candidates` 对全部候选结构文件直接 US-align
+- 只有当没有 fast-path 候选、且某基因组完全没有 US-align 合格候选或合格候选不足时，经用户同意才跑 DEER fallback
 - 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
-- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用
-  `score_candidates.py` 做最终排序（默认**以 TM-score 为主键**）
+- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后再按明确优先级规则做最终排序
 
 回答会明确：
 - 是否检出 DDC 类候选

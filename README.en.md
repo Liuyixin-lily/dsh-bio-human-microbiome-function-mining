@@ -306,28 +306,15 @@ the key melatonin synthesis enzyme DDC (P20711) and provide a
 verifiable experimental design."
 
 Agent:
-- Use `build-target-function-card` for DDC / aromatic L-amino acid
-  decarboxylase (EC 4.1.1.28), with UniProt reference = P20711
-- If the user does not provide FASTA, give the UniProt retrieval command instead
-  of fabricating a sequence; when reference-enzyme fetching is configured, also
-  use `fetch_reference_enzymes.py` to prepare local reference records
-- Run `scripts/preflight_inputs.py --project project.json` before heavy work
-  when candidate genome paths and structure directories are configured
-- Use `genome-search` / `genome-download` / `genome-annotation` to prepare
-  Bifidobacterium adolescentis candidate proteomes
-- Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%,
-  multi-genome 95%), then DIAMOND screening
-- Check whether a DIAMOND hit already has P20711/DDC-related annotation; if
-  yes, mark `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure steps
-- Only when sequence hits lack matching annotation, check whether candidate
-  structures exist; if missing, run `structure-prediction`, then use
-  `screen-structure-candidates` to US-align
-  all available structure files directly
-- Use DEER fallback only when US-align candidates are insufficient and the user
-  agrees; do not replace US-align with DEER
+- Use `build-target-function-card` for DDC / aromatic L-amino acid decarboxylase (EC 4.1.1.28), with UniProt reference = P20711
+- If the user does not provide FASTA, give the UniProt retrieval command instead of fabricating a sequence; when reference-enzyme fetching is configured, also use `fetch_reference_enzymes.py` to prepare local reference records
+- Run `scripts/preflight_inputs.py --project project.json` to check that the candidate genome files and structure directory exist
+- Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND screening
+- Check whether a DIAMOND hit already has P20711/DDC-related annotation; if yes, mark `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure steps
+- When there is no sequence hit, use `screen-structure-candidates` to US-align all candidate structure files directly
+- Use DEER fallback only when there is no fast-path candidate and a genome has no qualifying US-align candidate or too few of them, with the user's agreement
 - Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
-- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence,
-  then apply the final explicit priority rules for ranking
+- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then apply the final explicit priority rules for ranking
 
 The response clearly reports:
 - whether DDC-like candidates are detected
