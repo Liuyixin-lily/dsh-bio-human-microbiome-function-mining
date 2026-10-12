@@ -312,7 +312,6 @@ Agent:
 - Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND screening
 - Check whether a DIAMOND hit already has P20711/DDC-related annotation; if yes, mark `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure steps
 - Only when there is **no sequence hit, or a hit whose annotation does not match**, use `screen-structure-candidates` to US-align all candidate structure files directly
-- Use DEER fallback only when there is no fast-path candidate and a genome has no qualifying US-align candidate or too few of them, with the user's agreement
 - Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
 - Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (**TM-score-first by default**; `--rank-by priority` restores priority-tier ordering)
 

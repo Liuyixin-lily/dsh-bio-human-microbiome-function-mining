@@ -312,7 +312,6 @@ Agent:
 - 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选
 - 先检查 DIAMOND 命中是否已有 P20711/DDC 相关注释；匹配则标记 `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过结构流程
 - 只有**序列无命中、或命中但注释不匹配**时，才用 `screen-structure-candidates` 对全部候选结构文件直接 US-align
-- 只有当没有 fast-path 候选、且某基因组完全没有 US-align 合格候选或合格候选不足时，经用户同意才跑 DEER fallback
 - 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
 - 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认**以 TM-score 为主键**；`--rank-by priority` 可回到优先级规则排序）
 
