@@ -254,7 +254,7 @@ verifiable experimental design."
 Agent:
 - Use `build-target-function-card` to infer the reaction from the reported products: sphingomyelin + H2O -> ceramide + phosphocholine (EC 3.1.4.12), written into `target_function_card.json`
 - Inventory the inputs: split candidate proteome/genome, target sequence, target structure and candidate structure directory into PROVIDED vs TO ACQUIRE. PROVIDED items are used as-is - no download, re-annotation, prediction or overwrite; use `genome-search` / `genome-download` / `genome-annotation`
-  to prepare candidate proteomes **only for TO ACQUIRE items**, and likewise load the reference enzyme set directly when the user already supplied the target sequence/structure
+  to prepare candidate proteomes only for TO ACQUIRE items, and likewise load the reference enzyme set directly when the user already supplied the target sequence/structure
 - Verify and pin that split with `preflight_inputs.py`; fail before heavy work when a required path is missing or empty
 - Use `screen-sequence-candidates` to run CD-HIT deduplication (single-genome 100%) then DIAMOND sequence screening
 - Parse existing `.faa`/`.gbff` protein/gene names, ECs and Pfam/InterPro/KEGG annotations with `parse_source_annotations.py`
@@ -284,7 +284,7 @@ Agent:
 - Aggressively check each genome and structure repository path; reject empty/missing required input before heavy work
 - Run `preflight_inputs.py` before heavy work and verify each genome's `.faa`, `.ffn`, `.gbff`, and candidate structure directory
 - Run `screen-sequence-candidates` on each genome: CD-HIT deduplication (100%), then DIAMOND screening
-- For each genome, first check whether a DIAMOND hit already matches the neutral sphingomyelinase / EC 3.1.4.12 annotation; only when there is **no sequence hit, or a hit whose annotation does not match**, check all candidate structure files;
+- For each genome, first check whether a DIAMOND hit already matches the neutral sphingomyelinase / EC 3.1.4.12 annotation; only when there is no sequence hit, or a hit whose annotation does not match, check all candidate structure files;
 - If structure is missing, run `structure-prediction`, then use `screen-structure-candidates` to US-align all available candidate structure files for that genome directly; treat DEER as a per-genome fallback only when US-align yields no qualifying candidate for that genome, or too few of them, and the user agrees
 - Validate final candidates with FedKEA and keep the binary/enzyme/probability outputs
 - Use `literature-evidence` to attach verifiable PMID/DOI evidence
@@ -311,9 +311,9 @@ Agent:
 - Run `scripts/preflight_inputs.py --project project.json` to check that the candidate genome files and structure directory exist
 - Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND screening
 - Check whether a DIAMOND hit already has P20711/DDC-related annotation; if yes, mark `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure steps
-- Only when there is **no sequence hit, or a hit whose annotation does not match**, use `screen-structure-candidates` to US-align all candidate structure files directly
+- Only when there is no sequence hit, or a hit whose annotation does not match, use `screen-structure-candidates` to US-align all candidate structure files directly
 - Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
-- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (**TM-score-first by default**; `--rank-by priority` restores priority-tier ordering)
+- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (TM-score-first by default; `--rank-by priority` restores priority-tier ordering)
 
 The response clearly reports:
 - whether DDC-like candidates are detected
@@ -348,14 +348,14 @@ verifiable experimental design."
 
 Agent:
 - Use `build-target-function-card` for AANAT / aralkylamine N-acetyltransferase (EC 2.3.1.87), with UniProt reference = Q16613, and record the cofactor (acetyl-CoA) and the fold (GNAT, Pfam PF00583)
-- Keep only the **target reference** in the reference set: human AANAT (reviewed EC 2.3.1.87); no fold controls
+- Keep only the target reference in the reference set: human AANAT (reviewed EC 2.3.1.87); no fold controls
 - Run `scripts/preflight_inputs.py --project project.json --require-target-sequence --require-target-structure` to check the candidate genome files and the candidate structure directory
-- Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND; add a second `--sensitive` pass with a permissive E-value for the remote-homolog tail and **report the two passes separately**
-- Because the target is one branch of the GNAT superfamily, run a **family census** first: `hmmsearch` with Pfam PF00583 to enumerate every GNAT protein in the candidate genome, including positive controls in the same run (human AANAT, archaeal TvSNAT, E. coli RimI). **This census, not the DIAMOND hit list, defines the candidate universe**
-- If the sequence layer has no significant hit (as in this example), use `screen-structure-candidates` to US-align all candidate structures against the **target template only**; prefer **experimental** target templates (e.g. 1CJW/1KUV) and follow them when a predicted model disagrees with them
+- Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND; add a second `--sensitive` pass with a permissive E-value for the remote-homolog tail and report the two passes separately
+- Because the target is one branch of the GNAT superfamily, run a family census first: `hmmsearch` with Pfam PF00583 to enumerate every GNAT protein in the candidate genome, including positive controls in the same run (human AANAT, archaeal TvSNAT, E. coli RimI). This census, not the DIAMOND hit list, defines the candidate universe
+- If the sequence layer has no significant hit (as in this example), use `screen-structure-candidates` to US-align all candidate structures against the target template only; prefer experimental target templates (e.g. 1CJW/1KUV) and follow them when a predicted model disagrees with them
 - Use the DEER fallback only when there is no fast-path candidate and no candidate receives the target EC, with the user's agreement; read the DEER ranking against the internal scale of the same run instead of the default distance cutoff
-- Cross-check with FedKEA (correct environment, bare-accession FASTA headers); FedKEA returns the **most likely single EC (canonical function)** and cannot be used to exclude a secondary activity
-- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (**TM-score-first by default**; `--rank-by priority` restores priority-tier ordering)
+- Cross-check with FedKEA (correct environment, bare-accession FASTA headers); FedKEA returns the most likely single EC (canonical function) and cannot be used to exclude a secondary activity
+- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (TM-score-first by default; `--rank-by priority` restores priority-tier ordering)
 
 The response clearly reports:
 - whether a canonical AANAT ortholog exists, and the size of the candidate universe (GNAT family members)

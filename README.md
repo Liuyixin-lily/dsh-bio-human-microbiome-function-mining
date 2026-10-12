@@ -284,8 +284,8 @@ Agent:
 - 严格检查用户给的基因组和结构仓库路径，缺文件或空文件在重型流程前报错
 - 跑重流程前执行 `preflight_inputs.py`，对三个基因组逐个核对 `.faa`、`.ffn`、`.gbff` 和候选结构目录
 - 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余（100%），再 DIAMOND 筛选
-- 先看每个 DIAMOND 命中是否已有注释匹配 neutral sphingomyelinase /EC 3.1.4.12；只有**序列无命中、或命中但注释不匹配**时，才检查全部候选结构文件；
-- 缺少结构就跑 `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组所有候选结构文件直接 US-align；按基因组分别判断：某基因组**完全没有 US-align 合格候选**、或合格候选不足；此时经用户同意才跑 DEER fallback
+- 先看每个 DIAMOND 命中是否已有注释匹配 neutral sphingomyelinase /EC 3.1.4.12；只有序列无命中、或命中但注释不匹配时，才检查全部候选结构文件；
+- 缺少结构就跑 `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组所有候选结构文件直接 US-align；按基因组分别判断：某基因组完全没有 US-align 合格候选、或合格候选不足；此时经用户同意才跑 DEER fallback
 - 用 FedKEA 对最终候选做酶/EC 验证，并保留 binary/enzyme/probability 结果
 - 用 `literature-evidence` 补充可验证的 PMID/DOI 证据链
 - 用 `score_candidates.py` 排序，输出每个物种的候选表、代表候选与实验设计
@@ -311,9 +311,9 @@ Agent:
 - 先跑 `scripts/preflight_inputs.py --project project.json`，检查候选基因组的文件和结构目录是否存在
 - 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选
 - 先检查 DIAMOND 命中是否已有 P20711/DDC 相关注释；匹配则标记 `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过结构流程
-- 只有**序列无命中、或命中但注释不匹配**时，才用 `screen-structure-candidates` 对全部候选结构文件直接 US-align
+- 只有序列无命中、或命中但注释不匹配时，才用 `screen-structure-candidates` 对全部候选结构文件直接 US-align
 - 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
-- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认**以 TM-score 为主键**；`--rank-by priority` 可回到优先级规则排序）
+- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认以 TM-score 为主键；`--rank-by priority` 可回到优先级规则排序）
 
 回答会明确：
 - 是否检出 DDC 类候选
@@ -334,14 +334,14 @@ User:
 
 Agent:
 - 用 `build-target-function-card` 以 AANAT / aralkylamine N-acetyltransferase（EC 2.3.1.87）建目标卡片，UniProt 参考 = Q16613，并记下辅因子 acetyl-CoA 与折叠 GNAT（Pfam PF00583）
-- 参考酶集合仅保留**靶点参考**：人类 human AANAT（reviewed EC 2.3.1.87），不设折叠对照
+- 参考酶集合仅保留靶点参考：人类 human AANAT（reviewed EC 2.3.1.87），不设折叠对照
 - 先跑 `scripts/preflight_inputs.py --project project.json --require-target-sequence --require-target-structure`，核对候选基因组文件与候选结构目录
-- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选；除默认阈值外，再补一次 `--sensitive`（宽 E 值）扫"远缘同源尾巴"，并**把两次结果分开报告**
-- 因为靶点属于 GNAT 超家族，先做**家族普查**：用 Pfam PF00583（`hmmsearch`）枚举候选基因组里的全部 GNAT 蛋白，并在同一次检索中带上阳性对照（人 AANAT、古菌 TvSNAT、*E. coli* RimI）；**这一层定义候选全集，而不是 DIAMOND 命中表**
-- 序列层若无显著命中（本例正是如此），用 `screen-structure-candidates` 对全部候选结构做 US-align，只用**靶点模板**；靶点模板优先用**实验结构**（如 1CJW/1KUV），当预测模型与实验结构给出的排序不一致时以实验结构为准
+- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选；除默认阈值外，再补一次 `--sensitive`（宽 E 值）扫"远缘同源尾巴"，并把两次结果分开报告
+- 因为靶点属于 GNAT 超家族，先做家族普查：用 Pfam PF00583（`hmmsearch`）枚举候选基因组里的全部 GNAT 蛋白，并在同一次检索中带上阳性对照（人 AANAT、古菌 TvSNAT、E. coli RimI）；这一层定义候选全集，而不是 DIAMOND 命中表
+- 序列层若无显著命中（本例正是如此），用 `screen-structure-candidates` 对全部候选结构做 US-align，只用靶点模板；靶点模板优先用实验结构（如 1CJW/1KUV），当预测模型与实验结构给出的排序不一致时以实验结构为准
 - 只有当没有 fast-path 候选、且候选都没有拿到靶 EC 时，经用户同意才跑 DEER fallback；DEER 排序按同一次检索的内部标尺解读，不要直接套用默认 distance cutoff
-- 用 FedKEA 交叉核对（要带上正确环境、并提交 accession 干净的 FASTA 表头）；FedKEA 给出的是**最可能的单一 EC（正统功能）**，不能用来排除兼职活性
-- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认**以 TM-score 为主键**；`--rank-by priority` 可回到优先级规则排序）
+- 用 FedKEA 交叉核对（要带上正确环境、并提交 accession 干净的 FASTA 表头）；FedKEA 给出的是最可能的单一 EC（正统功能），不能用来排除兼职活性
+- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认以 TM-score 为主键；`--rank-by priority` 可回到优先级规则排序）
 
 回答会明确：
 - 是否存在 AANAT 的正交同源物，以及候选全集（GNAT 家族成员数）
