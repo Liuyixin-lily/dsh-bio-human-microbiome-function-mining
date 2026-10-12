@@ -337,7 +337,7 @@ Agent:
 - 参考酶集合仅保留靶点参考：人类 human AANAT（reviewed EC 2.3.1.87），不设折叠对照
 - 先跑 `scripts/preflight_inputs.py --project project.json --require-target-sequence --require-target-structure`，核对候选基因组文件与候选结构目录
 - 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选；除默认阈值外，再补一次 `--sensitive`（宽 E 值）扫"远缘同源尾巴"，并把两次结果分开报告
-- 因为靶点属于 GNAT 超家族，先做家族普查：用 Pfam PF00583（`hmmsearch`）枚举候选基因组里的全部 GNAT 蛋白，并在同一次检索中带上阳性对照（人 AANAT、古菌 TvSNAT、E. coli RimI）；这一层定义候选全集，而不是 DIAMOND 命中表
+- 因为靶点属于 GNAT 超家族，先做家族普查：用 Pfam PF00583（`hmmsearch`）枚举候选基因组里的全部 GNAT 蛋白，并在同一次检索中带上阳性对照（仅人 AANAT）；这一层定义候选全集，而不是 DIAMOND 命中表
 - 序列层若无显著命中（本例正是如此），用 `screen-structure-candidates` 对全部候选结构做 US-align，只用靶点模板；靶点模板优先用实验结构（如 1CJW/1KUV），当预测模型与实验结构给出的排序不一致时以实验结构为准
 - 只有当没有 fast-path 候选、且候选都没有拿到靶 EC 时，经用户同意才跑 DEER fallback；DEER 排序按同一次检索的内部标尺解读，不要直接套用默认 distance cutoff
 - 用 FedKEA 交叉核对（要带上正确环境、并提交 accession 干净的 FASTA 表头）；FedKEA 给出的是最可能的单一 EC（正统功能），不能用来排除兼职活性
