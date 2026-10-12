@@ -348,23 +348,23 @@ verifiable experimental design."
 
 Agent:
 - Use `build-target-function-card` for AANAT / aralkylamine N-acetyltransferase (EC 2.3.1.87), with UniProt reference = Q16613, and record the cofactor (acetyl-CoA) and the fold (GNAT, Pfam PF00583)
-- Prepare the reference set in two tagged groups: **target references** (reviewed EC 2.3.1.87, human AANAT only) and **fold controls** (same GNAT fold, different substrate: RimI, SpeG, Eis, AAC/APH)
+- Keep only the **target reference** in the reference set: human AANAT (reviewed EC 2.3.1.87); no fold controls
 - Run `scripts/preflight_inputs.py --project project.json --require-target-sequence --require-target-structure` to check the candidate genome files and the candidate structure directory
 - Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND; add a second `--sensitive` pass with a permissive E-value for the remote-homolog tail and **report the two passes separately**
 - Because the target is one branch of the GNAT superfamily, run a **family census** first: `hmmsearch` with Pfam PF00583 to enumerate every GNAT protein in the candidate genome, including positive controls in the same run (human AANAT, archaeal TvSNAT, E. coli RimI). **This census, not the DIAMOND hit list, defines the candidate universe**
-- If the sequence layer has no significant hit (as in this example), use `screen-structure-candidates` to US-align all candidate structures against **both** the target template and the fold-control template, and compare the two TM values per candidate; prefer **experimental** target templates (e.g. 1CJW/1KUV) and follow them when a predicted model disagrees with them
-- Use the DEER fallback only when there is no fast-path candidate and no candidate receives the target EC, with the user's agreement; the DEER template set **must include the fold control**, and the ranking should be read against the internal scale of the same run (self ~ 0; a true same-family pair is far closer than a true cross-family pair) instead of the default distance cutoff
+- If the sequence layer has no significant hit (as in this example), use `screen-structure-candidates` to US-align all candidate structures against the **target template only**; prefer **experimental** target templates (e.g. 1CJW/1KUV) and follow them when a predicted model disagrees with them
+- Use the DEER fallback only when there is no fast-path candidate and no candidate receives the target EC, with the user's agreement; read the DEER ranking against the internal scale of the same run instead of the default distance cutoff
 - Cross-check with FedKEA (correct environment, bare-accession FASTA headers); FedKEA returns the **most likely single EC (canonical function)** and cannot be used to exclude a secondary activity
 - Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (**TM-score-first by default**; `--rank-by priority` restores priority-tier ordering)
 
 The response clearly reports:
 - whether a canonical AANAT ortholog exists, and the size of the candidate universe (GNAT family members)
-- representative candidate accessions with gene coordinates, plus their sequence / structure (including the fold control) / DEER / FedKEA evidence chain
+- representative candidate accessions with gene coordinates, plus their sequence / structure / DEER / FedKEA evidence chain
 - which candidates already have published experimental validation and which are still hypotheses
 - an experimental path for validating serotonin/tryptamine acetylation (recombinant expression + LC-MS/MS product confirmation + kinetics benchmarked against known bacterial SNATs + knockout/complementation)
 ```
 
-> Key difference from Example 3: when the target belongs to a very large superfamily, three extra steps are mandatory - **family census (Pfam HMM) + fold-control template + DEER internal scale** - and the write-up must keep "no canonical ortholog" separate from "no such activity".
+> Key difference from Example 3: when the target belongs to a very large superfamily, two extra steps are mandatory - **family census (Pfam HMM) + DEER internal scale** - and the write-up must keep "no canonical ortholog" separate from "no such activity".
 
 ## Key outputs
 
