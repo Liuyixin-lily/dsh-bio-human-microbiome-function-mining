@@ -146,16 +146,51 @@ key taxa, entry point, evidence status, falsifying experiment).
 Then hand the card to `build-target-function-card` to review the fields, and
 continue with the main workflow using the recorded entry point.
 
-## Missing from the library
+## Missing from the library: escalate, never improvise
 
-`--search` returning no hit is an **informative miss**, not a blocker. Say clearly:
-"库里没有这条，只代表尚未策展", then:
+`--search` returning no hit is an **informative miss**, not a blocker and not an
+answer. The library is content, not a capability boundary: it ships two body
+sites, but the plugin's mechanisms are site-generic. Say clearly "库里没有这条，
+只代表尚未策展", then escalate in this order:
 
-- if the user already knows an enzyme / EC / reaction → go straight to
-  `build-target-function-card`;
-- if the user wants it in the library → add a `<domain>.json` entry only when you
-  can state the EC (or explicitly that there is none), the reaction, and an honest
-  `provenance_note_zh`; then run `--validate`.
+### 1. Route the question
+
+```bash
+python3 scripts/resolve_target_intent.py --query "<the user's own words>"
+```
+
+It classifies the question (EC / reaction / taxon / body site / phenotype),
+checks library coverage **at the named body site**, and prints executable steps.
+Follow its plan instead of inventing one. Key behaviours it already implements:
+
+- an EC number, reaction, or sequence routes to entry A and skips the library;
+- a taxon routes to genome assembly selection (`genome_source_search.py`, which
+  already supports skin / oral / gut / respiratory / urogenital / blood /
+  environment);
+- a site or phenotype the library does not cover routes to literature search terms
+  plus a narrowing step;
+- **a library hit at a different body site is reported as an analogy only.** Never
+  answer "阴道菌群" with the skin acidification process just because both mention
+  acid.
+
+### 2. If the user can actually name a target, leave the library
+
+Go straight to `build-target-function-card`. Do not expand the library just to
+reach a target you already have.
+
+### 3. If the direction deserves durable coverage, build a starter domain
+
+```bash
+python3 scripts/build_library_domain.py --init --domain oral --output specs/oral.json
+# fill the spec with facts you can actually source, then:
+python3 scripts/build_library_domain.py --build --spec specs/oral.json --output library/oral.json
+python3 scripts/browse_target_library.py --validate
+```
+
+The builder enforces the honesty rules in code, so a generated domain cannot
+pretend to be curated and cannot carry citations: empty fields are a hard error,
+`content_status` is forced to `starter`, `evidence_refs` is forced empty, and
+`provenance_source` is required per enzyme.
 
 Never write a library entry from memory alone. No fabricated EC numbers, gene
 symbols, UniProt/PDB accessions, or PMID/DOI.

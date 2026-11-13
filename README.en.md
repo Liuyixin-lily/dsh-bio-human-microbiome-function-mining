@@ -111,6 +111,31 @@ python3 scripts/browse_target_library.py --validate
 
 A selection writes `target_function_card.json` (`input_source: library` plus `library_id` / `library_version`) and `target_selection.md` (why this process, key taxa, recommended entry point, evidence status, falsifying experiment).
 
+### Beyond the shipped domains
+
+The library holds 2 body sites and 15 processes, but it is **content, not a capability boundary**. When a user asks about periodontitis, the vaginal microbiome, or drug metabolism, the plugin does not go quiet; it escalates in three steps:
+
+| Question shape | Mechanism that answers it | Command |
+| --- | --- | --- |
+| names an EC / reaction / sequence | entry A, library not involved | `build_target_function_card.py` |
+| names a taxon | site-generic: pick NCBI assemblies by source (built-in vocabulary for skin / oral / gut / respiratory / urogenital / blood / environment) | `skills/genome-search/scripts/genome_source_search.py` |
+| names only a site or a phenotype the library does not cover | **routing**: classify the question, emit executable steps, and turn the site/phenotype into literature search terms | `scripts/resolve_target_intent.py --query "..."` |
+| wants durable coverage of that direction | **on-demand expansion**: spec -> generated starter domain -> automatic validation | `scripts/build_library_domain.py` |
+
+None of these three steps asserts a fact. The router only classifies and composes commands; the builder refuses empty fields, forces `content_status: starter`, forces `evidence_refs` empty, and runs the real library validator before writing.
+
+```bash
+# route any question first: it says which path to take and what is missing
+python3 scripts/resolve_target_intent.py --query "periodontitis microbiome enzymes" --json
+
+# make oral a selectable site: init spec -> fill -> build (refuses to write invalid content)
+python3 scripts/build_library_domain.py --init --domain oral --output specs/oral.json
+python3 scripts/build_library_domain.py --build --spec specs/oral.json --output library/oral.json
+python3 scripts/browse_target_library.py --validate
+```
+
+One deliberate behaviour: **a hit in a different body site does not count as coverage.** Ask about the vaginal microbiome and the skin acidification process is reported as *usable as an analogy only, not as coverage*, then the escalation path runs. It is never presented as the answer.
+
 **The library is a curated prior, not literature evidence.** `evidence_status` defaults to `curated_prior` and `evidence_refs` stays empty; only `literature-evidence` may promote an entry to `literature_verified`, and only after it has actually retrieved PMID/DOI identifiers. `--validate` rejects `literature_verified` with empty or malformed identifiers. Entries marked `dark_matter: true` (body-odour C-S lyase, CutC, baiCD, LanB/LanC) deliberately leave the EC empty rather than borrowing a neighbouring enzyme's number. Adding a body site means adding one `library/<domain>.json`; no code change. Rules: `library/README.md`.
 
 ---

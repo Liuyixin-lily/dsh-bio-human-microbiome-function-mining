@@ -40,6 +40,11 @@ tool paths already installed on their server).
 - `references/`: thresholds, tool-fallback, evidence, and acceptance rules.
 - `library/`: curated selectable target index (`domain -> process -> enzyme`) with
   a browser/validator script; `skin` is curated, `gut` is a starter list.
+  Coverage is intentionally finite, so the plugin also ships an intent router
+  (`scripts/resolve_target_intent.py`) that routes uncovered questions to the
+  site-generic mechanisms, and a domain builder
+  (`scripts/build_library_domain.py`) that creates new starter domains with the
+  honesty rules enforced in code.
 
 ## 2. Sub-skills shipped separately
 

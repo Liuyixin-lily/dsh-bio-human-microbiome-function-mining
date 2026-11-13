@@ -460,7 +460,33 @@ def main() -> int:
             text=True,
         )
         assert miss.returncode == 1
-        assert "build-target-function-card" in miss.stdout
+        # a miss must escalate, never dead-end
+        assert "resolve_target_intent.py" in miss.stdout
+        assert "build_library_domain.py" in miss.stdout
+        assert "build_target_function_card.py" in miss.stdout
+
+        # a taxon query must resolve to the taxon itself, with its processes
+        taxon_hits = json.loads(
+            subprocess.run(
+                [sys.executable, str(browse), "--search", "Cutibacterium acnes", "--json"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )
+        assert any(h["kind"] == "taxon" for h in taxon_hits), taxon_hits
+
+        # merging every domain is allowed when the body site is still unknown
+        all_taxa = json.loads(
+            subprocess.run(
+                [sys.executable, str(browse), "--list-taxa", "all", "--json"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )
+        merged_names = {t["taxon"] for t in all_taxa}
+        assert {"Staphylococcus epidermidis", "Akkermansia muciniphila"} <= merged_names
 
         # exporting a library selection must produce a schema-valid card
         sel_dir = tmp / "selection"
@@ -515,6 +541,186 @@ def main() -> int:
         # the library is a curated prior: nothing may claim to be literature-verified yet
         assert all(row["evidence_status"] == "curated_prior" for row in rows)
         assert all(not row["evidence_refs"] for row in rows)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        resolver = SCRIPTS / "resolve_target_intent.py"
+        builder = SCRIPTS / "build_library_domain.py"
+        browse = SCRIPTS / "browse_target_library.py"
+
+        def route(query: str) -> dict:
+            return json.loads(
+                subprocess.run(
+                    [sys.executable, str(resolver), "--query", query, "--json"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout
+            )
+
+        # an EC number means entry A, and the library must not be used
+        ec_route = route("神经酰胺酶 EC 3.5.1.23")
+        assert ec_route["detected"]["ec"] == ["3.5.1.23"]
+        assert ec_route["route"]["entry"] == "A"
+        assert any("fetch_reference_enzymes.py --ec 3.5.1.23" in s["command"] for s in ec_route["route"]["steps"])
+
+        # a reaction means entry A as well
+        rxn = route("鞘磷脂 -> 神经酰胺 + 磷酸胆碱")
+        assert rxn["detected"]["reaction_arrow"] is True
+        assert rxn["route"]["entry"] == "A"
+
+        # a covered phrasing means entry B
+        covered = route("我关注头皮屑")
+        assert covered["route"]["entry"] == "B"
+        assert covered["library_coverage"]["hit_count"] >= 1
+
+        # an uncovered body site must escalate, and must not be answered with an
+        # off-site library hit
+        oral = route("口腔牙周炎相关菌有哪些酶值得看")
+        assert oral["detected"]["source_ids"] == ["oral"]
+        assert oral["route"]["entry"] == "escalate"
+        assert oral["library_coverage"]["hit_count"] == 0
+        assert oral["route"]["literature_search_terms"]
+        assert any("run_literature_search.sh" in s["command"] for s in oral["route"]["steps"])
+
+        # a vaginal question must not be answered by the skin acidification process
+        vaginal = route("阴道菌群和乳酸杆菌")
+        assert vaginal["route"]["entry"] == "escalate"
+        assert vaginal["library_coverage"]["hit_count"] == 0
+        assert vaginal["library_coverage"]["other_site_hit_count"] >= 1
+
+        # a taxon-only question must not crash and must not claim library coverage
+        taxon_route = route("Akkermansia muciniphila")
+        assert taxon_route["detected"]["taxa"] == ["Akkermansia"]
+        assert taxon_route["route"]["entry"] == "A"
+        assert taxon_route["library_coverage"]["hit_count"] == 0
+        assert taxon_route["library_coverage"]["taxon_hits"]
+
+        # a word that merely appears in prose is not coverage
+        immunity = route("我想研究肠道菌对免疫的影响")
+        assert immunity["route"]["entry"] == "escalate"
+        assert immunity["library_coverage"]["hit_count"] == 0
+
+        # a phenotype the library really does cover resolves to the exact process
+        butyrate = route("粪便 丁酸")
+        assert butyrate["route"]["entry"] == "B"
+        assert butyrate["library_coverage"]["hits"][0]["process"] == "gut_butyrate_production"
+
+        # an unrecognisable question asks for a question shape instead of guessing
+        vague = route("帮我看看这个项目")
+        assert vague["route"]["entry"] == "clarify"
+        assert len(vague["route"]["question_shapes"]) == 4
+
+        # ---- the domain builder: honest by construction ----
+        spec_path = tmp / "spec.json"
+        loaded = tmp / "loaded.json"
+        subprocess.run(
+            [sys.executable, str(builder), "--init", "--domain", "test_site", "--output", str(spec_path)],
+            check=True,
+        )
+        # an unfilled skeleton must be rejected, not filled with placeholders
+        rejected = subprocess.run(
+            [sys.executable, str(builder), "--build", "--spec", str(spec_path), "--output", str(loaded)],
+            capture_output=True,
+            text=True,
+        )
+        assert rejected.returncode == 1
+        assert not loaded.exists()
+
+        filled = json.loads(spec_path.read_text(encoding="utf-8"))
+        domain = filled["domain"]
+        domain.update(
+            {
+                "name_zh": "测试部位",
+                "name_en": "Test site",
+                "keywords_zh": ["测试部位"],
+                "keywords_en": ["test site"],
+                "niche_summary_zh": "synthetic fixture, no biological claim",
+                "selection_hint_zh": "synthetic fixture",
+            }
+        )
+        domain["focus_taxa"] = [
+            {
+                "taxon": "Examplebacterium testii",
+                "name_zh": "示例杆菌",
+                "role_zh": "placeholder",
+                "attention": "medium",
+                "provenance_source": "user_supplied",
+            }
+        ]
+        process = domain["processes"][0]
+        domain["processes"][0].update(
+            {
+                "name_zh": "示例过程",
+                "name_en": "Example process",
+                "keywords_zh": ["示例过程"],
+                "keywords_en": ["example process"],
+                "why_it_matters_zh": "placeholder",
+                "host_context_zh": "placeholder",
+                "microbe_effect_zh": "placeholder",
+                "key_taxa": ["Examplebacterium testii"],
+            }
+        )
+        enzyme = process["enzymes"][0]
+        enzyme.update(
+            {
+                "enzyme_name_zh": "示例酶",
+                "enzyme_name_en": "example enzyme",
+                "ec": "1.1.1.-",
+                "ec_confidence": "family",
+                "reaction_zh": "substrate + H2O -> product",
+                "substrate_zh": "substrate",
+                "product_zh": "product",
+                "entry_point": "ec",
+                "dark_matter": False,
+                "provenance_note_zh": "synthetic fixture",
+                "validation_note_zh": "synthetic fixture",
+                "provenance_source": "user_supplied",
+            }
+        )
+        spec_path.write_text(json.dumps(filled, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        built_dir = tmp / "library"
+        built = built_dir / "test_site.json"
+        subprocess.run(
+            [sys.executable, str(builder), "--build", "--spec", str(spec_path), "--output", str(built)],
+            check=True,
+        )
+        payload = json.loads(built.read_text(encoding="utf-8"))
+        # the honesty invariants are enforced by the builder, not by convention
+        assert payload["domain"]["content_status"] == "starter"
+        assert payload["domain"]["expansion"]["method"] == "generated_from_spec"
+        built_enzyme = payload["domain"]["processes"][0]["enzymes"][0]
+        assert built_enzyme["evidence_status"] == "curated_prior"
+        assert built_enzyme["evidence_refs"] == []
+
+        # a generated domain is immediately browsable and selectable
+        subprocess.run([sys.executable, str(browse), "--library-dir", str(built_dir), "--validate"], check=True)
+        subprocess.run(
+            [
+                sys.executable,
+                str(browse),
+                "--library-dir",
+                str(built_dir),
+                "--export-card",
+                "test_site_enzyme_1",
+                "--output-dir",
+                str(tmp / "card"),
+            ],
+            check=True,
+        )
+
+        # a generated domain may not be relabelled as curated, nor carry citations
+        tampered = json.loads(json.dumps(payload))
+        tampered["domain"]["content_status"] = "curated"
+        (built_dir / "bad.json").write_text(json.dumps(tampered, ensure_ascii=False), encoding="utf-8")
+        bad = subprocess.run(
+            [sys.executable, str(browse), "--library-dir", str(built_dir), "--validate"],
+            capture_output=True,
+            text=True,
+        )
+        assert bad.returncode == 1
+        assert "generated from a spec must stay content_status='starter'" in bad.stderr
 
     print("example test passed")
     return 0

@@ -975,6 +975,10 @@
           }
         ]
       }
-    ]
+    ],
+    "expansion": {
+      "method": "manual_curation",
+      "note_zh": "手工策展。皮肤域覆盖较宽，但仍不是文献审计过的清单。"
+    }
   }
 }

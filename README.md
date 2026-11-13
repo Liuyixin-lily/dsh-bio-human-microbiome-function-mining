@@ -109,6 +109,32 @@ python3 scripts/browse_target_library.py --validate
 
 选中后会写出 `target_function_card.json`（`input_source: library` + `library_id` / `library_version`）和 `target_selection.md`（为什么做这个过程、关键菌、推荐起手式、证据状态、可证伪的验证实验）。
 
+### 库覆盖不到的方向怎么办 / Beyond the shipped domains
+
+库只有 2 个部位、15 个过程，它是**内容**而不是**能力边界**。用户问牙周炎、阴道菌群、药物代谢时，插件不会哑掉，而是走三步升级：
+
+| 问题形状 | 由什么机制接住 | 命令 |
+| --- | --- | --- |
+| 说了 EC / 反应 / 序列 | 入口 A，与库无关 | `build_target_function_card.py` |
+| 点名了菌 | 部位通用：NCBI 按来源挑装配（内置 skin / oral / gut / respiratory / urogenital / blood / environment 七套来源词表） | `skills/genome-search/scripts/genome_source_search.py` |
+| 只说了部位或表型，库没覆盖 | **路由**：判断问题形状，给出可执行步骤，并把部位/表型拼成文献检索词 | `scripts/resolve_target_intent.py --query "..."` |
+| 想长期覆盖这个方向 | **按需扩库**：spec → 生成 starter 域 → 自动校验 | `scripts/build_library_domain.py` |
+
+关键是这三步都**不产生事实断言**：路由只做问题分类和命令编排，扩库脚本拒绝空字段、强制 `content_status: starter`、强制清空 `evidence_refs`，并在写盘前跑真正的库校验。
+
+```bash
+# 任意问题先问路由器：它告诉你走哪条路、缺什么
+python3 scripts/resolve_target_intent.py --query "口腔牙周炎相关菌有哪些酶值得看"
+python3 scripts/resolve_target_intent.py --query "阴道菌群和乳酸杆菌" --json
+
+# 想把口腔做成一个可选的部位：生成 spec → 填 → 构建（不通过就拒绝写盘）
+python3 scripts/build_library_domain.py --init --domain oral --output specs/oral.json
+python3 scripts/build_library_domain.py --build --spec specs/oral.json --output library/oral.json
+python3 scripts/browse_target_library.py --validate
+```
+
+路由器的输出有一处刻意的设计：**跨部位命中不算覆盖**。问「阴道菌群」时，即使皮肤域有个「表面酸化」过程，它也只会标成 *usable as an analogy only, not as coverage*，然后走升级路径 —— 不会被当成答案。
+
 **库是策展先验，不是文献证据。** `evidence_status` 默认为 `curated_prior`，`evidence_refs` 恒为空，只有 `literature-evidence` 真实检索到 PMID/DOI 后才允许升级为 `literature_verified`；`--validate` 会拒绝空引用或格式不像标识符的 `literature_verified`。`dark_matter: true` 的条目（例如体味 C-S 裂解酶、CutC、baiCD、LanB/LanC）刻意留空 EC，不允许借用邻近酶的 EC 号。新增身体部位只需新增一个 `library/<domain>.json`，不需要改代码；规则见 `library/README.md`。
 
 ---

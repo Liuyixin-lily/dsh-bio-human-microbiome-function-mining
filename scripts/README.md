@@ -11,6 +11,16 @@ Available scripts:
   the user's own natural-language words (Chinese or English); `--export-tsv`
   flattens the whole library for manual review; `--validate` audits the library
   content and cross-references.
+- `resolve_target_intent.py`: routes an arbitrary natural-language microbiome
+  question to the right entry without any model call or network access. It detects
+  EC numbers, reaction arrows, taxa, body sites (mapped onto the genome-search
+  source vocabulary) and phenotype words, checks whether the curated library
+  covers the topic *at that body site*, and emits executable steps. A hit in a
+  different body site is reported as an analogy, never as coverage.
+- `build_library_domain.py`: creates a new `starter` library domain from a spec
+  file with the honesty rules enforced in code — no invented fields, forced
+  `content_status: starter`, forced empty `evidence_refs`, required
+  `provenance_source`, and library validation before anything is written.
 - `build_target_function_card.py`: writes a normalized target function card from enzyme metadata.
 - `fetch_reference_enzymes.py`: fetches reference enzyme records from NCBI
   Protein and RCSB PDB by enzyme name, EC number, organism, and PDB IDs, then

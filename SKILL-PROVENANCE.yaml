@@ -126,6 +126,15 @@ dsh_compat:
         - library/gut.json
       schema: schemas/target_library.schema.json
       browser: scripts/browse_target_library.py
+      resolver: scripts/resolve_target_intent.py
+      builder: scripts/build_library_domain.py
+      generality_note: >-
+        The curated library covers skin and gut only. Coverage of other body sites
+        comes from three mechanisms, none of which asserts facts: intent routing
+        (resolve_target_intent.py), the site-generic genome search vocabulary
+        (skin/oral/gut/respiratory/urogenital/blood/environment), and on-demand
+        starter domains (build_library_domain.py, which forces content_status
+        starter and empty evidence_refs).
       note: >-
         Curated target index (domain -> process -> enzyme) written for this
         plugin. Content is a curation-level prior: EC numbers come from IUBMB

@@ -106,6 +106,22 @@ may upgrade them after real retrieval. `python3 scripts/browse_target_library.py
 --validate` audits the content; `library/README.md` explains how to add a body
 site.
 
+Your question will often fall outside the shipped two body sites. That is not a
+dead end:
+
+```bash
+# route any question: it says which entry to take, and what is missing
+python3 scripts/resolve_target_intent.py --query "口腔牙周炎相关菌有哪些酶值得看"
+
+# make a new body site selectable: spec -> starter domain -> validated
+python3 scripts/build_library_domain.py --init --domain oral --output specs/oral.json
+python3 scripts/build_library_domain.py --build --spec specs/oral.json --output library/oral.json
+```
+
+The router asserts nothing; it only classifies the question and composes commands.
+The builder refuses empty fields and cannot produce a domain that claims to be
+curated or carries citations.
+
 ## 5. Use the plugin on your own data
 
 1. Copy the plugin into your DeepSeek harness environment.

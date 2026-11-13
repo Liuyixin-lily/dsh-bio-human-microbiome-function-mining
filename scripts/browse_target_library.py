@@ -57,6 +57,17 @@ ENUM_PRIORITY = {"high", "medium", "low"}
 ENUM_EVIDENCE = {"curated_prior", "literature_verified"}
 ENUM_ATTENTION = {"high", "medium", "low"}
 ENUM_CONTENT_STATUS = {"curated", "starter"}
+PROVENANCE_SOURCES = (
+    "user_supplied",
+    "iubmb_enzyme",
+    "uniprot",
+    "rhea",
+    "brenda",
+    "kegg",
+    "ncbi",
+    "literature",
+    "manual_curation",
+)
 
 DOMAIN_REQUIRED = (
     "id",
@@ -222,6 +233,26 @@ def validate_library(payloads: list[dict[str, Any]]) -> list[str]:
             errors,
         )
 
+        expansion = domain.get("expansion")
+        generated = isinstance(expansion, dict) and expansion.get("method") == "generated_from_spec"
+        if expansion is not None:
+            if not isinstance(expansion, dict):
+                errors.append(f"{source}: domain.expansion must be an object")
+                generated = False
+            else:
+                _check_enum(
+                    expansion.get("method"),
+                    {"manual_curation", "generated_from_spec"},
+                    source,
+                    "domain.expansion.method",
+                    errors,
+                )
+                if generated and domain.get("content_status") != "starter":
+                    errors.append(
+                        f"{source}: a domain generated from a spec must stay content_status='starter'; "
+                        "generated content may not claim to be curated"
+                    )
+
         taxa: set[str] = set()
         focus_taxa = domain.get("focus_taxa") or []
         if not focus_taxa:
@@ -278,13 +309,16 @@ def validate_library(payloads: list[dict[str, Any]]) -> list[str]:
                 if not isinstance(enzyme, dict):
                     errors.append(f"{where}: each enzyme must be an object")
                     continue
-                errors.extend(validate_enzyme(enzyme, where, seen_enzymes))
+                errors.extend(validate_enzyme(enzyme, where, seen_enzymes, generated=generated))
 
     return errors
 
 
 def validate_enzyme(
-    enzyme: dict[str, Any], where: str, seen_enzymes: dict[str, str]
+    enzyme: dict[str, Any],
+    where: str,
+    seen_enzymes: dict[str, str],
+    generated: bool = False,
 ) -> list[str]:
     errors: list[str] = []
     eid = str(enzyme.get("id", ""))
@@ -330,6 +364,21 @@ def validate_enzyme(
             "downgrade to curated_prior until literature-evidence returns identifiers"
         )
 
+    provenance_source = enzyme.get("provenance_source")
+    if provenance_source is not None:
+        _check_enum(
+            provenance_source,
+            set(PROVENANCE_SOURCES),
+            here,
+            "provenance_source",
+            errors,
+        )
+    elif generated:
+        errors.append(
+            f"{here}: generated domains must record provenance_source for every enzyme "
+            f"(one of {sorted(PROVENANCE_SOURCES)})"
+        )
+
     examples = enzyme.get("known_microbial_examples")
     if not isinstance(examples, list):
         errors.append(f"{here}: known_microbial_examples must be a list")
@@ -349,6 +398,8 @@ def validate_enzyme(
 class Index:
     def __init__(self, payloads: list[dict[str, Any]]) -> None:
         self.domains: list[dict[str, Any]] = []
+        # taxon name -> list of {domain, role_zh, attention, processes}
+        self.taxa: dict[str, list[dict[str, Any]]] = {}
         self.payload_of: dict[str, dict[str, Any]] = {}
         for payload in payloads:
             domain = payload["domain"]
@@ -358,6 +409,24 @@ class Index:
             self.domains.append(domain)
             self.payload_of[domain["id"]] = payload
         self.domains.sort(key=lambda d: d["id"])
+        for domain in self.domains:
+            process_of: dict[str, list[str]] = {}
+            for process in domain.get("processes") or []:
+                for name in process.get("key_taxa") or []:
+                    process_of.setdefault(name, []).append(process["id"])
+            for taxon in domain.get("focus_taxa") or []:
+                name = taxon.get("taxon", "")
+                if not name:
+                    continue
+                self.taxa.setdefault(name, []).append(
+                    {
+                        "domain": domain["id"],
+                        "name_zh": taxon.get("name_zh", ""),
+                        "role_zh": taxon.get("role_zh", ""),
+                        "attention": taxon.get("attention", ""),
+                        "processes": process_of.get(name, []),
+                    }
+                )
 
     def domain(self, domain_id: str) -> dict[str, Any] | None:
         for domain in self.domains:
@@ -548,13 +617,52 @@ def search(index: Index, query: str) -> list[dict[str, Any]]:
                             "enzyme": enzyme,
                         }
                     )
+    for name, records in index.taxa.items():
+        lowered = name.lower()
+        score = 0
+        for token in tokens:
+            if token == lowered:
+                score += 100
+            elif len(lowered) >= 4 and lowered in token:
+                score += 80
+            elif len(token) >= 4 and token in lowered:
+                score += 60
+        if score and all(_token_hits_taxon(t, name) for t in tokens):
+            hits.append({"kind": "taxon", "score": score + 5, "taxon": name, "records": records})
+
     hits.sort(key=lambda h: (-h["score"], h["kind"] != "process", h.get("process", {}).get("id", "")))
     return hits
+
+
+def _token_hits_taxon(token: str, taxon: str) -> bool:
+    lowered = taxon.lower()
+    return token == lowered or (len(lowered) >= 4 and lowered in token) or (len(token) >= 4 and token in lowered)
 
 
 # --------------------------------------------------------------------------
 # rendering
 # --------------------------------------------------------------------------
+
+
+def _merged_taxa_view(index: "Index", domains: list[dict[str, Any]]) -> dict[str, Any]:
+    """Synthesise one taxon list across domains, so 'all' keeps the same code path."""
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for domain in domains:
+        for taxon in domain.get("focus_taxa") or []:
+            key = taxon.get("taxon", "")
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append({**taxon, "_domain": domain["id"]})
+    return {
+        "id": "all",
+        "name_zh": "全部部位",
+        "name_en": "All domains",
+        "attention_order_hint": True,
+        "focus_taxa": merged,
+        "processes": [p for d in domains for p in d.get("processes") or []],
+    }
 
 
 def fmt_keywords(items: list[str], limit: int = 8) -> str:
@@ -650,6 +758,18 @@ def render_navigation(index: "Index", query: str) -> str:
 
 
 def render_hit(hit: dict[str, Any]) -> str:
+    if hit["kind"] == "taxon":
+        lines = []
+        for record in hit["records"]:
+            procs = ", ".join(record["processes"]) or "(no process yet)"
+            first = record["processes"][0] if record["processes"] else record["domain"]
+            lines.append(
+                f"[{hit['score']:>3}] TAXON   {hit['taxon']}  {record['name_zh']} "
+                f"[关注度={record['attention']}] @ {record['domain']}\n"
+                f"        {record['role_zh']}\n"
+                f"        -> --show {first}   processes: {procs}"
+            )
+        return "\n".join(lines)
     domain = hit["domain"]
     if hit["kind"] == "domain":
         n_process = len(domain.get("processes") or [])
@@ -666,6 +786,18 @@ def render_hit(hit: dict[str, Any]) -> str:
             f"[{hit['score']:>3}] PROCESS {domain['id']} / {process['id']}: "
             f"{process['name_zh']} / {process['name_en']}"
         )
+    if hit["kind"] == "taxon":
+        lines = []
+        for record in hit["records"]:
+            procs = ", ".join(record["processes"]) or "(no process yet)"
+            lines.append(
+                f"[{hit['score']:>3}] TAXON   {hit['taxon']}  {record['name_zh']} "
+                f"[关注度={record['attention']}] @ {record['domain']}\n"
+                f"        {record['role_zh']}\n"
+                f"        -> --show {record['processes'][0] if record['processes'] else record['domain']}"
+                f"   processes: {procs}"
+            )
+        return "\n".join(lines)
     enzyme = hit["enzyme"]
     ec = enzyme.get("ec") or "no EC"
     return (
@@ -967,7 +1099,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--list-taxa",
         metavar="DOMAIN",
         default=None,
-        help="List the taxa worth attention in one domain, with the processes each one drives.",
+        help="List the taxa worth attention in one domain (or 'all' to merge every domain), with the processes each one drives.",
     )
     actions.add_argument(
         "--show",
@@ -1110,9 +1242,11 @@ def main(argv: list[str] | None = None) -> int:
                         {
                             "kind": h["kind"],
                             "score": h["score"],
-                            "domain": h["domain"]["id"],
-                            "process": h.get("process", {}).get("id"),
-                            "enzyme": h.get("enzyme", {}).get("id"),
+                            "domain": (h.get("domain") or {}).get("id")
+                            or ((h.get("records") or [{}])[0].get("domain")),
+                            "process": (h.get("process") or {}).get("id"),
+                            "enzyme": (h.get("enzyme") or {}).get("id"),
+                            "taxon": h.get("taxon"),
                         }
                         for h in hits
                     ],
@@ -1125,12 +1259,23 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         elif not hits:
             print(f'no hit for {args.search!r}.')
-            print("提示：库里没有命中不代表该功能不存在，只是尚未策展；")
-            print("      可以直接用 build-target-function-card 按目标酶/EC/反应显式建档。")
-            print("      试试这些词：")
+            print("提示：库里没有命中不代表该功能不存在，只是尚未策展。三条下一步：")
+            print(f"      1) 先让路由脚本判断这个问题属于哪种形状：")
+            print(f"         python3 scripts/resolve_target_intent.py --query {json.dumps(args.search, ensure_ascii=False)}")
+            print(f"      2) 已知目标就直接建档，不经过库：")
+            print(f"         python3 scripts/build_target_function_card.py --output outputs/task/target_function_card.json ...")
+            print(f"      3) 想长期覆盖这个方向就生成一个 starter 域：")
+            print(f"         python3 scripts/build_library_domain.py --init --domain <id> --output specs/<id>.json")
+            print("      库里目前覆盖这些方向（--list-processes <domain> 看全部）：")
             for domain in index.domains:
+                sample: list[str] = []
                 for process in index.iter_processes(domain):
-                    print(f"        - {fmt_keywords(process.get('keywords_zh') or [], 6)}")
+                    sample.append((process.get("keywords_zh") or [process.get("name_zh", "")])[0])
+                print(
+                    f"        {domain['id']:<6} {domain['name_zh']}: "
+                    + ", ".join(sample[:6])
+                    + (" …" if len(sample) > 6 else "")
+                )
             return 1
         else:
             print(f'{len(hits)} hit(s) for {args.search!r}:')
@@ -1147,10 +1292,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.list_taxa:
         did_something = True
-        domain = index.domain(args.list_taxa)
-        if domain is None:
-            print(f"error: unknown domain {args.list_taxa!r}", file=sys.stderr)
-            return 2
+        wanted_domains = index.domains
+        if args.list_taxa not in {"all", "*"}:
+            single = index.domain(args.list_taxa)
+            if single is None:
+                print(f"error: unknown domain {args.list_taxa!r}", file=sys.stderr)
+                return 2
+            wanted_domains = [single]
+        domain = wanted_domains[0] if len(wanted_domains) == 1 else _merged_taxa_view(index, wanted_domains)
         process_of_taxon: dict[str, list[str]] = {}
         for process in index.iter_processes(domain):
             for name in process.get("key_taxa") or []:
@@ -1184,9 +1333,10 @@ def main(argv: list[str] | None = None) -> int:
                 name = taxon.get("taxon", "")
                 used = process_of_taxon.get(name) or []
                 print()
+                owner = f" @ {taxon['_domain']}" if taxon.get("_domain") else ""
                 print(
                     f"  {i}) {name}  {taxon.get('name_zh', '')}  "
-                    f"[关注度={taxon.get('attention')}]"
+                    f"[关注度={taxon.get('attention')}]{owner}"
                 )
                 print(f"     角色：{taxon.get('role_zh', '')}")
                 if used:

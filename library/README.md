@@ -71,6 +71,33 @@ python3 scripts/browse_target_library.py --validate
 5. **`validation_note_zh` 必须是可证伪的实验**，写清底物、读出和对照组；不要写“测一下酶活”这种没有判据的话。
 6. **`dark_matter: true`** 用于“活性真实存在、但没有 EC 号或没有已表征的代表酶”的条目。这类目标只能按序列 / 结构起手，`entry_point` 相应设为 `sequence`。
 
+## 库里没有的方向
+
+库覆盖有限（`skin` + `gut`），但「没覆盖」不等于「做不了」。标准升级路径：
+
+```bash
+# 1. 先让路由脚本判断这个问题属于哪种形状
+python3 scripts/resolve_target_intent.py --query "口腔牙周炎相关菌有哪些酶值得看"
+
+# 2. 如果用户其实能说出目标，直接建档，不需要扩库
+python3 scripts/build_target_function_card.py --output outputs/task/target_function_card.json --ec 3.5.1.23
+
+# 3. 如果要长期在这个部位上工作：spec -> 生成 starter 域
+python3 scripts/build_library_domain.py --init --domain oral --output specs/oral.json
+python3 scripts/build_library_domain.py --build --spec specs/oral.json --output library/oral.json
+python3 scripts/browse_target_library.py --validate
+```
+
+`build_library_domain.py` 把诚实性写进了代码，而不是靠人自觉：
+
+- 空字段 = 构建失败，脚本不填占位符；
+- 生成的文件**只能是** `content_status: starter`，不允许自称 `curated`；
+- 每个酶强制 `evidence_status: curated_prior`、`evidence_refs: []`；
+- 每个酶必须写 `provenance_source`（`iubmb_enzyme` / `rhea` / `uniprot` / `user_supplied` …）；
+- 写盘前跑真正的库校验，校验不过就不写。
+
+生成的文件带 `domain.expansion.method: generated_from_spec`，读者一眼能看出它是机械生成的。校验器会拒绝把生成域改成 `curated`。
+
 ## 新增一个 process
 
 在对应 `<domain>.json` 的 `domain.processes` 里加一条，`--validate` 会检查：
