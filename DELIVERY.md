@@ -55,6 +55,7 @@ updated separately:
 - `build-target-function-card`
 - `screen-sequence-candidates`
 - `screen-structure-candidates`
+- `prepare-cro-work-order`
 - `literature-evidence`
 - `genome-search`
 - `genome-download`

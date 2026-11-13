@@ -37,6 +37,7 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 | 文献证据 | literature-evidence / nature-academic-search | `literature_evidence.tsv` |
 | 合并与排序 | merge_candidates.py + score_candidates.py | `combined_candidates.tsv` / scored 表 |
 | 总结与实验设计 | summarize_candidates.py | final candidates + experimental_hypotheses.tsv + experimental_design.md |
+| 外包实验工作单 | prepare-cro-work-order / build_cro_work_order.py | cro_work_order.md + cro_modules.tsv + cro_sequences.faa + cro_gap_list.md |
 
 ## 3. 铁律
 
@@ -58,3 +59,6 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 - 绝不程序化调用 FedKEA 网页版。
 - 绝不让结构相似性、已有注释或 EC 预测变成“已证明的功能”。
 - 所有结论必须写清证据文件和工具版本，未运行/未返回的部分必须标注。
+- 用户要把实验外包出去（基因合成/表达纯化/测活）时，用 prepare-cro-work-order
+  产出工作单，而不是把 experimental_design.md 直接发出去。工作单里**不写价格与
+  周期**（留给承接方报价）、**不编造序列**、**生物安全只列清单不下结论**。

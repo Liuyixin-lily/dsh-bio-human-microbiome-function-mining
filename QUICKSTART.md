@@ -167,6 +167,22 @@ External tool sources:
 - FedKEA local: <https://github.com/Stevenleizheng/FEDKEA>
 - FedKEA web (manual submission): <https://www.viromelab.com/software/fedkea>
 
+If you need to hand the bench work to a company instead of doing it yourself,
+add `--scope` and a work order in the same run:
+
+```bash
+python3 human_microbiome_function_mining/scripts/build_cro_work_order.py \
+  --card outputs/task/target_function_card.json \
+  --candidates outputs/task/summary/final_target_candidates.tsv \
+  --sequences outputs/task/candidate_sequences/candidate_proteins.faa \
+  --outdir outputs/task/cro_package --scope candidates
+```
+
+It writes `cro_work_order.md` + `cro_modules.tsv` + `cro_sequences.faa` +
+`cro_gap_list.md`. Prices and turnaround times are intentionally blank (the vendor
+quotes them), and sequences are copied verbatim from your FASTA or not written at
+all.
+
 ## 7. Final ranked outputs after scoring
 
 ```bash

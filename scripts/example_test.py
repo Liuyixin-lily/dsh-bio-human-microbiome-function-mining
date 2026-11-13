@@ -722,6 +722,159 @@ def main() -> int:
         assert bad.returncode == 1
         assert "generated from a spec must stay content_status='starter'" in bad.stderr
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        cro = SCRIPTS / "build_cro_work_order.py"
+
+        card = tmp / "target_function_card.json"
+        subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "build_target_function_card.py"),
+                "--output", str(card),
+                "--target-id", "CRO_TEST",
+                "--enzyme-name", "test hydrolase",
+                "--ec", "3.1.4.12",
+                "--reaction", "substrate + H2O -> product",
+                "--substrate", "substrate",
+                "--product", "product",
+                "--input-source", "reaction",
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        seq_a = "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ"
+        seq_b = "MGSSHHHHHHSSGLVPRGSHMASMTGGQQMGRDLY"
+        fasta = tmp / "candidate_proteins.faa"
+        fasta.write_text(f">CAND_A.1 synthetic [Testus examplei]\n{seq_a}\n", encoding="utf-8")
+
+        cands = tmp / "final_target_candidates.tsv"
+        cands.write_text(
+            "final_rank\tprotein_accession\torganism_or_strain\tevidence_base\t"
+            "tm_score_mean\tstructural_score\tsource_annotation\tlocus_tag\tlocation\t"
+            "fedkea_ec\tfedkea_confidence\tfedkea_accepted_name\tfedkea_other_names\t"
+            "validation_status\tprotein_fasta\tcds_fasta\n"
+            "1\tCAND_A.1\tTestus_examplei\tUS-align\t0.81\t0.81\talpha/beta hydrolase\t"
+            "TEX_0001\t1..300\t3.1.4.12\tHigh\tsphingomyelin phosphodiesterase\t-\t"
+            "high-confidence\tpath/a.faa\tpath/a.ffn\n"
+            "2\tCAND_B.2\tTestus_examplei\tUS-align\t0.77\t0.77\talpha/beta hydrolase\t"
+            "TEX_0002\t1..300\t3.1.4.12\tHigh\tsphingomyelin phosphodiesterase\t-\t"
+            "high-confidence\tpath/b.faa\tpath/b.ffn\n",
+            encoding="utf-8",
+        )
+
+        hyps = tmp / "experimental_hypotheses.tsv"
+        fields = [
+            "overall_rank", "protein_accession", "organism_or_strain", "candidate_id",
+            "target_context", "hypothesis_statement", "mechanistic_model",
+            "testable_prediction", "critical_experiments", "falsification_criteria",
+            "ambient_hypothesis", "evidence_chain", "literature_citations",
+            "designer_notes", "provenance",
+        ]
+        row = {f: "" for f in fields}
+        row.update(
+            {
+                "overall_rank": "1",
+                "protein_accession": "CAND_A.1",
+                "organism_or_strain": "Testus_examplei",
+                "candidate_id": "CAND_A.1",
+                "hypothesis_statement": "CAND_A.1 encodes the target hydrolase",
+                "falsification_criteria": "no activity above 3x empty-vector control",
+            }
+        )
+        hyps.write_text(
+            "\t".join(fields) + "\n" + "\t".join(row[f] for f in fields) + "\n",
+            encoding="utf-8",
+        )
+
+        out = tmp / "cro"
+        subprocess.run(
+            [
+                sys.executable, str(cro),
+                "--card", str(card),
+                "--candidates", str(cands),
+                "--hypotheses", str(hyps),
+                "--sequences", str(fasta),
+                "--outdir", str(out),
+                "--scope", "full",
+                "--bsl", "BSL-2",
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        work_order = out / "cro_work_order.md"
+        modules_tsv = out / "cro_modules.tsv"
+        seqs_faa = out / "cro_sequences.faa"
+        gaps = out / "cro_gap_list.md"
+        for path_file in (work_order, modules_tsv, seqs_faa, gaps):
+            assert path_file.is_file(), path_file
+
+        # full scope carries every module, in numeric order
+        with modules_tsv.open("r", encoding="utf-8") as handle:
+            modules = list(csv.DictReader(handle, delimiter="\t"))
+        ids = [m["module_id"] for m in modules]
+        assert ids == [f"M{i}" for i in range(1, 11)], ids
+
+        # no price and no turnaround may be invented
+        for module in modules:
+            assert module["price_status"] == "需询价 / quote required"
+            assert module["turnaround_days"] == "待公司填写 / TBD"
+            assert not any(ch.isdigit() for ch in module["price_status"])
+            assert not any(ch.isdigit() for ch in module["turnaround_days"])
+
+        # sequence must be copied verbatim, and only for candidates that have one
+        copied = seqs_faa.read_text(encoding="utf-8")
+        assert seq_a in copied
+        assert seq_b not in copied
+        assert "CAND_B.2" not in copied
+
+        text = work_order.read_text(encoding="utf-8")
+        # the missing sequence must be visible, not silently dropped
+        assert "CAND_B.2" in text
+        assert "缺序列" in text
+        assert "有序列" in text
+        # pre-registered rule, glossary, biosafety checklist, boundary statement
+        assert "no activity above 3x empty-vector control" in text
+        assert "术语表" in text
+        assert "生物安全" in text
+        assert "不构成任何功能结论" in text
+        assert "预注册" in text or "数据回来之前" in text
+        assert "BSL-2" in text
+
+        # the module table must satisfy its own schema
+        subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "validate_schema.py"),
+                "--schema", str(ROOT / "schemas" / "cro_work_order.schema.tsv"),
+                "--tsv", str(modules_tsv),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        # without any sequence the script must refuse to emit a FASTA
+        out2 = tmp / "cro_noseq"
+        subprocess.run(
+            [
+                sys.executable, str(cro),
+                "--card", str(card),
+                "--candidates", str(cands),
+                "--outdir", str(out2),
+                "--scope", "assay_first",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        assert not (out2 / "cro_sequences.faa").exists()
+        missing_note = out2 / "cro_sequences.MISSING.md"
+        assert missing_note.is_file()
+        assert "不会生成占位序列" in missing_note.read_text(encoding="utf-8")
+        gap_text = (out2 / "cro_gap_list.md").read_text(encoding="utf-8")
+        assert "序列" in gap_text
+
     print("example test passed")
     return 0
 

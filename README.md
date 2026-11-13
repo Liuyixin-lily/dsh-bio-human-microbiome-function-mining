@@ -68,6 +68,7 @@ human_microbiome_function_mining/
 - `screen-sequence-candidates`: 运行或消费 DIAMOND 序列筛选，默认先做 CD-HIT 去冗余；单菌单基因组默认 100%，多基因组泛蛋白组默认 95%。
 - `structure-prediction`: 当候选蛋白没有已知结构文件时，按 PDB > AlphaFold DB（mean pLDDT >= 60）> homology model > de novo prediction 的优先级检索或预测结构；内置的 PDB/AFDB/homology 辅助脚本在 `skills/structure-prediction/scripts/` 中，为 US-align 准备 `structure/<protein_sequence_id>.pdb`。
 - `screen-structure-candidates`: 结构证据筛选。先检查候选结构文件是否存在；没有结构文件时先运行内置 `structure-prediction` 子 skill 获取候选结构，再对全部候选结构直接 US-align；只有某个基因组**完全没有 US-align 合格候选、或合格候选不足**时，才按用户同意跑 DEER fallback。仅在“序列筛选 + 已有注释”没有共同确认目标功能时才启用。
+- `prepare-cro-work-order`: 把目标与候选清单变成**可以直接发给公司询价和执行**的委托实验工作单（M1 基因合成 … M10 数据/生物安全），附逐字序列、预注册判定规则、术语表和「发出前必须确认」清单。价格与周期一律留空由承接方填写。
 - `literature-evidence`: 文献证据审计。可用 MCP 文献工具时走 `nature-academic-search` 类流程，否则给出检索词或接收用户提供的已验证引用文件；禁止编造 PMID/DOI。
 - `genome-search`: 从 NCBI Assembly/BioSample 元数据中选择候选 GCF/GCA。
 - `genome-download`: 批量下载 RefSeq/GCF 或 GenBank/GCA 基因组文件。
@@ -136,6 +137,57 @@ python3 scripts/browse_target_library.py --validate
 路由器的输出有一处刻意的设计：**跨部位命中不算覆盖**。问「阴道菌群」时，即使皮肤域有个「表面酸化」过程，它也只会标成 *usable as an analogy only, not as coverage*，然后走升级路径 —— 不会被当成答案。
 
 **库是策展先验，不是文献证据。** `evidence_status` 默认为 `curated_prior`，`evidence_refs` 恒为空，只有 `literature-evidence` 真实检索到 PMID/DOI 后才允许升级为 `literature_verified`；`--validate` 会拒绝空引用或格式不像标识符的 `literature_verified`。`dark_matter: true` 的条目（例如体味 C-S 裂解酶、CutC、baiCD、LanB/LanC）刻意留空 EC，不允许借用邻近酶的 EC 号。新增身体部位只需新增一个 `library/<domain>.json`，不需要改代码；规则见 `library/README.md`。
+
+---
+
+## CRO work order / 外包实验工作单
+
+`experimental_design.md` 是给**自己做实验的人**看的最小实验清单。用户如果不懂分子生物学、只想把实验交给公司做（基因合成、表达纯化、酶活检测），需要的是另一种东西：**一份能直接询价和下单的工作单**。
+
+```bash
+python3 scripts/build_cro_work_order.py \
+  --card outputs/task/target_function_card.json \
+  --candidates outputs/task/summary/final_target_candidates.tsv \
+  --hypotheses outputs/task/summary/experimental_hypotheses.tsv \
+  --sequences outputs/task/candidate_sequences/candidate_proteins.faa \
+  --outdir outputs/task/cro_package \
+  --scope candidates --bsl BSL-1
+```
+
+产出四份文件：
+
+| 文件 | 内容 |
+| --- | --- |
+| `cro_work_order.md` | 给公司看的正文：项目目标、模块表、候选清单（含序列是否齐）、对照要求、**预先注册的判定规则**、「发出前必须确认」、术语表（一句话解释每个术语）、报价提问清单、边界声明 |
+| `cro_modules.tsv` | 可逐条报价的模块表，一行一个模块 |
+| `cro_sequences.faa` | **逐字**从候选 FASTA 复制的序列，头部带来源 |
+| `cro_sequences.MISSING.md` | 没有序列时写这个文件，而不是给一段假序列 |
+| `cro_gap_list.md` | 发出之前必须补齐的项 |
+
+模块划分（`--scope` 决定包含哪些）：
+
+| id | 模块 |
+| --- | --- |
+| M1 | 基因合成、密码子优化、克隆 |
+| M2 | 催化残基突变体（阴性对照） |
+| M3 | 小试表达与可溶性判定 |
+| M4 | 放大表达与纯化 |
+| M5 | 体外酶活方法建立（阳性对照） |
+| M6 | 候选蛋白平行测活 |
+| M7 | 对照体系与假阳性排除 |
+| M8 | 扩展表征（底物谱、pH/温度、动力学） |
+| M9 | 细胞或菌株水平验证（需专门 CRO） |
+| M10 | 数据交付、生物安全、知识产权 |
+
+三档 scope：`assay_first`（还没有候选，先用阳性对照酶把方法建起来）／`candidates`（默认，候选已知）／`full`（再加突变体、扩展表征、体内验证）。
+
+三条硬边界，都由脚本强制：
+
+1. **不写价格和周期**。所有价格格都是 `需询价 / quote required`，周期是 `待公司填写`。编一个数字比留空更糟——用户会拿它去做预算。
+2. **不编造序列**。序列只从用户给的 FASTA 逐字复制；没有就写 `cro_sequences.MISSING.md`。一段看起来像真序列的假序列被拿去合成，会让整批实验白做。
+3. **生物安全只是清单，不是结论**。文件预填 BSL 等级并列出必须由用户所在机构生物安全委员会确认的项，绝不断言"合规"或"豁免"。
+
+判定规则来自 `experimental_hypotheses.tsv`，是**在数据回来之前**就写好的：什么算成立、什么算不成立、什么算"不可判定"（蛋白不溶或对照失效属于实验失败，不等于没有功能）。
 
 ---
 

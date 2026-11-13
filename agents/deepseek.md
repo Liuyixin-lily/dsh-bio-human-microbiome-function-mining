@@ -62,6 +62,19 @@ Write results under a task output directory:
 - `combined_candidates.tsv`
 - `experimental_design.md`
 
+When the user wants to outsource the wet lab (gene synthesis, expression,
+purification, assays) or says they are not a molecular biologist, also write a
+vendor-facing work order with `scripts/build_cro_work_order.py`:
+
+- `cro_work_order.md`
+- `cro_modules.tsv`
+- `cro_sequences.faa` (or `cro_sequences.MISSING.md` when no sequence exists)
+- `cro_gap_list.md`
+
+That work order must contain no prices, no turnaround times and no invented
+sequences — those cells are filled by the vendor's quote. Biosafety items are a
+checklist for the user's institution to confirm, never a compliance conclusion.
+
 Prefer TSV/JSON for machine-readable evidence and Markdown for interpretation.
 
 ## Guardrails

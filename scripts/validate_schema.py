@@ -144,7 +144,9 @@ def main(argv: list[str] | None = None) -> int:
         if len(args.schema) != len(args.tsv):
             print("error: --schema and --tsv must have the same length", file=sys.stderr)
             return 2
-        pairs = list(zip(args.schema, args.tsv))
+        # pairs are consumed as (tsv, schema) below; the CLI flags arrive the
+        # other way round, so zip them in output-first order.
+        pairs = list(zip(args.tsv, args.schema))
     elif args.schema or args.tsv:
         print("error: provide both --schema and --tsv, or neither", file=sys.stderr)
         return 2
@@ -157,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             "outputs/alignments/run_full_085/structural_candidates.tsv": "schemas/structural_candidates.schema.tsv",
             "outputs/alignments/run_full_085/structural_hits.tsv": "schemas/structural_hits.schema.tsv",
             "outputs/source_feature_annotations.tsv": "schemas/source_feature_annotations.schema.tsv",
+            "outputs/task/cro_package/cro_modules.tsv": "schemas/cro_work_order.schema.tsv",
             "demo/outputs/task/combined_candidates_full.tsv": "schemas/combined_candidates.schema.tsv",
         }
         for output_rel, schema_rel in default_map.items():

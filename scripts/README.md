@@ -21,6 +21,13 @@ Available scripts:
   file with the honesty rules enforced in code — no invented fields, forced
   `content_status: starter`, forced empty `evidence_refs`, required
   `provenance_source`, and library validation before anything is written.
+- `build_cro_work_order.py`: writes a vendor-facing contract-research work order
+  from the target card, the candidate table, the hypotheses table and a candidate
+  FASTA — a quotable module table (`M1` gene synthesis ... `M10` data/biosafety),
+  verbatim sequences, the pre-registered decision rule, a plain-language glossary
+  and a gap list. Prices and turnaround times are always placeholders, and
+  sequences are never invented: when no FASTA is given it writes
+  `cro_sequences.MISSING.md` instead.
 - `build_target_function_card.py`: writes a normalized target function card from enzyme metadata.
 - `fetch_reference_enzymes.py`: fetches reference enzyme records from NCBI
   Protein and RCSB PDB by enzyme name, EC number, organism, and PDB IDs, then

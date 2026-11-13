@@ -15,6 +15,9 @@ must follow these schemas when writing new task files.
 - `candidate_signal_peptides.schema.tsv`: SignalP cleavage prediction output
   used to build `candidate_mature_proteins.faa`.
 - `combined_candidates.schema.tsv`: final integrated candidate ranking.
+- `cro_work_order.schema.tsv`: quotable module table for a vendor-facing
+  contract-research work order (`M1` gene synthesis ... `M10` data/biosafety).
+  Prices and turnaround times are always placeholders to be filled by the vendor.
 - `experimental_hypotheses.schema.tsv`: falsifiable experimental hypotheses
   generated from each scored candidate, including mechanistic model, critical
   experiments, falsification criteria, ambient/alternative hypothesis,

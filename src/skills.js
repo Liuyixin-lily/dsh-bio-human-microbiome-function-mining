@@ -39,6 +39,12 @@ export const SKILL_MANIFEST = [
     file: 'screen-structure-candidates.md'
   },
   {
+    name: 'prepare-cro-work-order',
+    description: 'Turn a validated target and candidate list into a vendor-facing contract research work order: quotable modules from gene synthesis through enzyme assays, verbatim sequences, pre-registered decision rules, a glossary for non-specialists, and a "confirm before sending" checklist.',
+    whenToUse: '用户要外包实验（基因合成/表达纯化/酶活检测），或者不懂分子生物学、需要一份能直接发给公司询价和执行的方案时。',
+    file: 'prepare-cro-work-order.md'
+  },
+  {
     name: 'literature-evidence',
     description: 'Search and audit published literature for existing functional evidence on the target enzyme and each candidate protein or candidate organism. Uses the nature-academic-search workflow router when MCP literature tools are available, and falls back to OpenAlex-only discovery or user-provided citations otherwise.',
     whenToUse: '已经获得候选蛋白/候选菌后，需要补文献证据链，并据此判断是否已有直接功能证据或优化实验设计时。',

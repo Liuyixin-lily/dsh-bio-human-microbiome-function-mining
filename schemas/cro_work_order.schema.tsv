@@ -1,0 +1,33 @@
+# Required columns for cro_modules.tsv
+
+module_id
+module_zh
+module_en
+in_scope
+objective_zh
+inputs_from_us
+deliverables
+acceptance_criteria
+vendor_to_confirm
+price_status
+turnaround_days
+
+# Optional but recommended
+
+notes
+
+# Notes
+
+- This table is the quotable core of a vendor-facing contract-research work order.
+  It is produced by `scripts/build_cro_work_order.py`.
+- `price_status` must never contain a number. It is a placeholder such as
+  `需询价 / quote required`; the actual price comes from the vendor's quote.
+- `turnaround_days` must never contain a number either; it is filled by the vendor.
+- `module_id` is `M1` ... `M10`. Which modules appear depends on `--scope`:
+  `assay_first` (build the assay with a positive control first), `candidates`
+  (synthesize, express, purify and assay the candidates), or `full` (adds
+  catalytic-residue mutants, controls, extended characterization and optional
+  cell/strain-level validation).
+- `acceptance_criteria` is our acceptance criterion, not a property of the
+  protein. It is what we will judge the deliverable against.
+- Nothing in this table is a functional conclusion. It is a purchasing document.

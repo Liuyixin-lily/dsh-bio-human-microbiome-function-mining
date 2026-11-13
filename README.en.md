@@ -70,6 +70,7 @@ and buys nothing.
 - `screen-sequence-candidates`: runs or consumes DIAMOND sequence screening; defaults to CD-HIT deduplication first (100% for single-genome datasets, 95% for multi-genome pan-proteomes).
 - `structure-prediction`: retrieves or predicts missing candidate structures with priority experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` > homology model > de novo prediction. The bundled PDB/AFDB/homology helper scripts are under `skills/structure-prediction/scripts/` and produce `structure/<protein_sequence_id>.pdb` for US-align.
 - `screen-structure-candidates`: structural evidence screening. First check whether candidate structure files exist; if structures are missing, run the bundled `structure-prediction` sub-skill before US-aligning all available candidate structures. Use DEER as a fallback only for a genome when US-align yields no qualifying candidate at all, or not enough of them, and the user agrees. Activate this route only when sequence screening plus existing annotation do not together confirm the target function.
+- `prepare-cro-work-order`: turns a target plus candidate list into a **contract research work order a company can quote and execute** (M1 gene synthesis ... M10 data/biosafety), with verbatim sequences, pre-registered decision rules, a plain-language glossary and a "confirm before sending" checklist. Prices and turnaround times are left blank for the vendor.
 - `literature-evidence`: literature evidence audit. When MCP literature tools are available, follow a `nature-academic-search` style workflow; otherwise provide search terms or accept user-provided verified citation files. Never fabricate PMID/DOI.
 - `genome-search`: select candidate GCF/GCA assemblies from NCBI Assembly/BioSample metadata.
 - `genome-download`: batch-download RefSeq/GCF or GenBank/GCA genome files.
@@ -137,6 +138,42 @@ python3 scripts/browse_target_library.py --validate
 One deliberate behaviour: **a hit in a different body site does not count as coverage.** Ask about the vaginal microbiome and the skin acidification process is reported as *usable as an analogy only, not as coverage*, then the escalation path runs. It is never presented as the answer.
 
 **The library is a curated prior, not literature evidence.** `evidence_status` defaults to `curated_prior` and `evidence_refs` stays empty; only `literature-evidence` may promote an entry to `literature_verified`, and only after it has actually retrieved PMID/DOI identifiers. `--validate` rejects `literature_verified` with empty or malformed identifiers. Entries marked `dark_matter: true` (body-odour C-S lyase, CutC, baiCD, LanB/LanC) deliberately leave the EC empty rather than borrowing a neighbouring enzyme's number. Adding a body site means adding one `library/<domain>.json`; no code change. Rules: `library/README.md`.
+
+---
+
+## CRO work order
+
+`experimental_design.md` is the minimum experiment list for people who will run the bench work themselves. A user who is not a molecular biologist and simply wants to hand the work to a company (gene synthesis, expression, purification, enzyme assays) needs something else: **a work order that can be quoted and executed**.
+
+```bash
+python3 scripts/build_cro_work_order.py \
+  --card outputs/task/target_function_card.json \
+  --candidates outputs/task/summary/final_target_candidates.tsv \
+  --hypotheses outputs/task/summary/experimental_hypotheses.tsv \
+  --sequences outputs/task/candidate_sequences/candidate_proteins.faa \
+  --outdir outputs/task/cro_package \
+  --scope candidates --bsl BSL-1
+```
+
+| File | Content |
+| --- | --- |
+| `cro_work_order.md` | the vendor-facing document: objective, module table, candidate list with sequence status, required controls, **pre-registered decision rules**, "confirm before sending", a one-line-per-term glossary, RFQ questions, boundary statement |
+| `cro_modules.tsv` | quotable module table, one row per module |
+| `cro_sequences.faa` | sequences copied **verbatim** from the candidate FASTA, provenance in the header |
+| `cro_sequences.MISSING.md` | written instead of the FASTA when no sequence exists |
+| `cro_gap_list.md` | items to resolve before sending |
+
+Modules (`--scope` selects the set): M1 gene synthesis and cloning · M2 catalytic-residue mutants · M3 small-scale expression and solubility · M4 scale-up and purification · M5 assay development with a positive control · M6 parallel candidate assay · M7 controls and artefact exclusion · M8 extended characterization · M9 cell or strain-level validation · M10 data, biosafety, IP.
+
+Scopes: `assay_first` (no candidates yet — build the assay first) / `candidates` (default) / `full` (adds mutants, characterization, in vivo).
+
+Three hard boundaries, enforced by the script:
+
+1. **No prices or turnaround times.** Every price cell reads `需询价 / quote required`; turnaround is left for the vendor. Inventing a number is worse than leaving it blank, because the user would budget against it.
+2. **No invented sequences.** Sequences are copied verbatim from a FASTA the user already has; when there is none, `cro_sequences.MISSING.md` is written instead. A plausible-looking fake sequence sent to a synthesis vendor wastes an entire batch.
+3. **Biosafety is a checklist, not a conclusion.** The document prefills a BSL level and lists what the user's institutional biosafety committee must confirm; it never declares a project compliant or exempt.
+
+Decision rules come from `experimental_hypotheses.tsv`, fixed **before** the data arrive: what counts as supported, what counts as refuted, and what counts as inconclusive (insoluble protein or a failed control is an experiment failure, not evidence of no function).
 
 ---
 

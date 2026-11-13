@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prepare CRO Work Order"
+  short_description: "Write a work order a company can quote and execute"
+  default_prompt: "Use $prepare-cro-work-order to turn my target and candidate list into a contract research work order I can send to a company for gene synthesis, expression, purification and enzyme assays."
