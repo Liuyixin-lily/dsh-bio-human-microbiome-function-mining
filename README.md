@@ -47,11 +47,24 @@ human_microbiome_function_mining/
 
 ---
 
+## Two ways in / 两种进入方式
+
+插件有两条**并列**的入口，走哪条完全看用户手里已经有什么，没有先后、没有主次：
+
+| 用户手里有什么 | 走哪条 | 关键 skill |
+| --- | --- | --- |
+| **能说出目标**：酶名、EC 号、底物-产物反应、一段序列 | **入口 A · 显式建档**（直接开始，不经过目标库） | `build-target-function-card` |
+| **只知道关注点**：某个生理过程、表型、身体部位，或一句「都有哪些关注的菌」 | **入口 B · 从目标库选**（把三层摊开给用户挑） | `browse-target-library` |
+
+两条路在 `target_function_card.json` 汇合，之后的主流程完全一样。也可以叠加：入口 B 选完目标、用入口 A 复核字段。**已知目标时不要绕道目标库**——那是额外一步，没有收益。
+
+---
+
 ## Skills / 技能
 
-- `browse-target-library`: **前门**。当用户还没给出具体的酶/EC/序列，只说了关注某个生理过程、表型或身体部位（例如「皮肤代谢有哪些重要的生理过程」「我关注油脂分泌」「哪些菌值得看」）时，先用 `library/` 里的目标库把「身体部位 → 生理过程 → 酶目标」逐级摊开给用户挑，再导出 `target_function_card.json`。库没命中时才退回 `build-target-function-card` 显式建档。
+- `browse-target-library`: 入口 B。当用户还没给出具体的酶/EC/序列，只说了关注某个生理过程、表型或身体部位（例如「皮肤代谢有哪些重要的生理过程」「我关注油脂分泌」「哪些菌值得看」）时，用 `library/` 里的目标库把「身体部位 → 生理过程 → 酶目标」逐级摊开给用户挑，再导出 `target_function_card.json`。**已知目标时不需要这个 skill。**
+- `build-target-function-card`: 入口 A。标准化目标输入，生成 Target Function Card；用户能说出酶/EC/反应/序列时从这一步直接开始。
 - `functional-dark-matter-discover`: 主流程，负责把目标酶/EC/反应变成候选与实验设计。
-- `build-target-function-card`: 标准化目标输入，生成 Target Function Card。
 - `screen-sequence-candidates`: 运行或消费 DIAMOND 序列筛选，默认先做 CD-HIT 去冗余；单菌单基因组默认 100%，多基因组泛蛋白组默认 95%。
 - `structure-prediction`: 当候选蛋白没有已知结构文件时，按 PDB > AlphaFold DB（mean pLDDT >= 60）> homology model > de novo prediction 的优先级检索或预测结构；内置的 PDB/AFDB/homology 辅助脚本在 `skills/structure-prediction/scripts/` 中，为 US-align 准备 `structure/<protein_sequence_id>.pdb`。
 - `screen-structure-candidates`: 结构证据筛选。先检查候选结构文件是否存在；没有结构文件时先运行内置 `structure-prediction` 子 skill 获取候选结构，再对全部候选结构直接 US-align；只有某个基因组**完全没有 US-align 合格候选、或合格候选不足**时，才按用户同意跑 DEER fallback。仅在“序列筛选 + 已有注释”没有共同确认目标功能时才启用。
@@ -66,7 +79,7 @@ The three genome sub-skills are independent deliverables. Load them when users h
 
 ## Target library / 目标库（让用户「选」而不是「想」）
 
-`library/` 是一个可浏览、可搜索、可选择的三层靶点索引：
+`library/` 是一个可浏览、可搜索、可选择的三层靶点索引（**可选入口 B**；已知目标时直接走入口 A，不需要它）：
 
 ```text
 domain（身体部位）  ->  process（生理过程）  ->  enzyme（真正拿去筛的酶目标）
@@ -103,9 +116,10 @@ python3 scripts/browse_target_library.py --validate
 ## Core workflow / 核心流程
 
 ```text
-(optional) vague interest: "油脂分泌" / "皮肤屏障" / "体味"
-  -> browse-target-library: pick domain -> process -> enzyme
-target enzyme / EC / substrate-product
+entry A (user can name it):  target enzyme / EC / substrate-product / sequence
+entry B (user only knows):   vague interest "油脂分泌" / "皮肤屏障" / "体味"
+                               -> browse-target-library: domain -> process -> enzyme
+  (both entries converge here)
   -> target_function_card.json
   -> preflight check .faa/.ffn/.gbff and structure paths
   -> optional genome-search / genome-download / genome-annotation

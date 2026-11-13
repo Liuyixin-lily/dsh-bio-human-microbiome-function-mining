@@ -26,8 +26,8 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 
 | 阶段 | 关键 skill | 产物 |
 | --- | --- | --- |
-| 目标发现（用户只说关注点） | browse-target-library + `library/` | `target_selection.md` + `target_function_card.json` |
-| 目标标准化 | build-target-function-card | `target_function_card.json` |
+| 入口 A（用户能说出酶/EC/反应/序列） | build-target-function-card | `target_function_card.json` |
+| 入口 B（用户只说关注点） | browse-target-library + `library/` | `target_selection.md` + `target_function_card.json` |
 | 参考酶集合 | fetch_reference_enzymes.py | `reference_enzyme_set.tsv` + fasta/pdb |
 | 候选基因组准备 | genome-search / genome-download / genome-annotation | `.faa` / `.gbff` |
 | 序列筛选 | screen-sequence-candidates | `sequence_candidates.tsv` |
@@ -40,6 +40,9 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 
 ## 3. 铁律
 
+- 入口 A 和入口 B 是**并列**的，不是前后两步：用户能说出酶 / EC / 反应 / 序列时
+  直接从 build-target-function-card 开始，**不要绕道 `library/`**；只有用户说不
+  出目标时才用目标库。用户中途自己说出了酶，就立刻停止展示菜单、切回入口 A。
 - 用户只说了「关注什么」而没说具体酶 / EC / 序列时，先查 `library/`：用
   `scripts/browse_target_library.py --search "<用户原话>"` 定位，再把 domain →
   process → enzyme 逐级摊开让用户选，**不要替用户编一个目标**。库没命中才退回

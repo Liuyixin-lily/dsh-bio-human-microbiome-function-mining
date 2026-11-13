@@ -13,6 +13,14 @@ Use this skill when the user supplies a target enzyme as a protein sequence, an
 EC number, a substrate-product reaction, or a curated target name and the
 workflow needs a stable normalized description before sequence screening.
 
+This is **entry A**, and it is the normal starting point whenever the user can
+name the target. Do not route an explicit target through the target library.
+If the user instead only describes an interest ("我关注油脂分泌", "皮肤代谢有哪些重要
+的生理过程"), load `browse-target-library` first and let them choose a concrete
+enzyme; never invent one. A card produced that way arrives with
+`input_source: library` plus `library_id` / `library_version`, and this skill only
+needs to review and complete its fields.
+
 ## Inputs
 
 Collect whatever the user provides, including when available:

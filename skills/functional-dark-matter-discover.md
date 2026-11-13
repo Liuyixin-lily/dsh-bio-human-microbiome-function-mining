@@ -16,6 +16,13 @@ substrate + product) and wants candidate human microbiome proteins that may
 perform the same reaction, especially proteins missed by conventional
 annotation.
 
+There are two peer entries before this workflow: **entry A**
+(`build-target-function-card`) when the user can name the target, and **entry B**
+(`browse-target-library`) when the user only describes an interest and needs to
+choose from the curated target library. When the user already names the enzyme /
+EC / reaction / sequence, go straight to entry A here — do not detour through the
+library.
+
 **Tool boundary**: heavy external tools (DIAMOND, CD-HIT, US-align, DEER,
 FedKEA, Bakta) are not bundled. The Agent runs them only when the user gives
 executable and data paths that are accessible from the current terminal and

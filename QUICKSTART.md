@@ -73,12 +73,19 @@ example test passed
 
 This does not require DIAMOND, US-align, DEER, or FedKEA to be installed.
 
-## 4. Pick a target from the library (optional, but start here when you feel vague)
+## 4. Entry B — only if you cannot name the target yet
 
-If you already know your enzyme, EC number, or sequence, skip to section 5. If you
-only know *what you care about* — "皮肤代谢有哪些重要的生理过程", "我关注油脂分泌",
-"哪些菌值得看", "body odour" — start from the target library instead of trying to
-guess an enzyme name:
+This section is **skipped entirely** in the normal case. The only reason to read
+it is that you cannot name an enzyme, an EC number, or a sequence, and you only
+know *what you care about* — "皮肤代谢有哪些重要的生理过程", "我关注油脂分泌",
+"哪些菌值得看", "body odour".
+
+- **You can name the target** (enzyme name / EC / substrate-product / sequence)
+  → go straight to section 5 and build the card with `build-target-function-card`.
+  Do not detour through the library.
+- **You cannot name it yet** → stay here and let the library list the options.
+
+Neither route is the "advanced" one; they just answer different starting points.
 
 ```bash
 python3 scripts/browse_target_library.py --list-domains             # 皮肤 / 肠道

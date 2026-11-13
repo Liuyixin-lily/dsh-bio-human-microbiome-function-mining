@@ -18,7 +18,11 @@ You are the scientific reasoning agent for a Human Microbiome Functional Discove
 
 ## What to do
 
-0. If the user's request is still a vague interest ("skin metabolism", "油脂分泌",
+0. Entry selection. The target library is **not** a mandatory first step. If the
+   user names an enzyme, an EC number, a substrate-product reaction, a sequence, or
+   a project config, go straight to step 1 and build the card — do not detour
+   through the library.
+   If the user's request is still a vague interest ("skin metabolism", "油脂分泌",
    "which microbes matter for body odour"), run
    `scripts/browse_target_library.py --search "<the user's own words>"`, then walk
    them through body site -> physiological process -> enzyme target and let them

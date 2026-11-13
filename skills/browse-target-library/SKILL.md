@@ -11,9 +11,8 @@ metadata:
 
 # Browse Target Library
 
-Use this skill **before** `build-target-function-card` whenever the user has not
-yet named a concrete enzyme, EC number, or sequence. Typical user statements that
-land here:
+Use this skill **only when the user cannot name the target yet**. Typical user
+statements that land here:
 
 - "皮肤代谢有哪些重要的生理过程？"
 - "我关注油脂分泌，有哪些菌 / 哪些酶值得看？"
@@ -24,6 +23,28 @@ land here:
 
 The job of this skill is to move the user from interest to a chosen enzyme target
 **without inventing targets** and **without pretending the library is evidence**.
+
+## When NOT to use this skill
+
+`browse-target-library` and `build-target-function-card` are two **peer entries**,
+not two stages. The library is not a mandatory first step, and it is not a gate in
+front of explicit input. Skip this skill entirely — go straight to
+`build-target-function-card` — whenever the user already gives any of:
+
+- an enzyme name or a curated target name ("神经酰胺酶", "cutinase", "AANAT")
+- an EC number, full or family-level ("3.1.4.12", "3.1.1.-")
+- a substrate-product reaction ("sphingomyelin + H2O -> ceramide + phosphocholine")
+- a protein sequence, a FASTA path, or a PDB/AlphaFold structure
+- a project.json that already carries a target
+
+In those cases the library adds a step and buys nothing. Only if the user is
+stuck ("I care about oily skin, what is worth screening?") do you open the
+library. Both entries converge on `target_function_card.json`; everything after
+that is identical, so the only question is which one matches what the user
+already has.
+
+If a user starts vague and then names the enzyme themselves, stop browsing and
+switch to `build-target-function-card` immediately — do not keep showing menus.
 
 ## What the library is
 

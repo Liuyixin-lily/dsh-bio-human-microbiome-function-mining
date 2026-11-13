@@ -45,11 +45,28 @@ human_microbiome_function_mining/
 
 ---
 
+## Two ways in
+
+The plugin has **two peer entries**. Which one you take depends only on what the
+user already has; neither is preferred and neither runs first.
+
+| What the user has | Which entry | Key skill |
+| --- | --- | --- |
+| **A nameable target**: enzyme name, EC number, substrate-product reaction, or a sequence | **Entry A · explicit card** (start here directly, no library step) | `build-target-function-card` |
+| **Only an interest**: a physiological process, a phenotype, a body site, or "which microbes are worth looking at?" | **Entry B · pick from the target library** (the library opens up the three levels for the user) | `browse-target-library` |
+
+Both converge at `target_function_card.json`; everything after that is identical.
+They also compose: pick with entry B, then review the fields with entry A. **When
+the target is already known, do not detour through the library** — it adds a step
+and buys nothing.
+
+---
+
 ## Skills
 
-- `browse-target-library`: **front door**. When the user has not named an enzyme, EC number, or sequence yet and only says what they care about ("what are the important processes in skin metabolism?", "I care about sebum secretion", "which microbes or enzymes are worth looking at?"), use the shipped target library to open up body site -> physiological process -> enzyme target as a numbered choice list, then materialize the selection as `target_function_card.json`. Only fall back to `build-target-function-card` when the library has no hit.
+- `browse-target-library`: entry B. When the user has not named an enzyme, EC number, or sequence yet and only says what they care about ("what are the important processes in skin metabolism?", "I care about sebum secretion", "which microbes or enzymes are worth looking at?"), use the shipped target library to open up body site -> physiological process -> enzyme target as a numbered choice list, then materialize the selection as `target_function_card.json`. **Not needed when the target is already known.**
+- `build-target-function-card`: entry A. Standardizes target inputs and generates the Target Function Card; start here directly when the user can name the enzyme / EC / reaction / sequence.
 - `functional-dark-matter-discover`: main workflow that turns a target enzyme/EC/reaction into candidates and experimental design.
-- `build-target-function-card`: standardizes target inputs and generates the Target Function Card.
 - `screen-sequence-candidates`: runs or consumes DIAMOND sequence screening; defaults to CD-HIT deduplication first (100% for single-genome datasets, 95% for multi-genome pan-proteomes).
 - `structure-prediction`: retrieves or predicts missing candidate structures with priority experimental PDB > AlphaFold DB model passing `mean pLDDT >= 60` > homology model > de novo prediction. The bundled PDB/AFDB/homology helper scripts are under `skills/structure-prediction/scripts/` and produce `structure/<protein_sequence_id>.pdb` for US-align.
 - `screen-structure-candidates`: structural evidence screening. First check whether candidate structure files exist; if structures are missing, run the bundled `structure-prediction` sub-skill before US-aligning all available candidate structures. Use DEER as a fallback only for a genome when US-align yields no qualifying candidate at all, or not enough of them, and the user agrees. Activate this route only when sequence screening plus existing annotation do not together confirm the target function.
@@ -64,7 +81,7 @@ The three genome sub-skills are independent deliverables. Load them when users h
 
 ## Target library: let the user pick instead of guess
 
-`library/` is a browsable, searchable, selectable three-level target index:
+`library/` is a browsable, searchable, selectable three-level target index (**optional entry B**; when the target is already known, use entry A and skip it):
 
 ```text
 domain (body site)  ->  process (physiological process)  ->  enzyme (the actual screening target)
@@ -101,9 +118,10 @@ A selection writes `target_function_card.json` (`input_source: library` plus `li
 ## Core workflow
 
 ```text
-(optional) vague interest: "oily skin" / "skin barrier" / "body odour"
-  -> browse-target-library: pick domain -> process -> enzyme
-target enzyme / EC / substrate-product
+entry A (user can name it):  target enzyme / EC / substrate-product / sequence
+entry B (user only knows):   vague interest "oily skin" / "skin barrier" / "body odour"
+                               -> browse-target-library: domain -> process -> enzyme
+  (both entries converge here)
   -> target_function_card.json
   -> preflight check .faa/.ffn/.gbff and structure paths
   -> optional genome-search / genome-download / genome-annotation
