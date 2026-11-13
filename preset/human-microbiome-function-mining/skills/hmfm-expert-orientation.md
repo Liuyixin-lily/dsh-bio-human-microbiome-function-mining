@@ -26,6 +26,7 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 
 | 阶段 | 关键 skill | 产物 |
 | --- | --- | --- |
+| 目标发现（用户只说关注点） | browse-target-library + `library/` | `target_selection.md` + `target_function_card.json` |
 | 目标标准化 | build-target-function-card | `target_function_card.json` |
 | 参考酶集合 | fetch_reference_enzymes.py | `reference_enzyme_set.tsv` + fasta/pdb |
 | 候选基因组准备 | genome-search / genome-download / genome-annotation | `.faa` / `.gbff` |
@@ -39,6 +40,12 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 
 ## 3. 铁律
 
+- 用户只说了「关注什么」而没说具体酶 / EC / 序列时，先查 `library/`：用
+  `scripts/browse_target_library.py --search "<用户原话>"` 定位，再把 domain →
+  process → enzyme 逐级摊开让用户选，**不要替用户编一个目标**。库没命中才退回
+  显式建档，并且要说明「库没命中只代表未策展」。
+- 库是策展先验（`curated_prior`），不是文献证据；`evidence_refs` 只能由
+  literature-evidence 真实检索后写入。
 - 先标准化目标输入，再找候选。
 - 对所有候选结构直接 US-align；某基因组**完全没有合格候选**、或合格候选不足时才 DEER fallback，且必须
   先征求用户同意。

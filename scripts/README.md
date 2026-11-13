@@ -4,6 +4,13 @@ Reusable local parsers used by the plugin skills.
 
 Available scripts:
 
+- `browse_target_library.py`: browses, searches, and validates the curated target
+  library in `library/` (domain -> process -> enzyme), and exports the selected
+  target as `target_function_card.json` plus a human-readable
+  `target_selection.md`. `--interactive` walks a numbered menu; `--search` takes
+  the user's own natural-language words (Chinese or English); `--export-tsv`
+  flattens the whole library for manual review; `--validate` audits the library
+  content and cross-references.
 - `build_target_function_card.py`: writes a normalized target function card from enzyme metadata.
 - `fetch_reference_enzymes.py`: fetches reference enzyme records from NCBI
   Protein and RCSB PDB by enzyme name, EC number, organism, and PDB IDs, then

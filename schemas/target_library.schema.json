@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-bio.local/human-microbiome-function-mining/target_library.schema.json",
+  "title": "Target Library Domain File",
+  "description": "A curated, selectable target library for one human body site. Hierarchy: domain -> process (physiological process the user cares about) -> enzyme (the screening target). Every enzyme entry must stay traceable: EC numbers come from IUBMB enzyme nomenclature, and evidence_refs may only be filled with identifiers that were actually retrieved.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "library_version",
+    "domain"
+  ],
+  "properties": {
+    "library_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of this domain file."
+    },
+    "reviewed_on": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Date of the last curation pass. Not a claim that the content was literature-audited."
+    },
+    "domain": {
+      "$ref": "#/$defs/domain"
+    }
+  },
+  "$defs": {
+    "domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name_zh",
+        "name_en",
+        "content_status",
+        "keywords_zh",
+        "keywords_en",
+        "niche_summary_zh",
+        "selection_hint_zh",
+        "focus_taxa",
+        "processes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "name_zh": {
+          "type": "string"
+        },
+        "name_en": {
+          "type": "string"
+        },
+        "content_status": {
+          "enum": [
+            "curated",
+            "starter"
+          ],
+          "description": "curated = reviewed breadth for this site; starter = seed list, expect gaps."
+        },
+        "keywords_zh": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Natural-language words a user may type for this whole body site."
+        },
+        "keywords_en": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "niche_summary_zh": {
+          "type": "string"
+        },
+        "selection_hint_zh": {
+          "type": "string",
+          "description": "How to help the user choose: what to ask them before picking a process."
+        },
+        "focus_taxa": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/taxon"
+          }
+        },
+        "processes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/process"
+          }
+        }
+      }
+    },
+    "taxon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "taxon",
+        "name_zh",
+        "role_zh",
+        "attention"
+      ],
+      "properties": {
+        "taxon": {
+          "type": "string",
+          "description": "Scientific name without strain suffix."
+        },
+        "name_zh": {
+          "type": "string"
+        },
+        "role_zh": {
+          "type": "string"
+        },
+        "attention": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "How likely this taxon is to matter for function mining at this site."
+        },
+        "notes_zh": {
+          "type": "string"
+        }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name_zh",
+        "name_en",
+        "keywords_zh",
+        "keywords_en",
+        "why_it_matters_zh",
+        "host_context_zh",
+        "microbe_effect_zh",
+        "key_taxa",
+        "enzymes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "name_zh": {
+          "type": "string"
+        },
+        "name_en": {
+          "type": "string"
+        },
+        "keywords_zh": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Plain user words for this process, e.g. 油脂分泌 / 出油 / 油性皮肤."
+        },
+        "keywords_en": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "why_it_matters_zh": {
+          "type": "string",
+          "description": "Why this process is a worthwhile screening target."
+        },
+        "host_context_zh": {
+          "type": "string",
+          "description": "The host-side physiology, stated as context rather than as a microbial claim."
+        },
+        "microbe_effect_zh": {
+          "type": "string",
+          "description": "What microbial enzymes are expected to do to that host process."
+        },
+        "key_taxa": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Scientific names that carry this process; each must also appear in domain.focus_taxa or be a deliberate one-off."
+        },
+        "enzymes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/enzyme"
+          }
+        }
+      }
+    },
+    "enzyme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "enzyme_name_zh",
+        "enzyme_name_en",
+        "gene_symbols",
+        "ec",
+        "ec_confidence",
+        "reaction_zh",
+        "substrate_zh",
+        "product_zh",
+        "cofactor",
+        "fold_hint",
+        "known_microbial_examples",
+        "entry_point",
+        "dark_matter",
+        "priority",
+        "evidence_status",
+        "evidence_refs",
+        "provenance_note_zh",
+        "validation_note_zh"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "enzyme_name_zh": {
+          "type": "string"
+        },
+        "enzyme_name_en": {
+          "type": "string"
+        },
+        "gene_symbols": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Gene or locus symbols only when the symbol itself is well established; otherwise leave empty."
+        },
+        "ec": {
+          "type": "string",
+          "description": "Empty string when ec_confidence is none."
+        },
+        "ec_confidence": {
+          "enum": [
+            "full",
+            "family",
+            "none"
+          ],
+          "description": "full = complete EC number, family = family-level such as 3.1.1.-, none = no EC assigned to this activity."
+        },
+        "reaction_zh": {
+          "type": "string"
+        },
+        "substrate_zh": {
+          "type": "string"
+        },
+        "product_zh": {
+          "type": "string"
+        },
+        "cofactor": {
+          "type": "string",
+          "description": "Empty string when no cofactor is required."
+        },
+        "fold_hint": {
+          "type": "string",
+          "description": "Structural fold or family hint for structure prediction, or empty string."
+        },
+        "known_microbial_examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/microbial_example"
+          }
+        },
+        "entry_point": {
+          "enum": [
+            "reaction",
+            "ec",
+            "sequence"
+          ],
+          "description": "Recommended workflow entry point: substrate-product reaction, EC number, or a known sequence."
+        },
+        "dark_matter": {
+          "type": "boolean",
+          "description": "True when the activity is real but has no EC number or no characterized representative enzyme."
+        },
+        "priority": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "Screening priority for this enzyme within its process."
+        },
+        "evidence_status": {
+          "enum": [
+            "curated_prior",
+            "literature_verified"
+          ],
+          "description": "curated_prior = curation-level prior, not yet literature-audited. Only literature-evidence may promote it to literature_verified."
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Verified identifiers such as PMID:12345678 or DOI:10.xxxx/yyyy. Must stay empty until literature-evidence actually retrieves them."
+        },
+        "provenance_note_zh": {
+          "type": "string",
+          "description": "What the entry rests on, stated honestly, e.g. EC number from IUBMB nomenclature rather than a cited paper."
+        },
+        "validation_note_zh": {
+          "type": "string",
+          "description": "The experiment that would actually falsify the proposed microbial function."
+        }
+      }
+    },
+    "microbial_example": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "taxon",
+        "detail_zh"
+      ],
+      "properties": {
+        "taxon": {
+          "type": "string"
+        },
+        "detail_zh": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,980 @@
+{
+  "library_version": "1.0.0",
+  "reviewed_on": "2026-02-01",
+  "domain": {
+    "id": "skin",
+    "name_zh": "皮肤",
+    "name_en": "Skin",
+    "content_status": "curated",
+    "keywords_zh": [
+      "皮肤",
+      "表皮",
+      "皮肤菌群",
+      "皮脂腺",
+      "毛囊",
+      "面部",
+      "头皮",
+      "腋下",
+      "皮肤代谢",
+      "油性皮肤",
+      "敏感肌",
+      "痤疮",
+      "痘痘",
+      "湿疹",
+      "特应性皮炎",
+      "头皮屑",
+      "体味",
+      "皮肤屏障"
+    ],
+    "keywords_en": [
+      "skin",
+      "epidermis",
+      "skin microbiome",
+      "sebaceous gland",
+      "hair follicle",
+      "scalp",
+      "axilla",
+      "acne",
+      "atopic dermatitis",
+      "dandruff",
+      "body odour",
+      "skin barrier"
+    ],
+    "niche_summary_zh": "皮肤是低生物量、高脂质、偏酸、持续暴露于氧与紫外线的表面。皮脂腺区（面部、头皮、上背）以亲脂性 Cutibacterium 与 Malassezia 为主，潮湿区（腋下、趾间）以 Staphylococcus 与 Corynebacterium 为主，干燥区以 Proteobacteria 与 Actinobacteria 的混合群落为主。",
+    "selection_hint_zh": "先问用户在意的是表层表型还是分子表型：油脂 / 屏障 / 气味 / pH / 菌群互作。用户说不清时，把本域的 process 列表连同一句 why_it_matters_zh 一起摆出来让他挑，不要替他决定。",
+    "focus_taxa": [
+      {
+        "taxon": "Staphylococcus epidermidis",
+        "name_zh": "表皮葡萄球菌",
+        "role_zh": "皮肤最优势共生菌之一，产酸、产羊毛硫抗生素、参与定植抵抗；也是皮肤功能暗物质研究最常被低估的物种。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Cutibacterium acnes",
+        "name_zh": "痤疮丙酸杆菌",
+        "role_zh": "皮脂腺区优势亲脂菌，脂肪酶与卟啉代谢活跃，与痤疮炎症相关。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Staphylococcus aureus",
+        "name_zh": "金黄色葡萄球菌",
+        "role_zh": "机会致病菌，分泌鞘磷脂酶、神经酰胺酶、透明质酸裂解酶等直接破坏皮肤屏障的酶。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Staphylococcus hominis",
+        "name_zh": "人葡萄球菌",
+        "role_zh": "腋下优势菌，负责把无味前体转化为挥发性硫醇，是体味的直接来源。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Malassezia restricta",
+        "name_zh": "限制马拉色菌",
+        "role_zh": "头皮优势真菌，基因组缺失脂肪酸合成酶，必须依赖外源脂质；与头皮屑、脂溢性皮炎相关。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Malassezia globosa",
+        "name_zh": "球形马拉色菌",
+        "role_zh": "与限制马拉色菌共同占据头皮，脂质依赖，分泌脂肪酶与磷脂酶。",
+        "attention": "medium"
+      },
+      {
+        "taxon": "Corynebacterium tuberculostearicum",
+        "name_zh": "结核硬脂酸棒状杆菌",
+        "role_zh": "皮肤常见棒状杆菌，参与氨基酸分解与表面酸化，与葡萄球菌存在竞争。",
+        "attention": "medium"
+      },
+      {
+        "taxon": "Staphylococcus capitis",
+        "name_zh": "头状葡萄球菌",
+        "role_zh": "头皮与面部常见，部分菌株携带多重耐药，适合做菌株水平比较。",
+        "attention": "medium"
+      },
+      {
+        "taxon": "Staphylococcus haemolyticus",
+        "name_zh": "溶血葡萄球菌",
+        "role_zh": "腋下与潮湿区常见，与体味硫醇前体代谢相关。",
+        "attention": "medium"
+      },
+      {
+        "taxon": "Micrococcus luteus",
+        "name_zh": "藤黄微球菌",
+        "role_zh": "干燥区常见，代谢活性低，可作为背景对照物种。",
+        "attention": "low"
+      },
+      {
+        "taxon": "Brevibacterium casei",
+        "name_zh": "乳酪短杆菌",
+        "role_zh": "趾间与潮湿区常见，与含硫异味相关。",
+        "attention": "medium"
+      }
+    ],
+    "processes": [
+      {
+        "id": "skin_sebum_lipolysis",
+        "name_zh": "皮脂甘油三酯水解",
+        "name_en": "Sebum triglyceride lipolysis",
+        "keywords_zh": [
+          "油脂分泌",
+          "出油",
+          "皮脂",
+          "油性皮肤",
+          "甘油三酯",
+          "游离脂肪酸",
+          "毛孔",
+          "痘痘",
+          "痤疮",
+          "控油"
+        ],
+        "keywords_en": [
+          "sebum",
+          "oiliness",
+          "greasy skin",
+          "triglyceride",
+          "free fatty acid",
+          "lipase",
+          "sebaceous lipolysis",
+          "acne"
+        ],
+        "why_it_matters_zh": "皮脂腺分泌的皮脂以甘油三酯、蜡酯、角鲨烯和胆固醇酯为主，本身并不直接致炎；微生物脂肪酶把它水解成游离脂肪酸和部分甘油酯，才是“油”这一表型的第一层微生物化学反应，也是挑菌 / 挑酶最容易落地的入口。",
+        "host_context_zh": "皮脂腺在雄激素驱动下分泌皮脂，面部、头皮、上背密度最高。皮脂到达表面后其组成由宿主酶与微生物酶共同改写，宿主侧并不提供全部水解活性。",
+        "microbe_effect_zh": "微生物脂肪酶 / 酯酶水解甘油三酯与蜡酯，释放游离脂肪酸，改变表面脂质的碳链组成与流动性，并间接影响 pH 与金黄色葡萄球菌定植。",
+        "key_taxa": [
+          "Cutibacterium acnes",
+          "Staphylococcus epidermidis",
+          "Malassezia restricta",
+          "Staphylococcus aureus"
+        ],
+        "enzymes": [
+          {
+            "id": "skin_triacylglycerol_lipase",
+            "enzyme_name_zh": "甘油三酯脂肪酶",
+            "enzyme_name_en": "triacylglycerol lipase",
+            "gene_symbols": [
+              "gehA"
+            ],
+            "ec": "3.1.1.3",
+            "ec_confidence": "full",
+            "reaction_zh": "甘油三酯 + H2O -> 二酰甘油 + 脂肪酸",
+            "substrate_zh": "甘油三酯",
+            "product_zh": "二酰甘油 + 游离脂肪酸",
+            "cofactor": "",
+            "fold_hint": "alpha/beta hydrolase，含 GXSXG 催化三联体与预测信号肽",
+            "known_microbial_examples": [
+              {
+                "taxon": "Cutibacterium acnes",
+                "detail_zh": "分泌型脂肪酶是皮脂水解的主要候选，也是本域研究最充分的细菌脂肪酶之一。"
+              },
+              {
+                "taxon": "Staphylococcus epidermidis",
+                "detail_zh": "多个菌株基因组编码脂肪酶 / 酯酶同源蛋白，体内贡献尚未定量。"
+              }
+            ],
+            "entry_point": "reaction",
+            "dark_matter": false,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 3.1.1.3 取自 IUBMB 酶命名，不是文献引用；具体菌株的基因符号与分泌性需由 genome-annotation 与 SignalP 确认。",
+            "validation_note_zh": "用皮脂三酰甘油为底物的体外水解测定（薄层色谱或游离脂肪酸定量）比较野生株与脂肪酶缺失株，是判断“该菌是否真的在皮肤上水解皮脂”的直接实验。"
+          },
+          {
+            "id": "skin_wax_ester_hydrolase",
+            "enzyme_name_zh": "蜡酯水解酶",
+            "enzyme_name_en": "wax-ester hydrolase",
+            "gene_symbols": [],
+            "ec": "3.1.1.-",
+            "ec_confidence": "family",
+            "reaction_zh": "蜡酯 + H2O -> 长链脂肪醇 + 脂肪酸",
+            "substrate_zh": "蜡酯",
+            "product_zh": "长链脂肪醇 + 脂肪酸",
+            "cofactor": "",
+            "fold_hint": "alpha/beta hydrolase 家族",
+            "known_microbial_examples": [
+              {
+                "taxon": "Cutibacterium acnes",
+                "detail_zh": "蜡酯占皮脂的比例不低，但微生物蜡酯酶几乎没有被单独表征过，属于高价值的空缺。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": true,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "微生物蜡酯水解活性缺少专属 EC 号，只能落在 3.1.1.- 家族层级；不要伪造成 3.1.1.50 之类的完整号。",
+            "validation_note_zh": "以合成蜡酯（如十六烷基棕榈酸酯）为唯一底物做水解测定，并用 GC-MS 定量释放的长链醇，可把蜡酯酶与普通脂肪酶区分开。"
+          }
+        ]
+      },
+      {
+        "id": "skin_sphingolipid_ceramide",
+        "name_zh": "神经酰胺与鞘脂稳态",
+        "name_en": "Sphingolipid and ceramide homeostasis",
+        "keywords_zh": [
+          "神经酰胺",
+          "鞘脂",
+          "鞘磷脂",
+          "磷酸胆碱",
+          "皮肤屏障",
+          "保湿",
+          "水分流失",
+          "敏感肌",
+          "特应性皮炎",
+          "湿疹",
+          "神经酰胺酶"
+        ],
+        "keywords_en": [
+          "ceramide",
+          "sphingolipid",
+          "sphingomyelin",
+          "phosphocholine",
+          "skin barrier",
+          "transepidermal water loss",
+          "atopic dermatitis",
+          "ceramidase",
+          "sphingomyelinase"
+        ],
+        "why_it_matters_zh": "角质层神经酰胺决定屏障功能与保水能力，而微生物鞘磷脂酶 / 神经酰胺酶可以直接把这一层拆掉，同时生成磷酸胆碱、鞘氨醇等信号分子。“产物是神经酰胺 + 磷酸胆碱”这类问题就落在这个 process 里。",
+        "host_context_zh": "角质层脂质由神经酰胺、胆固醇和游离脂肪酸按近似等摩尔组成；神经酰胺短缺或碳链变短直接对应屏障受损与经皮水分流失升高。",
+        "microbe_effect_zh": "微生物鞘磷脂酶把鞘磷脂切成神经酰胺 + 磷酸胆碱，神经酰胺酶再把神经酰胺切成鞘氨醇 + 脂肪酸；两步叠加会削弱屏障并释放促炎脂质。",
+        "key_taxa": [
+          "Staphylococcus aureus",
+          "Staphylococcus epidermidis",
+          "Cutibacterium acnes"
+        ],
+        "enzymes": [
+          {
+            "id": "skin_sphingomyelin_phosphodiesterase",
+            "enzyme_name_zh": "鞘磷脂磷酸二酯酶（鞘磷脂酶）",
+            "enzyme_name_en": "sphingomyelin phosphodiesterase",
+            "gene_symbols": [],
+            "ec": "3.1.4.12",
+            "ec_confidence": "full",
+            "reaction_zh": "鞘磷脂 + H2O -> 神经酰胺 + 磷酸胆碱",
+            "substrate_zh": "鞘磷脂",
+            "product_zh": "神经酰胺 + 磷酸胆碱",
+            "cofactor": "",
+            "fold_hint": "金属依赖的 DNase I 样折叠或中性鞘磷脂酶折叠，需按候选分别判断",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus aureus",
+                "detail_zh": "β-溶血素即鞘磷脂酶，是细菌鞘磷脂酶里研究最清楚的代表。"
+              },
+              {
+                "taxon": "Staphylococcus epidermidis",
+                "detail_zh": "基因组中存在鞘磷脂酶同源基因，但是否具备完整催化活性与体内贡献尚无定论，适合用本插件筛。"
+              }
+            ],
+            "entry_point": "reaction",
+            "dark_matter": false,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "本条目只断言“金黄色葡萄球菌具有该活性”这一教科书级事实；表皮葡萄球菌的同源基因属于待验证候选，不是已证明功能。",
+            "validation_note_zh": "用荧光或 LC-MS 鞘磷脂底物体外测磷酸胆碱释放，并用基因敲除株回补，才能从“有同源基因”升级为“确有鞘磷脂酶活性”。"
+          },
+          {
+            "id": "skin_ceramidase",
+            "enzyme_name_zh": "神经酰胺酶",
+            "enzyme_name_en": "ceramidase",
+            "gene_symbols": [],
+            "ec": "3.5.1.23",
+            "ec_confidence": "full",
+            "reaction_zh": "神经酰胺 + H2O -> 鞘氨醇 + 脂肪酸",
+            "substrate_zh": "神经酰胺",
+            "product_zh": "鞘氨醇 + 脂肪酸",
+            "cofactor": "",
+            "fold_hint": "Ntn 水解酶样折叠（酸性神经酰胺酶）",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus aureus",
+                "detail_zh": "细菌酸性神经酰胺酶可降解宿主神经酰胺，在特应性皮炎的屏障破坏中被反复讨论。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 3.5.1.23 覆盖水解方向；反向合成方向另有 EC 号，建卡片时不要混用。",
+            "validation_note_zh": "以 C6 或 C12 荧光神经酰胺为底物测鞘氨醇生成，配合酸性 pH 曲线，可区分酸性神经酰胺酶与碱性同源酶。"
+          },
+          {
+            "id": "skin_glucosylceramidase",
+            "enzyme_name_zh": "葡萄糖神经酰胺酶",
+            "enzyme_name_en": "glucosylceramidase",
+            "gene_symbols": [],
+            "ec": "3.2.1.45",
+            "ec_confidence": "full",
+            "reaction_zh": "葡萄糖神经酰胺 + H2O -> 神经酰胺 + D-葡萄糖",
+            "substrate_zh": "葡萄糖神经酰胺",
+            "product_zh": "神经酰胺 + 葡萄糖",
+            "cofactor": "",
+            "fold_hint": "retaining beta-glucosidase (GH1/GH30) 或 GH116 家族",
+            "known_microbial_examples": [
+              {
+                "taxon": "Cutibacterium acnes",
+                "detail_zh": "表皮把葡萄糖神经酰胺脱糖生成神经酰胺是关键步骤，微生物是否补充这一活性仍属开放问题。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": true,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "宿主酶（GBA）明确；微生物同源酶的存在与体内贡献均未确定，因此标为暗物质而不是已知功能。",
+            "validation_note_zh": "用 4-MU-β-D-葡萄糖苷与葡萄糖神经酰胺双底物比较活性，能区分广谱 β-葡萄糖苷酶与真正的葡萄糖神经酰胺酶。"
+          }
+        ]
+      },
+      {
+        "id": "skin_surface_acidification",
+        "name_zh": "皮肤表面酸化",
+        "name_en": "Skin surface acidification",
+        "keywords_zh": [
+          "皮肤pH",
+          "酸性",
+          "乳酸",
+          "短链脂肪酸",
+          "乙酸",
+          "丙酸",
+          "酸度",
+          "菌群稳态"
+        ],
+        "keywords_en": [
+          "skin pH",
+          "acidification",
+          "lactate",
+          "short-chain fatty acid",
+          "acetate",
+          "propionate",
+          "acid mantle"
+        ],
+        "why_it_matters_zh": "健康皮肤表面 pH 约 4.5–5.5，这个酸性膜抑制病原体、维持菌群结构。微生物发酵产酸是否参与建立和维持该 pH，是一个可以直接测酶、测产物的问题。",
+        "host_context_zh": "宿主通过丝聚蛋白降解产物、皮脂脂肪酸、汗液乳酸与钠氢交换体共同维持酸性膜，新生儿期 pH 偏高、随菌群成熟而下降。",
+        "microbe_effect_zh": "微生物通过乳酸脱氢酶、乙酸激酶等把糖酵解产物转为乳酸与乙酸，降低局部 pH，同时抑制金黄色葡萄球菌等不耐酸竞争者。",
+        "key_taxa": [
+          "Staphylococcus epidermidis",
+          "Cutibacterium acnes",
+          "Corynebacterium tuberculostearicum"
+        ],
+        "enzymes": [
+          {
+            "id": "skin_l_lactate_dehydrogenase",
+            "enzyme_name_zh": "L-乳酸脱氢酶",
+            "enzyme_name_en": "L-lactate dehydrogenase",
+            "gene_symbols": [
+              "ldh"
+            ],
+            "ec": "1.1.1.27",
+            "ec_confidence": "full",
+            "reaction_zh": "丙酮酸 + NADH + H+ -> L-乳酸 + NAD+",
+            "substrate_zh": "丙酮酸",
+            "product_zh": "L-乳酸",
+            "cofactor": "NADH",
+            "fold_hint": "NAD(P) 依赖的 Rossmann 折叠脱氢酶",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus epidermidis",
+                "detail_zh": "发酵产乳酸是皮肤葡萄球菌的常见代谢，但其对表面 pH 的定量贡献需要菌株水平实验。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 1.1.1.27 为 L 型；D 型是 EC 1.1.1.28，建卡片时不要混用，立体异构直接决定宿主感受。",
+            "validation_note_zh": "用 NADH 还原速率测乳酸脱氢酶活性，并用手性色谱确认产物是 L- 还是 D-乳酸。"
+          },
+          {
+            "id": "skin_acetate_kinase",
+            "enzyme_name_zh": "乙酸激酶",
+            "enzyme_name_en": "acetate kinase",
+            "gene_symbols": [
+              "ackA"
+            ],
+            "ec": "2.7.2.1",
+            "ec_confidence": "full",
+            "reaction_zh": "ATP + 乙酸 -> ADP + 乙酰磷酸",
+            "substrate_zh": "乙酸",
+            "product_zh": "乙酰磷酸",
+            "cofactor": "ATP",
+            "fold_hint": "ASKHA (acetate and sugar kinases/Hsc70/actin) 折叠",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus epidermidis",
+                "detail_zh": "乙酸发酵通路的存在提示皮肤葡萄球菌可产乙酸，但高通量注释常与丙酸通路混淆。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "low",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "该酶方向写的是产乙酰磷酸（糖酵解侧）；若关心产乙酸方向，应在建卡片时把反应写清，避免方向颠倒。",
+            "validation_note_zh": "测培养上清乙酸浓度加 ackA 缺失株比较，比单独测酶活更能说明表型贡献。"
+          }
+        ]
+      },
+      {
+        "id": "skin_ureolysis",
+        "name_zh": "尿素分解与氨释放",
+        "name_en": "Ureolysis and ammonia release",
+        "keywords_zh": [
+          "尿素",
+          "尿素酶",
+          "氨",
+          "pH升高",
+          "碱性",
+          "皮肤刺激",
+          "刺激感",
+          "异味"
+        ],
+        "keywords_en": [
+          "urea",
+          "urease",
+          "ammonia",
+          "alkaline shift",
+          "skin irritation",
+          "ureolysis"
+        ],
+        "why_it_matters_zh": "汗液尿素被尿素酶水解成氨和二氧化碳，局部 pH 升高会刺激皮肤并改变菌群竞争格局；尿素酶是皮肤菌里少见的“宿主底物明确、酶很清楚”的干净靶点。",
+        "host_context_zh": "汗液含尿素，是皮肤表面重要的氮源；宿主不分泌尿素酶，因此该活性基本来自微生物。",
+        "microbe_effect_zh": "尿素酶把尿素转为氨，抬高局部 pH，可能加重皮肤刺激并为金黄色葡萄球菌创造有利条件。",
+        "key_taxa": [
+          "Staphylococcus epidermidis",
+          "Staphylococcus aureus",
+          "Corynebacterium tuberculostearicum"
+        ],
+        "enzymes": [
+          {
+            "id": "skin_urease",
+            "enzyme_name_zh": "尿素酶（脲酶）",
+            "enzyme_name_en": "urease",
+            "gene_symbols": [
+              "ureAB"
+            ],
+            "ec": "3.5.1.5",
+            "ec_confidence": "full",
+            "reaction_zh": "尿素 + H2O -> 2 NH3 + CO2",
+            "substrate_zh": "尿素",
+            "product_zh": "氨 + 二氧化碳",
+            "cofactor": "Ni2+",
+            "fold_hint": "含双镍活性中心的 (alpha beta)3 三聚体，需 ureD/ureG 等成熟因子",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus epidermidis",
+                "detail_zh": "皮肤葡萄球菌常带尿素酶基因簇，是尿素依赖产氨的主要候选。"
+              },
+              {
+                "taxon": "Staphylococcus aureus",
+                "detail_zh": "尿素酶与皮肤感染中的碱化微环境相关。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 3.5.1.5 明确；注意尿素酶需要镍插入与辅助蛋白成熟，只有 ureC 催化亚基并不代表有活性。",
+            "validation_note_zh": "用酚红或 Berthelot 法测培养上清的氨生成，并在缺镍培养基中做对照，可区分酶存在与酶有活性。"
+          }
+        ]
+      },
+      {
+        "id": "skin_thioalcohol_odour",
+        "name_zh": "含硫挥发物与体味",
+        "name_en": "Thioalcohol formation and body odour",
+        "keywords_zh": [
+          "体味",
+          "狐臭",
+          "腋下",
+          "异味",
+          "硫醇",
+          "3M3SH",
+          "气味",
+          "除臭"
+        ],
+        "keywords_en": [
+          "body odour",
+          "axillary odour",
+          "thioalcohol",
+          "3M3SH",
+          "volatile sulfur",
+          "C-S lyase"
+        ],
+        "why_it_matters_zh": "腋下分泌的 Cys-Gly-3M3SH 本身无味，被细菌两步切开后才释放强烈气味的 3M3SH。这是“菌产气味分子”最干净的模型，而且关键的两个酶都没有 EC 号，是典型的功能暗物质。",
+        "host_context_zh": "顶泌汗腺分泌含硫氨基酸结合物前体到腋下，宿主自身不产生气味，前体需要微生物酶解。",
+        "microbe_effect_zh": "二肽酶先切掉 Cys-Gly，再由 PLP 依赖的 C-S 裂解酶把 Cys-3M3SH 裂解为 3M3SH、丙酮酸和氨。",
+        "key_taxa": [
+          "Staphylococcus hominis",
+          "Staphylococcus haemolyticus"
+        ],
+        "enzymes": [
+          {
+            "id": "skin_cys_gly_dipeptidase",
+            "enzyme_name_zh": "半胱氨酰甘氨酸二肽酶",
+            "enzyme_name_en": "Cys-Gly dipeptidase",
+            "gene_symbols": [],
+            "ec": "3.4.13.-",
+            "ec_confidence": "family",
+            "reaction_zh": "Cys-Gly-3M3SH + H2O -> Cys-3M3SH + 甘氨酸",
+            "substrate_zh": "Cys-Gly-3M3SH",
+            "product_zh": "Cys-3M3SH + 甘氨酸",
+            "cofactor": "Zn2+",
+            "fold_hint": "金属依赖二肽酶（M20 家族）样折叠",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus hominis",
+                "detail_zh": "该菌被证明能把无味前体转为有气味硫醇，但酶的基因命名与归属在不同文献间并不统一。"
+              }
+            ],
+            "entry_point": "sequence",
+            "dark_matter": true,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "只给到家族层级 3.4.13.-；具体基因符号刻意留空，必须由 literature-evidence 核实后才能写入，不能凭记忆填。",
+            "validation_note_zh": "用合成 Cys-Gly-3M3SH 为底物测甘氨酸释放，再用缺失株 + 回补验证，能把这一步与下游裂解酶分开。"
+          },
+          {
+            "id": "skin_c_s_lyase",
+            "enzyme_name_zh": "PLP 依赖 C-S 裂解酶",
+            "enzyme_name_en": "PLP-dependent C-S lyase",
+            "gene_symbols": [],
+            "ec": "",
+            "ec_confidence": "none",
+            "reaction_zh": "Cys-3M3SH -> 3M3SH + 丙酮酸 + NH3",
+            "substrate_zh": "Cys-3M3SH",
+            "product_zh": "3M3SH + 丙酮酸 + 氨",
+            "cofactor": "pyridoxal 5'-phosphate",
+            "fold_hint": "PLP 依赖的 type I 或 type II 折叠（转硫酶 / 胱硫醚酶样）",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus hominis",
+                "detail_zh": "该裂解酶是体味产生的限速步，但针对 3M3SH 这一底物没有专属 EC 号。"
+              }
+            ],
+            "entry_point": "sequence",
+            "dark_matter": true,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "此活性没有 EC 号。不要套用胱硫醚 γ-裂解酶（4.4.1.1）等相近酶的 EC 号冒充，这是本条目最重要的边界。",
+            "validation_note_zh": "用 Cys-3M3SH 为底物做顶空 GC-MS 检测 3M3SH 释放，并对 PLP 抑制剂做灵敏度对照，是该酶活性最直接的证明。"
+          }
+        ]
+      },
+      {
+        "id": "skin_amino_acid_volatiles",
+        "name_zh": "氨基酸分解产挥发酸",
+        "name_en": "Amino-acid derived volatile acids",
+        "keywords_zh": [
+          "脚臭",
+          "异味",
+          "异戊酸",
+          "甲硫醇",
+          "氨基酸分解",
+          "棒状杆菌",
+          "短杆菌",
+          "汗味"
+        ],
+        "keywords_en": [
+          "foot odour",
+          "isovaleric acid",
+          "methanethiol",
+          "amino acid catabolism",
+          "Corynebacterium",
+          "Brevibacterium"
+        ],
+        "why_it_matters_zh": "汗液里的氨基酸被微生物转氨、脱氨或裂解后产生异戊酸、甲硫醇等挥发性物质，是潮湿区异味的主体化学；相关酶多数有明确 EC 号，容易做出可验证的酶学实验。",
+        "host_context_zh": "汗液提供游离氨基酸，角质层更新也释放氨基酸，宿主自身不大量产生这些挥发酸。",
+        "microbe_effect_zh": "支链氨基酸经转氨生成 α-酮酸再脱羧成挥发酸；含硫氨基酸经 γ-裂解酶直接释放甲硫醇。",
+        "key_taxa": [
+          "Corynebacterium tuberculostearicum",
+          "Brevibacterium casei",
+          "Staphylococcus epidermidis"
+        ],
+        "enzymes": [
+          {
+            "id": "skin_methionine_gamma_lyase",
+            "enzyme_name_zh": "L-甲硫氨酸 γ-裂解酶",
+            "enzyme_name_en": "L-methionine gamma-lyase",
+            "gene_symbols": [
+              "mdeA"
+            ],
+            "ec": "4.4.1.11",
+            "ec_confidence": "full",
+            "reaction_zh": "L-甲硫氨酸 + H2O -> 甲硫醇 + 2-酮丁酸 + NH3",
+            "substrate_zh": "L-甲硫氨酸",
+            "product_zh": "甲硫醇 + 2-酮丁酸 + 氨",
+            "cofactor": "pyridoxal 5'-phosphate",
+            "fold_hint": "PLP 依赖的 type I 折叠（胱硫醚 γ-合成酶样）",
+            "known_microbial_examples": [
+              {
+                "taxon": "Corynebacterium tuberculostearicum",
+                "detail_zh": "棒状杆菌属是甲硫醇产生的主要候选群，但具体到种的贡献需要实验确认。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 4.4.1.11 明确；注意与 EC 4.4.1.1（胱硫醚 γ-裂解酶）区分，两者底物不同。",
+            "validation_note_zh": "顶空 GC 测甲硫醇生成，配合 PLP 依赖性检验和底物特异性对照。"
+          },
+          {
+            "id": "skin_bcat",
+            "enzyme_name_zh": "支链氨基酸转氨酶",
+            "enzyme_name_en": "branched-chain-amino-acid transaminase",
+            "gene_symbols": [
+              "ilvE"
+            ],
+            "ec": "2.6.1.42",
+            "ec_confidence": "full",
+            "reaction_zh": "L-亮氨酸 + 2-酮戊二酸 -> 4-甲基-2-氧代戊酸 + L-谷氨酸",
+            "substrate_zh": "L-亮氨酸",
+            "product_zh": "4-甲基-2-氧代戊酸 + L-谷氨酸",
+            "cofactor": "pyridoxal 5'-phosphate",
+            "fold_hint": "PLP 依赖的 type IV 转氨酶折叠",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus epidermidis",
+                "detail_zh": "转氨是产异戊酸的第一步，后续还需酮酸脱氢 / 脱羧活性才算完整通路。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "只覆盖第一步转氨；单独命中该酶不能证明该菌产异戊酸，必须把通路补齐。",
+            "validation_note_zh": "用亮氨酸 + 2-酮戊二酸测谷氨酸生成速率，并同时测培养上清异戊酸，验证整条通路是否通畅。"
+          }
+        ]
+      },
+      {
+        "id": "skin_nitrate_nitrite_no",
+        "name_zh": "硝酸盐-亚硝酸盐-NO 通路",
+        "name_en": "Nitrate-nitrite-nitric oxide pathway",
+        "keywords_zh": [
+          "一氧化氮",
+          "NO",
+          "硝酸盐",
+          "亚硝酸盐",
+          "皮肤血流",
+          "血管舒张",
+          "硝酸盐还原"
+        ],
+        "keywords_en": [
+          "nitric oxide",
+          "nitrate",
+          "nitrite",
+          "nitrate reductase",
+          "skin blood flow",
+          "vasodilation"
+        ],
+        "why_it_matters_zh": "宿主皮肤中的硝酸盐可被细菌还原为亚硝酸盐，再进一步生成 NO，影响局部血流与免疫。这条通路把皮肤菌和心血管相关的 NO 生物学连起来，机制清楚且可测。",
+        "host_context_zh": "皮肤与汗液含硝酸盐 / 亚硝酸盐，宿主自身也产生 NO；细菌还原通路是叠加在宿主系统之上的额外来源。",
+        "microbe_effect_zh": "呼吸型硝酸盐还原酶把硝酸盐还原为亚硝酸盐，铜型亚硝酸盐还原酶再把亚硝酸盐往下还原，二者共同改变局部 NO 可用度。",
+        "key_taxa": [
+          "Staphylococcus aureus",
+          "Staphylococcus epidermidis",
+          "Corynebacterium tuberculostearicum"
+        ],
+        "enzymes": [
+          {
+            "id": "skin_nitrate_reductase",
+            "enzyme_name_zh": "呼吸型硝酸盐还原酶",
+            "enzyme_name_en": "nitrate reductase (respiratory, Nar)",
+            "gene_symbols": [
+              "narG"
+            ],
+            "ec": "1.7.5.1",
+            "ec_confidence": "full",
+            "reaction_zh": "硝酸盐 + 醌醇 -> 亚硝酸盐 + 醌 + H2O",
+            "substrate_zh": "硝酸盐",
+            "product_zh": "亚硝酸盐",
+            "cofactor": "molybdopterin, Fe-S clusters",
+            "fold_hint": "含钼喋呤的 DMSO 还原酶样 αβγ 复合体",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus aureus",
+                "detail_zh": "葡萄球菌的硝酸盐还原与厌氧条件下的生长和毒力相关。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 1.7.5.1 是呼吸型、醌醇为电子供体；同 EC 号不同生物来源的电子供体可能不同，建卡片时写清。",
+            "validation_note_zh": "用 Griess 反应测亚硝酸盐累积，配合厌氧条件与钼酸盐依赖检验。"
+          },
+          {
+            "id": "skin_nitrite_reductase_cu",
+            "enzyme_name_zh": "铜型亚硝酸盐还原酶",
+            "enzyme_name_en": "nitrite reductase (NO-forming, copper type)",
+            "gene_symbols": [
+              "nirK"
+            ],
+            "ec": "1.7.2.1",
+            "ec_confidence": "full",
+            "reaction_zh": "亚硝酸盐 + 细胞色素 c(氧化型) + H2O -> NO + 细胞色素 c(还原型) + 2 H+",
+            "substrate_zh": "亚硝酸盐",
+            "product_zh": "一氧化氮",
+            "cofactor": "Cu (type 1 与 type 2 铜中心)",
+            "fold_hint": "cupredoxin 折叠三聚体",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus aureus",
+                "detail_zh": "细菌亚硝酸盐还原是 NO 生成的关键步骤，但菌株间分布不均，需按基因组核实。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "low",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "该 EC 号只对应产 NO 的 Cu 型；血红素型 cd1 亚硝酸盐还原酶是另一个 EC 号，不要互换。",
+            "validation_note_zh": "用 NO 电极或化学发光法直接测 NO 释放，因为亚硝酸盐消耗本身不能区分 Cu 型与 cd1 型。"
+          }
+        ]
+      },
+      {
+        "id": "skin_gag_degradation",
+        "name_zh": "糖胺聚糖与透明质酸降解",
+        "name_en": "Glycosaminoglycan and hyaluronan degradation",
+        "keywords_zh": [
+          "透明质酸",
+          "玻尿酸",
+          "保湿",
+          "细胞外基质",
+          "组织渗透",
+          "透明质酸酶",
+          "硫酸软骨素"
+        ],
+        "keywords_en": [
+          "hyaluronan",
+          "hyaluronic acid",
+          "extracellular matrix",
+          "hyaluronate lyase",
+          "glycosaminoglycan",
+          "tissue penetration"
+        ],
+        "why_it_matters_zh": "透明质酸是皮肤细胞外基质的主要保水成分，细菌透明质酸裂解酶可以直接降解它，帮助细菌在组织中扩散。这是皮肤菌“降解宿主基质”这一类功能里证据最硬的一条。",
+        "host_context_zh": "真皮与表皮细胞间质富含透明质酸；宿主自身有透明质酸酶参与更新，微生物裂解酶是外源叠加活性。",
+        "microbe_effect_zh": "透明质酸裂解酶以 β-消除方式切断透明质酸的糖苷键，产生不饱和二糖，直接降低基质黏度。",
+        "key_taxa": [
+          "Staphylococcus aureus",
+          "Staphylococcus epidermidis"
+        ],
+        "enzymes": [
+          {
+            "id": "skin_hyaluronate_lyase",
+            "enzyme_name_zh": "透明质酸裂解酶",
+            "enzyme_name_en": "hyaluronate lyase",
+            "gene_symbols": [
+              "hysA"
+            ],
+            "ec": "4.2.2.1",
+            "ec_confidence": "full",
+            "reaction_zh": "透明质酸 -> 不饱和透明质酸寡糖（β-消除裂解）",
+            "substrate_zh": "透明质酸",
+            "product_zh": "不饱和透明质酸寡糖",
+            "cofactor": "",
+            "fold_hint": "(alpha/alpha)6 barrel 或 beta-sandwich，取决于家族",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus aureus",
+                "detail_zh": "分泌型透明质酸裂解酶是葡萄球菌扩散因子的经典代表。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 4.2.2.1 是裂解酶（β-消除）；水解型透明质酸酶是 EC 3.2.1.35，两者产物不同，不要混用。",
+            "validation_note_zh": "用透明质酸平板或黏度法测裂解活性，并用 232 nm 吸收确认不饱和双键产物，可与水解型酶区分。"
+          }
+        ]
+      },
+      {
+        "id": "skin_malassezia_lipid_dependence",
+        "name_zh": "马拉色菌脂质依赖与磷脂酶",
+        "name_en": "Malassezia lipid dependence and phospholipases",
+        "keywords_zh": [
+          "马拉色菌",
+          "头皮",
+          "头皮屑",
+          "脂溢性皮炎",
+          "头油",
+          "真菌",
+          "磷脂酶",
+          "脂肪酸合成酶"
+        ],
+        "keywords_en": [
+          "Malassezia",
+          "scalp",
+          "dandruff",
+          "seborrheic dermatitis",
+          "lipid dependent",
+          "fatty acid synthase",
+          "phospholipase"
+        ],
+        "why_it_matters_zh": "马拉色菌基因组缺失脂肪酸合成酶，必须依赖外源脂质生长，因此它的脂肪酶与磷脂酶不是可有可无的辅助酶，而是生存必需环节；同时它也是头皮屑与脂溢性皮炎的主要相关真菌。",
+        "host_context_zh": "头皮皮脂腺密度高，提供马拉色菌所需的脂质；宿主脂质组成变化会直接改变该菌的代谢输出。",
+        "microbe_effect_zh": "磷脂酶 A2 与脂肪酶释放游离脂肪酸和溶血磷脂，既供给真菌生长，也产生刺激角质层的脂质介质。",
+        "key_taxa": [
+          "Malassezia restricta",
+          "Malassezia globosa"
+        ],
+        "enzymes": [
+          {
+            "id": "malassezia_phospholipase_a2",
+            "enzyme_name_zh": "磷脂酶 A2",
+            "enzyme_name_en": "phospholipase A2",
+            "gene_symbols": [],
+            "ec": "3.1.1.4",
+            "ec_confidence": "full",
+            "reaction_zh": "磷脂酰胆碱 + H2O -> 2-溶血磷脂酰胆碱 + 脂肪酸",
+            "substrate_zh": "磷脂酰胆碱",
+            "product_zh": "溶血磷脂酰胆碱 + 脂肪酸",
+            "cofactor": "Ca2+（分泌型 PLA2）",
+            "fold_hint": "分泌型 PLA2 折叠或 alpha/beta hydrolase，按候选分别判断",
+            "known_microbial_examples": [
+              {
+                "taxon": "Malassezia globosa",
+                "detail_zh": "分泌型磷脂酶活性在马拉色菌中被反复报道，但基因归属与亚型仍需逐株确认。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "马拉色菌是真核生物，细菌来源的 PLA2 模型不能直接当参考结构，做结构预测时要选同一门的模板。",
+            "validation_note_zh": "用卵黄或荧光磷脂底物测 PLA2 活性，配合 Ca2+ 依赖性与溶血活性表型。"
+          },
+          {
+            "id": "malassezia_lipase",
+            "enzyme_name_zh": "分泌型脂肪酶",
+            "enzyme_name_en": "secreted lipase",
+            "gene_symbols": [],
+            "ec": "3.1.1.3",
+            "ec_confidence": "full",
+            "reaction_zh": "甘油三酯 + H2O -> 二酰甘油 + 脂肪酸",
+            "substrate_zh": "甘油三酯",
+            "product_zh": "二酰甘油 + 游离脂肪酸",
+            "cofactor": "",
+            "fold_hint": "alpha/beta hydrolase，含信号肽",
+            "known_microbial_examples": [
+              {
+                "taxon": "Malassezia restricta",
+                "detail_zh": "脂质依赖生长使该菌的脂肪酶成为必需酶而非辅助酶。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 3.1.1.3 与宿主脂肪酶同号；区分要点在序列与分类来源，不在 EC 号。",
+            "validation_note_zh": "以三油酸甘油酯为底物的平板晕圈 + 体外游离脂肪酸定量；缺失株在脂质限制培养基中的生长缺陷是强证据。"
+          }
+        ]
+      },
+      {
+        "id": "skin_lantibiotic_competition",
+        "name_zh": "羊毛硫抗生素与定植抵抗",
+        "name_en": "Lantibiotic biosynthesis and colonization resistance",
+        "keywords_zh": [
+          "抗菌肽",
+          "细菌素",
+          "定植抵抗",
+          "菌群互作",
+          "竞争",
+          "表皮葡萄球菌抑菌",
+          "羊毛硫抗生素"
+        ],
+        "keywords_en": [
+          "lantibiotic",
+          "bacteriocin",
+          "colonization resistance",
+          "microbial competition",
+          "epidermin",
+          "antimicrobial peptide"
+        ],
+        "why_it_matters_zh": "表皮葡萄球菌通过羊毛硫抗生素抑制金黄色葡萄球菌，是“好菌挡坏菌”最具体的分子机制；负责修饰与环化的酶没有 EC 号，属于已知功能、酶号缺失的功能暗物质，很适合用结构 + 序列双线筛选。",
+        "host_context_zh": "皮肤共生菌占据生态位后通过细菌素排斥竞争者；宿主抗菌肽提供另一层选择压力。",
+        "microbe_effect_zh": "LanB 脱水酶把丝氨酸 / 苏氨酸脱水成脱氢氨基酸，LanC 环化酶再形成硫醚环，最终得到有活性的羊毛硫抗生素。",
+        "key_taxa": [
+          "Staphylococcus epidermidis",
+          "Staphylococcus aureus"
+        ],
+        "enzymes": [
+          {
+            "id": "skin_lanb_dehydratase",
+            "enzyme_name_zh": "羊毛硫抗生素脱水酶",
+            "enzyme_name_en": "lantibiotic dehydratase (LanB)",
+            "gene_symbols": [
+              "lanB"
+            ],
+            "ec": "",
+            "ec_confidence": "none",
+            "reaction_zh": "前体肽 Ser/Thr -> 脱氢丙氨酸 / 脱氢丁氨酸（谷氨酰-tRNA 依赖脱水）",
+            "substrate_zh": "羊毛硫抗生素前体肽",
+            "product_zh": "脱水前体肽",
+            "cofactor": "glutamyl-tRNA",
+            "fold_hint": "大型多结构域酶，含类似氨基酸-tRNA 合成酶的激活结构域",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus epidermidis",
+                "detail_zh": "表皮葡萄球菌产生 epidermin 等羊毛硫抗生素，LanB 是其中必需的修饰酶。"
+              }
+            ],
+            "entry_point": "sequence",
+            "dark_matter": true,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "此酶无 EC 号；不要用 tRNA 连接酶类 EC 号代填，这正是需要按序列 / 结构起手的场景。",
+            "validation_note_zh": "用 MALDI-TOF 测前体肽质量下降（脱水）并结合 lanB 缺失株失去抑菌活性，是这条通路的标准验证。"
+          },
+          {
+            "id": "skin_lanc_cyclase",
+            "enzyme_name_zh": "羊毛硫抗生素环化酶",
+            "enzyme_name_en": "lantibiotic cyclase (LanC)",
+            "gene_symbols": [
+              "lanC"
+            ],
+            "ec": "",
+            "ec_confidence": "none",
+            "reaction_zh": "脱水前体肽 -> 含硫醚环的成熟肽",
+            "substrate_zh": "脱水前体肽",
+            "product_zh": "含硫醚环的羊毛硫抗生素",
+            "cofactor": "Zn2+",
+            "fold_hint": "含锌的 LanC 样环化酶折叠",
+            "known_microbial_examples": [
+              {
+                "taxon": "Staphylococcus epidermidis",
+                "detail_zh": "与 LanB 配套完成硫醚环形成，决定最终抑菌谱。"
+              }
+            ],
+            "entry_point": "sequence",
+            "dark_matter": true,
+            "priority": "low",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "同样无 EC 号；与 LanB 需要成对筛选，单独命中一个意义有限。",
+            "validation_note_zh": "测成熟肽的分子量与抑菌活性；环化缺失会得到线性无活性产物，可直接用质谱区分。"
+          }
+        ]
+      }
+    ]
+  }
+}

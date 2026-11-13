@@ -110,6 +110,7 @@ dsh_compat:
   - dsh.bundle.patch: ./cordis.patch.yml
   - preset_id: human-microbiome-function-mining
   - flat_skills:
+      - browse-target-library
       - functional-dark-matter-discover
       - build-target-function-card
       - screen-sequence-candidates
@@ -119,3 +120,15 @@ dsh_compat:
       - genome-search
       - genome-download
       - genome-annotation
+  - target_library:
+      files:
+        - library/skin.json
+        - library/gut.json
+      schema: schemas/target_library.schema.json
+      browser: scripts/browse_target_library.py
+      note: >-
+        Curated target index (domain -> process -> enzyme) written for this
+        plugin. Content is a curation-level prior: EC numbers come from IUBMB
+        enzyme nomenclature and every evidence_refs list is empty until
+        literature-evidence retrieves real identifiers. skin is curated;
+        gut is a starter list.

@@ -11,10 +11,21 @@ You are the scientific reasoning agent for a Human Microbiome Functional Discove
   `genome-download`, and `genome-annotation` sub-skills when the user starts
   from taxa, source metadata, or accessions instead of an existing candidate
   proteome.
+- `library/` and the bundled `browse-target-library` skill when the user has not
+  named an enzyme, EC number, or sequence yet and only describes what they care
+  about (a phenotype, a physiological process, a body site, or a single keyword).
 - The user's target input: protein sequence, EC number, or substrate + product.
 
 ## What to do
 
+0. If the user's request is still a vague interest ("skin metabolism", "油脂分泌",
+   "which microbes matter for body odour"), run
+   `scripts/browse_target_library.py --search "<the user's own words>"`, then walk
+   them through body site -> physiological process -> enzyme target and let them
+   choose. Never invent a target on their behalf. The library is a curation-level
+   prior (`evidence_status: curated_prior`, empty `evidence_refs`), not evidence.
+   A search miss only means "not curated yet", which is when you fall back to an
+   explicit Target Function Card.
 1. Normalize the user input into a Target Function Card.
 2. Identify which reference enzymes are needed and which existing repositories/files already provide sequences, structures, or catalytic residues.
 3. State the recommended workflow order and which external tool should run next.

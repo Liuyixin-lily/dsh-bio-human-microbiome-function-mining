@@ -38,12 +38,15 @@ tool paths already installed on their server).
 - `scripts/`: parsing, merging, ranking, and wrapper scripts.
 - `schemas/`: machine-readable evidence-table contracts.
 - `references/`: thresholds, tool-fallback, evidence, and acceptance rules.
+- `library/`: curated selectable target index (`domain -> process -> enzyme`) with
+  a browser/validator script; `skin` is curated, `gut` is a starter list.
 
 ## 2. Sub-skills shipped separately
 
 The following skills are independent deliverables and can be installed or
 updated separately:
 
+- `browse-target-library`
 - `build-target-function-card`
 - `screen-sequence-candidates`
 - `screen-structure-candidates`

@@ -1,0 +1,87 @@
+# Target library / 目标库
+
+这是一个**可浏览、可搜索、可选择**的靶点库，用来把用户模糊的自然语言兴趣变成可执行的筛选目标。
+
+```
+domain（身体部位 / 生态位）
+  └── process（用户关心的生理过程，例如「油脂分泌」「体味」）
+        └── enzyme（真正拿去筛的酶目标，带 EC、反应、起手式、验证实验）
+```
+
+用户的话术与库的层级是错位的：用户说“皮肤代谢有哪些重要的过程”，回答的是 `process` 列表；用户说“我关注油脂分泌”，落到 `skin_sebum_lipolysis`；用户说“哪些酶值得看”，落到这一 process 下的 `enzyme`。库的作用就是把这三层逐级摊开给用户挑，而不是让用户自己先想好酶名或 EC 号。
+
+## 文件
+
+| 文件 | 内容 |
+| --- | --- |
+| `skin.json` | 皮肤域，`content_status: curated`，10 个 process / 19 个酶目标 |
+| `gut.json` | 肠道域，`content_status: starter`，5 个 process / 8 个酶目标 |
+| `../schemas/target_library.schema.json` | 库文件的 JSON Schema 契约 |
+
+`starter` 表示“只覆盖最常被问到的几条轴，别当完整清单用”。新增身体部位就新增一个 `<domain>.json`，不需要改代码。
+
+## 命令
+
+```bash
+# 有哪些身体部位
+python3 scripts/browse_target_library.py --list-domains
+
+# 皮肤域有哪些生理过程（含每个过程下的酶目标）
+python3 scripts/browse_target_library.py --list-processes skin
+
+# 有哪些值得关注的菌（带角色说明和它驱动哪些过程）
+python3 scripts/browse_target_library.py --list-taxa skin
+
+# 自然语言关键词搜索（中英文都行，整句也可以）
+python3 scripts/browse_target_library.py --search "油脂分泌"
+python3 scripts/browse_target_library.py --search "我关注油脂分泌"
+python3 scripts/browse_target_library.py --search "skin barrier"
+
+# 展开一个 process 或 enzyme
+python3 scripts/browse_target_library.py --show skin_thioalcohol_odour
+
+# 菜单式选择：domain -> process -> enzyme，最后写卡片
+python3 scripts/browse_target_library.py --interactive --output-dir outputs/task
+
+# 直接导出某一目标的卡片（非交互）
+python3 scripts/browse_target_library.py --export-card skin_sphingomyelin_phosphodiesterase --output-dir outputs/task
+
+# 把整库摊平成一张表交给 Excel / 用户勾选
+python3 scripts/browse_target_library.py --export-tsv outputs/task/target_library.tsv
+
+# 审计库内容本身
+python3 scripts/browse_target_library.py --validate
+```
+
+`--export-card` 会写两个文件：
+
+- `target_function_card.json` — 下游流程直接消费，`input_source` 记为 `library`，并带上 `library_id` / `library_version`。
+- `target_selection.md` — 给人看的选型记录：为什么做这个过程、关键菌、推荐起手式、证据状态、可证伪的验证实验。
+
+## 内容规则（必须遵守）
+
+这些规则不是格式洁癖，而是防止“库里看着权威、实际是编的”。
+
+1. **EC 号只写你确定存在的。** 完整号用 `ec_confidence: full`，只知道家族就用 `3.1.1.-` 记 `family`，**没有 EC 号就留空并记 `none`**。不要为了整齐去套一个相近酶的 EC 号 —— 这正是库里那些 `dark_matter: true` 条目要表达的事。
+2. **不填 `evidence_refs`。** 库是策展先验（`evidence_status: curated_prior`）。只有 `literature-evidence` 真实检索到结果后，才能把 PMID/DOI 写进 `evidence_refs` 并把状态升到 `literature_verified`；`--validate` 会拒绝空引用的 `literature_verified`，也会拒绝格式不像 PMID/DOI 的引用。
+3. **`provenance_note_zh` 要写清这条目靠什么。** 例如“EC 号取自 IUBMB 酶命名，不是文献引用”，或者“具体基因符号刻意留空，需文献核实后填写”。
+4. **不要凭记忆写 UniProt / PDB / 基因符号。** 需要参考酶集合时用 `scripts/fetch_reference_enzymes.py --ec <EC>` 现场查，让脚本返回真实登录号。
+5. **`validation_note_zh` 必须是可证伪的实验**，写清底物、读出和对照组；不要写“测一下酶活”这种没有判据的话。
+6. **`dark_matter: true`** 用于“活性真实存在、但没有 EC 号或没有已表征的代表酶”的条目。这类目标只能按序列 / 结构起手，`entry_point` 相应设为 `sequence`。
+
+## 新增一个 process
+
+在对应 `<domain>.json` 的 `domain.processes` 里加一条，`--validate` 会检查：
+
+- 必填字段齐全，`id` 为 snake_case；
+- `keywords_zh` / `keywords_en` 非空（用户就是靠这些词搜进来的）；
+- `key_taxa` 里每个物种都在 `domain.focus_taxa` 出现过；
+- 至少有一个 enzyme（没有目标的 process 选不了，等于死条目）；
+- 每个 enzyme 的 EC / `ec_confidence` / `entry_point` / `evidence_status` 自洽；
+- 全局 `domain.id` / `process.id` / `enzyme.id` 不重复。
+
+## 边界
+
+- 库**不是**文献证据。它回答“值不值得筛”，不回答“已经证明有”。
+- 库没有命中，不代表功能不存在，只代表尚未策展；此时应回到 `build-target-function-card` 按用户给的目标酶 / EC / 反应显式建档。
+- 库是人体微生物组功能域的索引，不含宿主自身酶作为筛选目标（宿主酶只作为 `host_context_zh` 出现）。

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import subprocess
 import sys
 import tempfile
@@ -398,6 +399,122 @@ def main() -> int:
         assert "hypothesis_statement" in hyp_text
         assert "falsification_criteria" in hyp_text
         assert "critical_experiments" in hyp_text
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        browse = SCRIPTS / "browse_target_library.py"
+
+        # the shipped library must validate, and every enzyme must be selectable
+        subprocess.run([sys.executable, str(browse), "--validate"], check=True)
+
+        domains = json.loads(
+            subprocess.run(
+                [sys.executable, str(browse), "--list-domains", "--json"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )
+        assert {d["id"] for d in domains} >= {"skin", "gut"}
+
+        # natural-language keyword search must resolve a user phrase to a process
+        hits = json.loads(
+            subprocess.run(
+                [sys.executable, str(browse), "--search", "油脂分泌", "--json"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )
+        assert any(h["process"] == "skin_sebum_lipolysis" for h in hits), hits
+
+        # navigation intent must produce the menu, not a "no hit" dead end
+        nav = subprocess.run(
+            [sys.executable, str(browse), "--search", "都有哪些关注的菌"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert "--list-taxa" in nav.stdout
+        assert "--interactive" in nav.stdout
+
+        # the taxon layer must be listable on its own
+        taxa = json.loads(
+            subprocess.run(
+                [sys.executable, str(browse), "--list-taxa", "skin", "--json"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )
+        assert len(taxa) >= 10
+        assert {"Staphylococcus epidermidis", "Cutibacterium acnes"} <= {t["taxon"] for t in taxa}
+        assert all(t["attention"] in {"high", "medium", "low"} for t in taxa)
+        # every taxon should be reachable from at least one process
+        assert any(t["processes"] for t in taxa)
+
+        # a no-hit search is an informative miss, not a crash
+        miss = subprocess.run(
+            [sys.executable, str(browse), "--search", "no_such_keyword_xyz"],
+            capture_output=True,
+            text=True,
+        )
+        assert miss.returncode == 1
+        assert "build-target-function-card" in miss.stdout
+
+        # exporting a library selection must produce a schema-valid card
+        sel_dir = tmp / "selection"
+        subprocess.run(
+            [
+                sys.executable,
+                str(browse),
+                "--export-card",
+                "skin_sphingomyelin_phosphodiesterase",
+                "--output-dir",
+                str(sel_dir),
+            ],
+            check=True,
+        )
+        card = json.loads(sel_dir.joinpath("target_function_card.json").read_text(encoding="utf-8"))
+        assert card["input_source"] == "library"
+        assert card["library_id"] == "skin_sphingomyelin_phosphodiesterase"
+        assert card["library_version"] == "1.0.0"
+        assert card["ec"] == "3.1.4.12"
+        # every later stage must accept the card unchanged
+        sys.path.insert(0, str(SCRIPTS))
+        from build_target_function_card import validate_card  # noqa: PLC0415
+
+        assert validate_card(card) == [], validate_card(card)
+        assert sel_dir.joinpath("target_selection.md").is_file()
+
+        # a library selection without an EC must still be a usable card
+        dark_dir = tmp / "dark"
+        subprocess.run(
+            [
+                sys.executable,
+                str(browse),
+                "--export-card",
+                "skin_c_s_lyase",
+                "--output-dir",
+                str(dark_dir),
+            ],
+            check=True,
+        )
+        dark_card = json.loads(dark_dir.joinpath("target_function_card.json").read_text(encoding="utf-8"))
+        assert dark_card["ec"] == ""
+        assert "dark_matter: yes" in dark_card["notes"]
+
+        flat = tmp / "library.tsv"
+        subprocess.run(
+            [sys.executable, str(browse), "--export-tsv", str(flat)], check=True
+        )
+        with flat.open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(rows) >= 20
+        assert {"skin", "gut"} <= {row["domain_id"] for row in rows}
+        # the library is a curated prior: nothing may claim to be literature-verified yet
+        assert all(row["evidence_status"] == "curated_prior" for row in rows)
+        assert all(not row["evidence_refs"] for row in rows)
 
     print("example test passed")
     return 0

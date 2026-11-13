@@ -17,6 +17,7 @@ human_microbiome_function_mining/
 ├── schemas/                      # evidence-table contracts
 ├── projects/                     # example project configurations
 ├── references/                   # workflow, thresholds, fallback rules
+├── library/                      # curated selectable target index (domain -> process -> enzyme)
 ├── LICENSE                       # MIT license
 ├── SKILL-PROVENANCE.yaml         # skill adaptation ledger
 └── QUICKSTART.md                 # this file
@@ -52,8 +53,8 @@ For a manual layout, make sure the harness/agent can see:
 - `references/`
 - `projects/`
 
-After this, start a new agent/assistant session and confirm the plugin skill
-`functional-dark-matter-discover` is available.
+After this, start a new agent/assistant session and confirm the plugin skills
+`browse-target-library` and `functional-dark-matter-discover` are available.
 
 ## 3. First sanity check
 
@@ -72,7 +73,33 @@ example test passed
 
 This does not require DIAMOND, US-align, DEER, or FedKEA to be installed.
 
-## 4. Use the plugin on your own data
+## 4. Pick a target from the library (optional, but start here when you feel vague)
+
+If you already know your enzyme, EC number, or sequence, skip to section 5. If you
+only know *what you care about* — "皮肤代谢有哪些重要的生理过程", "我关注油脂分泌",
+"哪些菌值得看", "body odour" — start from the target library instead of trying to
+guess an enzyme name:
+
+```bash
+python3 scripts/browse_target_library.py --list-domains             # 皮肤 / 肠道
+python3 scripts/browse_target_library.py --list-processes skin      # 皮肤下的生理过程
+python3 scripts/browse_target_library.py --search "油脂分泌"         # 用你自己的话搜
+python3 scripts/browse_target_library.py --show skin_sebum_lipolysis
+python3 scripts/browse_target_library.py --interactive --output-dir outputs/task
+```
+
+The last command is a numbered menu: body site -> physiological process -> enzyme
+target. Confirming writes `target_function_card.json` and `target_selection.md` into
+`outputs/task/`, and tells you which workflow entry point (`reaction` / `ec` /
+`sequence`) to use next.
+
+The library is a curated **prior**, not evidence: entries carry `evidence_status:
+curated_prior` and an empty `evidence_refs` list, and only `literature-evidence`
+may upgrade them after real retrieval. `python3 scripts/browse_target_library.py
+--validate` audits the content; `library/README.md` explains how to add a body
+site.
+
+## 5. Use the plugin on your own data
 
 1. Copy the plugin into your DeepSeek harness environment.
 2. Create a project configuration:
@@ -105,7 +132,7 @@ cp human_microbiome_function_mining/config.minimal.example.json project.json
    accessible, the agent prints the exact command for you to run on your own
    compute and then consumes the returned files.
 
-## 5. External tools are yours, the plugin is not a tool installer
+## 6. External tools are yours, the plugin is not a tool installer
 
 This plugin does not bundle DIAMOND, US-align, DEER, FedKEA, or Bakta. You are
 expected to provide your own dataset and compute. If you already have those
@@ -117,7 +144,7 @@ External tool sources:
 - FedKEA local: <https://github.com/Stevenleizheng/FEDKEA>
 - FedKEA web (manual submission): <https://www.viromelab.com/software/fedkea>
 
-## 6. Final ranked outputs after scoring
+## 7. Final ranked outputs after scoring
 
 ```bash
 python3 human_microbiome_function_mining/scripts/merge_candidates.py \

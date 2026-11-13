@@ -85,12 +85,21 @@
         "sequence",
         "ec",
         "reaction",
-        "manual"
+        "manual",
+        "library"
       ],
-      "description": "How the target was originally supplied by the user."
+      "description": "How the target was originally supplied by the user. 'library' means it was selected from library/<domain>.json, in which case library_id and library_version must be filled."
     },
     "notes": {
       "type": "string"
+    },
+    "library_id": {
+      "type": "string",
+      "description": "Enzyme id in library/<domain>.json when input_source is 'library', otherwise empty string."
+    },
+    "library_version": {
+      "type": "string",
+      "description": "library_version of the domain file the target was selected from, otherwise empty string."
     }
   }
 }

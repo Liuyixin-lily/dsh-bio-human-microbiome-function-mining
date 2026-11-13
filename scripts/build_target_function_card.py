@@ -52,6 +52,8 @@ def default_card() -> dict[str, Any]:
         "known_enzymes": [],
         "known_microbial_enzymes": [],
         "input_source": "manual",
+        "library_id": "",
+        "library_version": "",
         "notes": "",
     }
 
@@ -83,6 +85,8 @@ def build_card(
     known_enzymes: str | None = None,
     known_microbial_enzymes: str | None = None,
     input_source: str | None = None,
+    library_id: str | None = None,
+    library_version: str | None = None,
     notes: str | None = None,
 ) -> dict[str, Any]:
     card = default_card()
@@ -101,6 +105,8 @@ def build_card(
     card["known_enzymes"] = comma_list(known_enzymes)
     card["known_microbial_enzymes"] = comma_list(known_microbial_enzymes)
     card["input_source"] = str_to_opt(input_source) or "manual"
+    card["library_id"] = str_to_opt(library_id)
+    card["library_version"] = str_to_opt(library_version)
     card["notes"] = str_to_opt(notes)
     return card
 
@@ -134,6 +140,8 @@ def load_project_fields(project_path: Path) -> tuple[dict[str, Any], Path]:
         "known_enzymes": target_cfg.get("known_enzymes"),
         "known_microbial_enzymes": target_cfg.get("known_microbial_enzymes"),
         "input_source": target_cfg.get("input_source"),
+        "library_id": target_cfg.get("library_id"),
+        "library_version": target_cfg.get("library_version"),
         "notes": target_cfg.get("notes"),
     }, project_path.parent
 
@@ -149,8 +157,13 @@ def validate_card(card: dict[str, Any]) -> list[str]:
         "ec",
         "reaction",
         "manual",
+        "library",
     }:
-        errors.append("input_source must be one of: sequence, ec, reaction, manual")
+        errors.append("input_source must be one of: sequence, ec, reaction, manual, library")
+    if card.get("input_source") == "library" and not card.get("library_id"):
+        errors.append("input_source is 'library' but library_id is empty")
+    if card.get("library_version") and not card.get("library_id"):
+        errors.append("library_version is set but library_id is empty")
     return errors
 
 
@@ -189,8 +202,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--input-source",
         default="manual",
-        choices=["sequence", "ec", "reaction", "manual"],
+        choices=["sequence", "ec", "reaction", "manual", "library"],
         help="How the target was originally supplied.",
+    )
+    parser.add_argument(
+        "--library-id",
+        default=None,
+        help="Enzyme id from library/<domain>.json when the target came from the curated target library.",
+    )
+    parser.add_argument(
+        "--library-version",
+        default=None,
+        help="library_version of the domain file the target was selected from.",
     )
     parser.add_argument("--notes", default=None, help="Free-text notes.")
     return parser.parse_args(argv)
@@ -218,6 +241,8 @@ def main(argv: list[str] | None = None) -> int:
         known_enzymes=args.known_enzymes or (",".join(project_fields["known_enzymes"]) if project_fields.get("known_enzymes") else None),
         known_microbial_enzymes=args.known_microbial_enzymes or (",".join(project_fields["known_microbial_enzymes"]) if project_fields.get("known_microbial_enzymes") else None),
         input_source=args.input_source if args.input_source != "manual" else (project_fields.get("input_source") or "manual"),
+        library_id=args.library_id or project_fields.get("library_id"),
+        library_version=args.library_version or project_fields.get("library_version"),
         notes=args.notes or project_fields.get("notes"),
     )
     errors = validate_card(card)

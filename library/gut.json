@@ -1,0 +1,470 @@
+{
+  "library_version": "1.0.0",
+  "reviewed_on": "2026-02-01",
+  "domain": {
+    "id": "gut",
+    "name_zh": "肠道",
+    "name_en": "Gut",
+    "content_status": "starter",
+    "keywords_zh": [
+      "肠道",
+      "结肠",
+      "肠道菌群",
+      "粪便",
+      "肠菌",
+      "肠道代谢",
+      "短链脂肪酸",
+      "胆汁酸",
+      "色氨酸代谢"
+    ],
+    "keywords_en": [
+      "gut",
+      "colon",
+      "gut microbiome",
+      "faecal microbiome",
+      "short-chain fatty acid",
+      "bile acid",
+      "tryptophan metabolism"
+    ],
+    "niche_summary_zh": "结肠是厌氧、营养梯度明显的高生物量生态位，群落以 Bacteroidetes 与 Firmicutes 为主。绝大多数肠道功能暗物质集中在“宿主底物 + 无 EC 号的酶”这一区域，例如三甲胺裂解酶、胆汁酸 7α-脱羟酶系和丁酸 CoA 转移酶。",
+    "selection_hint_zh": "本域目前是 starter 清单，只覆盖最常被问到的 5 条代谢轴。用户关心其他方向时，明确告诉用户“库里没有、需要按目标酶直接建档”，不要把 starter 当完整清单。",
+    "focus_taxa": [
+      {
+        "taxon": "Bacteroides thetaiotaomicron",
+        "name_zh": "多形拟杆菌",
+        "role_zh": "多糖降解与胆汁酸修饰的核心成员，基因组编码大量糖苷水解酶与胆汁盐水解酶。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Faecalibacterium prausnitzii",
+        "name_zh": "普拉梭菌",
+        "role_zh": "主要丁酸产生菌之一，与肠道屏障和抗炎表型相关。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Clostridium scindens",
+        "name_zh": "斯氏梭菌",
+        "role_zh": "把初级胆汁酸转化为次级胆汁酸的代表菌，携带 bai 基因簇。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Eggerthella lenta",
+        "name_zh": "迟缓埃格特菌",
+        "role_zh": "负责多种宿主代谢物的还原与转化，是肠道“药物 / 代谢物修饰”的典型菌。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Desulfovibrio desulfuricans",
+        "name_zh": "脱硫脱硫弧菌",
+        "role_zh": "硫酸盐还原与三甲胺生成相关，产硫化氢影响上皮。",
+        "attention": "medium"
+      },
+      {
+        "taxon": "Akkermansia muciniphila",
+        "name_zh": "嗜黏蛋白阿克曼菌",
+        "role_zh": "黏液层降解菌，与代谢健康相关，其糖苷水解酶是热门靶点。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Roseburia intestinalis",
+        "name_zh": "肠罗斯氏菌",
+        "role_zh": "丁酸产生菌，携带 butyryl-CoA:acetate CoA-transferase 通路。",
+        "attention": "medium"
+      },
+      {
+        "taxon": "Bifidobacterium longum",
+        "name_zh": "长双歧杆菌",
+        "role_zh": "产乳酸与乙酸，可交叉喂养丁酸产生菌；胆汁盐水解酶活性常见。",
+        "attention": "medium"
+      }
+    ],
+    "processes": [
+      {
+        "id": "gut_bile_salt_deconjugation",
+        "name_zh": "胆汁酸去结合",
+        "name_en": "Bile salt deconjugation",
+        "keywords_zh": [
+          "胆汁酸",
+          "胆盐",
+          "去结合",
+          "胆汁酸代谢",
+          "胆固醇",
+          "脂质吸收",
+          "胆盐水解酶"
+        ],
+        "keywords_en": [
+          "bile acid",
+          "bile salt hydrolase",
+          "deconjugation",
+          "cholesterol",
+          "lipid absorption"
+        ],
+        "why_it_matters_zh": "宿主把胆汁酸与甘氨酸或牛磺酸结合后排入肠道，细菌胆盐水解酶把这一步拆掉，直接改变胆汁酸池的疏水性与下游信号，是肠道菌影响宿主脂质代谢最明确的酶学入口。",
+        "host_context_zh": "肝脏合成并结合作初级胆汁酸，随胆汁进入小肠，绝大部分在回肠被重吸收，构成肠肝循环。",
+        "microbe_effect_zh": "胆盐水解酶切除结合氨基酸，释放游离胆汁酸，使其更易被排出或进一步被 7α-脱羟修饰，同时降低对菌自身的毒性。",
+        "key_taxa": [
+          "Bacteroides thetaiotaomicron",
+          "Bifidobacterium longum",
+          "Clostridium scindens"
+        ],
+        "enzymes": [
+          {
+            "id": "gut_bile_salt_hydrolase",
+            "enzyme_name_zh": "胆盐水解酶",
+            "enzyme_name_en": "bile salt hydrolase",
+            "gene_symbols": [
+              "bsh"
+            ],
+            "ec": "3.5.1.24",
+            "ec_confidence": "full",
+            "reaction_zh": "甘氨胆酸 + H2O -> 胆酸 + 甘氨酸",
+            "substrate_zh": "结合型胆汁酸",
+            "product_zh": "游离胆汁酸 + 甘氨酸或牛磺酸",
+            "cofactor": "",
+            "fold_hint": "Ntn 水解酶折叠（与青霉素酰化酶同源）",
+            "known_microbial_examples": [
+              {
+                "taxon": "Bacteroides thetaiotaomicron",
+                "detail_zh": "多个 bsh 同源基因，是研究胆盐水解与定植关系的常用模型。"
+              },
+              {
+                "taxon": "Bifidobacterium longum",
+                "detail_zh": "益生菌株的胆盐水解酶活性常被当作降胆固醇功能的候选机制。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 3.5.1.24 明确；注意不同菌的 BSH 底物偏好（甘氨酸结合 vs 牛磺酸结合）差异很大，不能只凭 EC 号等同。",
+            "validation_note_zh": "用茚三酮法测甘氨酸释放，或 HPLC 直接测游离胆汁酸生成；配合 bsh 缺失株是最直接的证明。"
+          }
+        ]
+      },
+      {
+        "id": "gut_secondary_bile_acid",
+        "name_zh": "次级胆汁酸生成（7α-脱羟）",
+        "name_en": "Secondary bile acid formation (7alpha-dehydroxylation)",
+        "keywords_zh": [
+          "次级胆汁酸",
+          "脱氧胆酸",
+          "石胆酸",
+          "7α脱羟",
+          "bai基因簇",
+          "胆汁酸转化"
+        ],
+        "keywords_en": [
+          "secondary bile acid",
+          "deoxycholic acid",
+          "lithocholic acid",
+          "7alpha-dehydroxylation",
+          "bai operon"
+        ],
+        "why_it_matters_zh": "次级胆汁酸（脱氧胆酸、石胆酸）是宿主信号分子与肿瘤促进因子，而 7α-脱羟是一个多步、只在少数肠道菌中存在的通路，酶学长期没有干净的 EC 号，是本域最有代表性的功能暗物质。",
+        "host_context_zh": "宿主只能合成初级胆汁酸，不能完成 7α-脱羟；该步完全依赖肠道菌，因此菌群变化会直接改变次级胆汁酸池。",
+        "microbe_effect_zh": "bai 基因簇先把 7α-羟基氧化、脱水，再逐步还原，最终去掉 7α-羟基得到次级胆汁酸。",
+        "key_taxa": [
+          "Clostridium scindens",
+          "Eggerthella lenta"
+        ],
+        "enzymes": [
+          {
+            "id": "gut_bai_hydrolase_dehydratase",
+            "enzyme_name_zh": "胆汁酸 7α-脱水酶（baiCD/baiE 复合）",
+            "enzyme_name_en": "bile acid 7alpha-dehydratase (baiCD/baiE)",
+            "gene_symbols": [
+              "baiCD",
+              "baiE"
+            ],
+            "ec": "",
+            "ec_confidence": "none",
+            "reaction_zh": "7α-羟基-3-氧代胆汁酸中间体 -> 7-脱氢中间体 + H2O",
+            "substrate_zh": "7α-羟基-3-氧代胆汁酸中间体",
+            "product_zh": "7-脱氢胆汁酸中间体",
+            "cofactor": "",
+            "fold_hint": "含 Fe-S 的脱水酶样折叠，需与 baiA/baiB/baiH/baiI 联合判断",
+            "known_microbial_examples": [
+              {
+                "taxon": "Clostridium scindens",
+                "detail_zh": "携带完整 bai 基因簇，是次级胆汁酸生成的模式菌。"
+              }
+            ],
+            "entry_point": "sequence",
+            "dark_matter": true,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "该步没有专属 EC 号，必须按 bai 基因簇整体判断；单基因命中不足以推断该菌能产次级胆汁酸。",
+            "validation_note_zh": "用完整 bai 簇作为判断单位，做厌氧培养 + LC-MS 胆汁酸谱，并以基因簇缺失突变株作对照。"
+          },
+          {
+            "id": "gut_7alpha_hsdh",
+            "enzyme_name_zh": "7α-羟基类固醇脱氢酶",
+            "enzyme_name_en": "7alpha-hydroxysteroid dehydrogenase",
+            "gene_symbols": [
+              "baiA"
+            ],
+            "ec": "1.1.1.-",
+            "ec_confidence": "family",
+            "reaction_zh": "胆酸 + NAD(P)+ -> 3-氧代-7α-羟基胆酸 + NAD(P)H + H+",
+            "substrate_zh": "胆酸",
+            "product_zh": "3-氧代-7α-羟基胆酸",
+            "cofactor": "NAD(P)+",
+            "fold_hint": "短链脱氢酶 / 还原酶（SDR）折叠",
+            "known_microbial_examples": [
+              {
+                "taxon": "Clostridium scindens",
+                "detail_zh": "baiA 编码的羟类固醇脱氢酶是 7α-脱羟通路的第一步。"
+              }
+            ],
+            "entry_point": "sequence",
+            "dark_matter": true,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "羟基类固醇脱氢酶按底物与位置分多个 EC 号，本条目刻意只给到 1.1.1.- 家族层级，完整号需在建模后核实。",
+            "validation_note_zh": "用胆酸 + NAD+ 测 3-氧代产物生成，并以 baiA 缺失株确认该步。"
+          }
+        ]
+      },
+      {
+        "id": "gut_tma_lyase",
+        "name_zh": "三甲胺生成",
+        "name_en": "Trimethylamine formation",
+        "keywords_zh": [
+          "三甲胺",
+          "TMA",
+          "TMAO",
+          "胆碱",
+          "心血管",
+          "红肉",
+          "鱼腥味",
+          "CutC"
+        ],
+        "keywords_en": [
+          "trimethylamine",
+          "TMA",
+          "TMAO",
+          "choline",
+          "carnitine",
+          "CutC",
+          "cardiovascular risk"
+        ],
+        "why_it_matters_zh": "膳食胆碱与肉碱被肠道菌的 CutC/CutD 复合体裂解为三甲胺，再被宿主氧化为 TMAO，与心血管风险相关。这条轴的宿主端不受限，限速完全在菌端，而且酶没有 EC 号。",
+        "host_context_zh": "宿主从膳食获得胆碱与 L-肉碱，自身可合成三甲胺（如通过 FMO3 相关代谢）但肠道菌是 TMA 的主要来源，宿主肝脏把 TMA 氧化为 TMAO。",
+        "microbe_effect_zh": "CutC 裂解酶在 CutD 激活酶帮助下完成自由基依赖的 C-N 键断裂，释放三甲胺。",
+        "key_taxa": [
+          "Desulfovibrio desulfuricans",
+          "Eggerthella lenta"
+        ],
+        "enzymes": [
+          {
+            "id": "gut_cutc_tma_lyase",
+            "enzyme_name_zh": "胆碱三甲胺裂解酶（CutC）",
+            "enzyme_name_en": "choline trimethylamine-lyase (CutC)",
+            "gene_symbols": [
+              "cutC"
+            ],
+            "ec": "",
+            "ec_confidence": "none",
+            "reaction_zh": "胆碱 -> 三甲胺 + 乙醛",
+            "substrate_zh": "胆碱",
+            "product_zh": "三甲胺 + 乙醛",
+            "cofactor": "铁硫簇，需 CutD 自由基 S-腺苷甲硫氨酸激活",
+            "fold_hint": "TIM barrel（(beta/alpha)8），含 glycyl radical 位点",
+            "known_microbial_examples": [
+              {
+                "taxon": "Desulfovibrio desulfuricans",
+                "detail_zh": "早期被用来定义 CutC/CutD 体系的模式菌之一。"
+              }
+            ],
+            "entry_point": "sequence",
+            "dark_matter": true,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "CutC 无 EC 号；只命中 cutC 还不够，必须同时存在 cutD 才有裂解活性，这是本条目最容易出错的地方。",
+            "validation_note_zh": "厌氧培养 + 顶空 GC 测三甲胺释放，并以 cutC/cutD 双缺失株证实；同时测宿主端 TMAO 水平才有生理意义。"
+          }
+        ]
+      },
+      {
+        "id": "gut_butyrate_production",
+        "name_zh": "丁酸生成",
+        "name_en": "Butyrate production",
+        "keywords_zh": [
+          "丁酸",
+          "短链脂肪酸",
+          "SCFA",
+          "产丁酸菌",
+          "结肠上皮",
+          "能量代谢",
+          "肠屏障"
+        ],
+        "keywords_en": [
+          "butyrate",
+          "short-chain fatty acid",
+          "SCFA",
+          "butyrate producer",
+          "colonocyte",
+          "gut barrier"
+        ],
+        "why_it_matters_zh": "丁酸是结肠上皮的主要能源并参与免疫调节，是肠道菌功能研究最常被问到的一条。通路里两个关键酶一个有 EC 号、一个没有，正好可以对比“同一通路里有的酶能按 EC 筛、有的只能按序列筛”。",
+        "host_context_zh": "结肠上皮细胞优先利用丁酸供能；丁酸不足与屏障受损、炎症相关。",
+        "microbe_effect_zh": "糖酵解产生的乙酰-CoA 经缩合、还原生成丁酰-CoA，再由 CoA 转移酶把 CoA 转给乙酸释放丁酸。",
+        "key_taxa": [
+          "Faecalibacterium prausnitzii",
+          "Roseburia intestinalis",
+          "Bifidobacterium longum"
+        ],
+        "enzymes": [
+          {
+            "id": "gut_butyryl_coa_acetate_coa_transferase",
+            "enzyme_name_zh": "丁酰-CoA:乙酸 CoA 转移酶",
+            "enzyme_name_en": "butyryl-CoA:acetate CoA-transferase",
+            "gene_symbols": [
+              "but"
+            ],
+            "ec": "2.8.3.-",
+            "ec_confidence": "family",
+            "reaction_zh": "丁酰-CoA + 乙酸 -> 丁酸 + 乙酰-CoA",
+            "substrate_zh": "丁酰-CoA + 乙酸",
+            "product_zh": "丁酸 + 乙酰-CoA",
+            "cofactor": "",
+            "fold_hint": "CoA 转移酶（I 类）折叠",
+            "known_microbial_examples": [
+              {
+                "taxon": "Faecalibacterium prausnitzii",
+                "detail_zh": "人肠道丁酸产生的主导机制是 CoA 转移酶路径，而不是丁酸激酶路径。"
+              }
+            ],
+            "entry_point": "sequence",
+            "dark_matter": true,
+            "priority": "high",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "该活性长期没有专属完整 EC 号，只能给 2.8.3.- 家族层级；用丁酸激酶 EC 号代填是常见错误。",
+            "validation_note_zh": "用丁酰-CoA + 乙酸测丁酸生成，并对丁酸激酶抑制剂不敏感；配合 but 基因缺失株最有力。"
+          },
+          {
+            "id": "gut_butyrate_kinase",
+            "enzyme_name_zh": "丁酸激酶",
+            "enzyme_name_en": "butyrate kinase",
+            "gene_symbols": [
+              "buk"
+            ],
+            "ec": "2.7.2.7",
+            "ec_confidence": "full",
+            "reaction_zh": "ATP + 丁酸 -> ADP + 丁酰磷酸",
+            "substrate_zh": "丁酸",
+            "product_zh": "丁酰磷酸",
+            "cofactor": "ATP",
+            "fold_hint": "ASKHA 折叠激酶",
+            "known_microbial_examples": [
+              {
+                "taxon": "Roseburia intestinalis",
+                "detail_zh": "丁酸激酶路径在人肠道占少数，检出该酶不等于该菌是主要丁酸来源。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "low",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 2.7.2.7 明确，但该路径在人肠道中通常不是主导；排序时会容易被高估，需要结合通路判断。",
+            "validation_note_zh": "测丁酰磷酸依赖的 ATP 生成，并同时量化 CoA 转移酶路径通量，才能判断两条路径的相对贡献。"
+          }
+        ]
+      },
+      {
+        "id": "gut_tryptophan_indole",
+        "name_zh": "色氨酸分解与吲哚衍生物",
+        "name_en": "Tryptophan catabolism and indole derivatives",
+        "keywords_zh": [
+          "色氨酸",
+          "吲哚",
+          "吲哚丙酸",
+          "芳香烃受体",
+          "AHR",
+          "神经递质",
+          "色胺"
+        ],
+        "keywords_en": [
+          "tryptophan",
+          "indole",
+          "indole propionic acid",
+          "AhR",
+          "tryptamine",
+          "aromatic amino acid decarboxylase"
+        ],
+        "why_it_matters_zh": "肠道菌把色氨酸转成吲哚、吲哚丙酸、色胺等芳香烃受体配体与神经活性分子，是菌-宿主信号最丰富的一条轴；相关酶大多有明确 EC 号，适合作为入门验证题。",
+        "host_context_zh": "色氨酸一部分被宿主沿 5-HT 与 kynurenine 通路代谢，剩余进入结肠由菌群代谢；菌源吲哚类化合物作用于宿主 AhR。",
+        "microbe_effect_zh": "色氨酸酶直接裂解色氨酸释放吲哚；芳香族氨基酸脱羧酶把色氨酸转成色胺，二者竞争同一底物。",
+        "key_taxa": [
+          "Bacteroides thetaiotaomicron",
+          "Bifidobacterium longum",
+          "Faecalibacterium prausnitzii"
+        ],
+        "enzymes": [
+          {
+            "id": "gut_tryptophanase",
+            "enzyme_name_zh": "色氨酸酶",
+            "enzyme_name_en": "tryptophanase",
+            "gene_symbols": [
+              "tnaA"
+            ],
+            "ec": "4.1.99.1",
+            "ec_confidence": "full",
+            "reaction_zh": "L-色氨酸 + H2O -> 吲哚 + 丙酮酸 + NH3",
+            "substrate_zh": "L-色氨酸",
+            "product_zh": "吲哚 + 丙酮酸 + 氨",
+            "cofactor": "pyridoxal 5'-phosphate",
+            "fold_hint": "PLP 依赖的 type I 折叠，四聚体",
+            "known_microbial_examples": [
+              {
+                "taxon": "Bacteroides thetaiotaomicron",
+                "detail_zh": "肠道拟杆菌是吲哚产生的重要来源，tnaA 在多株中保守。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 4.1.99.1 明确；该酶是 PLP 依赖，表达与活性受底物诱导，序列命中不代表在肠道中高表达。",
+            "validation_note_zh": "用 Kovacs 试剂或 HPLC 测吲哚生成，配合 tnaA 缺失株与色氨酸诱导条件。"
+          },
+          {
+            "id": "gut_aromatic_amino_acid_decarboxylase",
+            "enzyme_name_zh": "芳香族-L-氨基酸脱羧酶",
+            "enzyme_name_en": "aromatic-L-amino-acid decarboxylase",
+            "gene_symbols": [
+              "ddc"
+            ],
+            "ec": "4.1.1.28",
+            "ec_confidence": "full",
+            "reaction_zh": "L-色氨酸 -> 色胺 + CO2",
+            "substrate_zh": "L-色氨酸",
+            "product_zh": "色胺 + 二氧化碳",
+            "cofactor": "pyridoxal 5'-phosphate",
+            "fold_hint": "PLP 依赖的 type I 折叠（组氨酸脱羧酶样）",
+            "known_microbial_examples": [
+              {
+                "taxon": "Bifidobacterium longum",
+                "detail_zh": "细菌 DDC 同源酶对底物的偏好与宿主酶差别很大，需要酶活验证而不能只看 EC 号对上。"
+              }
+            ],
+            "entry_point": "ec",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "provenance_note_zh": "EC 4.1.1.28 覆盖色氨酸、5-羟色氨酸与 L-DOPA 等多个底物；酶促特征必须由实验区分，不能由 EC 号推断。",
+            "validation_note_zh": "以 L-色氨酸、5-HTP、L-DOPA 三种底物分别测脱羧活性，确定真正的底物谱。"
+          }
+        ]
+      }
+    ]
+  }
+}

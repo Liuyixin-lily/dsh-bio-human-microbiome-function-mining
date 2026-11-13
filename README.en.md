@@ -36,6 +36,7 @@ human_microbiome_function_mining/
 ├── LICENSE                      # MIT license
 ├── SKILL-PROVENANCE.yaml        # skill adaptation ledger
 ├── references/                  # workflow, thresholds, fallback and evidence rules
+├── library/                     # curated selectable target index (domain -> process -> enzyme)
 ├── schemas/                     # machine-readable evidence-table contracts
 ├── scripts/                     # parsers, wrappers, ranking, and example test
 ├── projects/                    # example project configuration files
@@ -46,6 +47,7 @@ human_microbiome_function_mining/
 
 ## Skills
 
+- `browse-target-library`: **front door**. When the user has not named an enzyme, EC number, or sequence yet and only says what they care about ("what are the important processes in skin metabolism?", "I care about sebum secretion", "which microbes or enzymes are worth looking at?"), use the shipped target library to open up body site -> physiological process -> enzyme target as a numbered choice list, then materialize the selection as `target_function_card.json`. Only fall back to `build-target-function-card` when the library has no hit.
 - `functional-dark-matter-discover`: main workflow that turns a target enzyme/EC/reaction into candidates and experimental design.
 - `build-target-function-card`: standardizes target inputs and generates the Target Function Card.
 - `screen-sequence-candidates`: runs or consumes DIAMOND sequence screening; defaults to CD-HIT deduplication first (100% for single-genome datasets, 95% for multi-genome pan-proteomes).
@@ -60,9 +62,47 @@ The three genome sub-skills are independent deliverables. Load them when users h
 
 ---
 
+## Target library: let the user pick instead of guess
+
+`library/` is a browsable, searchable, selectable three-level target index:
+
+```text
+domain (body site)  ->  process (physiological process)  ->  enzyme (the actual screening target)
+```
+
+Users rarely know which enzyme they want; they know a phenotype ("skin metabolism", "oily skin", "body odour"). The library is what catches that phrasing: it lists `process` entries first, then the `enzyme` targets inside a process. Each target carries its EC number plus an EC confidence level, reaction, substrate/product, fold hint, known microbial examples, a recommended workflow **entry point** (`reaction` / `ec` / `sequence`), a `dark_matter` flag, a priority, an honest provenance note, and one experiment that would falsify the proposed function.
+
+| Library file | Content |
+| --- | --- |
+| `library/skin.json` | Skin, `curated`: 10 processes / 19 enzyme targets (sebum lipolysis, ceramide homeostasis, surface acidification, ureolysis, thioalcohol body odour, amino-acid volatiles, nitrate-NO, hyaluronan degradation, Malassezia lipid dependence, lantibiotic competition) |
+| `library/gut.json` | Gut, `starter`: 5 processes / 8 enzyme targets (bile salt deconjugation, secondary bile acids, TMA, butyrate, tryptophan-indole) |
+
+```bash
+# which body sites are available
+python3 scripts/browse_target_library.py --list-domains
+# what processes exist for skin
+python3 scripts/browse_target_library.py --list-processes skin
+# search with the user's own words (Chinese or English)
+python3 scripts/browse_target_library.py --search "sebum"
+# menu-driven selection, ending in a card
+python3 scripts/browse_target_library.py --interactive --output-dir outputs/task
+# flatten the whole library into one table for manual ticking
+python3 scripts/browse_target_library.py --export-tsv outputs/task/target_library.tsv
+# audit the library content itself
+python3 scripts/browse_target_library.py --validate
+```
+
+A selection writes `target_function_card.json` (`input_source: library` plus `library_id` / `library_version`) and `target_selection.md` (why this process, key taxa, recommended entry point, evidence status, falsifying experiment).
+
+**The library is a curated prior, not literature evidence.** `evidence_status` defaults to `curated_prior` and `evidence_refs` stays empty; only `literature-evidence` may promote an entry to `literature_verified`, and only after it has actually retrieved PMID/DOI identifiers. `--validate` rejects `literature_verified` with empty or malformed identifiers. Entries marked `dark_matter: true` (body-odour C-S lyase, CutC, baiCD, LanB/LanC) deliberately leave the EC empty rather than borrowing a neighbouring enzyme's number. Adding a body site means adding one `library/<domain>.json`; no code change. Rules: `library/README.md`.
+
+---
+
 ## Core workflow
 
 ```text
+(optional) vague interest: "oily skin" / "skin barrier" / "body odour"
+  -> browse-target-library: pick domain -> process -> enzyme
 target enzyme / EC / substrate-product
   -> target_function_card.json
   -> preflight check .faa/.ffn/.gbff and structure paths

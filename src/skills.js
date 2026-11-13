@@ -3,6 +3,12 @@ import { join } from 'node:path'
 
 export const SKILL_MANIFEST = [
   {
+    name: 'browse-target-library',
+    description: 'Turn a vague natural-language interest ("skin metabolism", "油脂分泌", "which microbes matter for body odour") into a pickable list of physiological processes, taxa, and enzyme targets, then materialize the chosen target as a Target Function Card.',
+    whenToUse: '用户还没有给出具体的酶/EC/序列，只说关注某个生理过程、表型或身体部位时，先让用户在目标库里选。',
+    file: 'browse-target-library.md'
+  },
+  {
     name: 'functional-dark-matter-discover',
     description: 'Given a target enzyme sequence, EC number, or substrate-product reaction, discover candidate human microbiome protein functions by combining sequence screening, structure search, FedKEA validation, source annotations, and experimental design.',
     whenToUse: '用户给出目标酶/EC/底物产物，想从人体微生物组中找候选功能蛋白。',

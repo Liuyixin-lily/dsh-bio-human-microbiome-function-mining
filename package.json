@@ -19,6 +19,7 @@
     "scripts/**",
     "schemas/**",
     "references/**",
+    "library/**",
     "projects/README.md",
     "preset/**/*",
     "README.md",

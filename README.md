@@ -38,6 +38,7 @@ human_microbiome_function_mining/
 ├── LICENSE                      # MIT license
 ├── SKILL-PROVENANCE.yaml        # skill adaptation ledger
 ├── references/                  # workflow, thresholds, fallback and evidence rules
+├── library/                     # curated selectable target index (domain -> process -> enzyme)
 ├── schemas/                     # machine-readable evidence-table contracts
 ├── scripts/                     # parsers, wrappers, ranking, and example test
 ├── projects/                    # example project configuration files
@@ -48,6 +49,7 @@ human_microbiome_function_mining/
 
 ## Skills / 技能
 
+- `browse-target-library`: **前门**。当用户还没给出具体的酶/EC/序列，只说了关注某个生理过程、表型或身体部位（例如「皮肤代谢有哪些重要的生理过程」「我关注油脂分泌」「哪些菌值得看」）时，先用 `library/` 里的目标库把「身体部位 → 生理过程 → 酶目标」逐级摊开给用户挑，再导出 `target_function_card.json`。库没命中时才退回 `build-target-function-card` 显式建档。
 - `functional-dark-matter-discover`: 主流程，负责把目标酶/EC/反应变成候选与实验设计。
 - `build-target-function-card`: 标准化目标输入，生成 Target Function Card。
 - `screen-sequence-candidates`: 运行或消费 DIAMOND 序列筛选，默认先做 CD-HIT 去冗余；单菌单基因组默认 100%，多基因组泛蛋白组默认 95%。
@@ -62,9 +64,47 @@ The three genome sub-skills are independent deliverables. Load them when users h
 
 ---
 
+## Target library / 目标库（让用户「选」而不是「想」）
+
+`library/` 是一个可浏览、可搜索、可选择的三层靶点索引：
+
+```text
+domain（身体部位）  ->  process（生理过程）  ->  enzyme（真正拿去筛的酶目标）
+```
+
+用户通常说不清自己要哪个酶，只会说「皮肤代谢有哪些重要的过程」「我关注油脂分泌」「哪些菌或哪些酶值得看」。这正是目标库要接住的话：先给 `process` 列表，再给该 process 下的 `enzyme` 目标，每个目标都带 EC 与 EC 置信度、反应、底物/产物、折叠提示、已知微生物代表、**推荐起手式**（`reaction` / `ec` / `sequence`）、`dark_matter` 标记、优先级、来源说明和一条可证伪的验证实验。
+
+| 库文件 | 内容 |
+| --- | --- |
+| `library/skin.json` | 皮肤，`curated`：10 个生理过程 / 19 个酶目标（皮脂水解、神经酰胺稳态、表面酸化、尿素分解、体味硫醇、氨基酸挥发酸、硝酸盐-NO、透明质酸降解、马拉色菌脂质依赖、羊毛硫抗生素） |
+| `library/gut.json` | 肠道，`starter`：5 个生理过程 / 8 个酶目标（胆汁酸去结合、次级胆汁酸、三甲胺、丁酸、色氨酸-吲哚） |
+
+```bash
+# 有哪些身体部位
+python3 scripts/browse_target_library.py --list-domains
+# 皮肤域有哪些生理过程
+python3 scripts/browse_target_library.py --list-processes skin
+# 用用户自己的话搜（中英文都行）
+python3 scripts/browse_target_library.py --search "油脂分泌"
+# 菜单式选择，最后写出卡片
+python3 scripts/browse_target_library.py --interactive --output-dir outputs/task
+# 把整库摊平成一张表交给用户勾选
+python3 scripts/browse_target_library.py --export-tsv outputs/task/target_library.tsv
+# 审计库内容自身
+python3 scripts/browse_target_library.py --validate
+```
+
+选中后会写出 `target_function_card.json`（`input_source: library` + `library_id` / `library_version`）和 `target_selection.md`（为什么做这个过程、关键菌、推荐起手式、证据状态、可证伪的验证实验）。
+
+**库是策展先验，不是文献证据。** `evidence_status` 默认为 `curated_prior`，`evidence_refs` 恒为空，只有 `literature-evidence` 真实检索到 PMID/DOI 后才允许升级为 `literature_verified`；`--validate` 会拒绝空引用或格式不像标识符的 `literature_verified`。`dark_matter: true` 的条目（例如体味 C-S 裂解酶、CutC、baiCD、LanB/LanC）刻意留空 EC，不允许借用邻近酶的 EC 号。新增身体部位只需新增一个 `library/<domain>.json`，不需要改代码；规则见 `library/README.md`。
+
+---
+
 ## Core workflow / 核心流程
 
 ```text
+(optional) vague interest: "油脂分泌" / "皮肤屏障" / "体味"
+  -> browse-target-library: pick domain -> process -> enzyme
 target enzyme / EC / substrate-product
   -> target_function_card.json
   -> preflight check .faa/.ffn/.gbff and structure paths

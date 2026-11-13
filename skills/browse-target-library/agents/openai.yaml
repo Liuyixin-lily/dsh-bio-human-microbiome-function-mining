@@ -1,0 +1,4 @@
+interface:
+  display_name: "Browse Target Library"
+  short_description: "Let the user pick a physiological process, taxon, and enzyme target"
+  default_prompt: "Use $browse-target-library to turn my natural-language interest into a pickable list of physiological processes, key taxa, and enzyme targets, then export the one I choose as a Target Function Card."
