@@ -579,14 +579,15 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples / 使用示例
 
-以下示例按四种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
+以下示例按五种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
 
 | # | 输入类型 | 触发点 | 举例 | 起手式 |
 | --- | --- | --- | --- | --- |
 | 1 | 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC | sphingomyelin → ceramide + phosphocholine | `reaction` |
 | 2 | 已知酶名/EC | 有酶功能或功能类别注释 | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
 | 3 | 已知参考序列 | 有模板蛋白 FASTA 或 UniProt accession | DDC / P20711 | `sequence` |
-| 4 | 已知菌 + 酶家族 | 只说得出"在某个菌里找某类酶" | S. epidermidis 的醇脱氢酶 | 入口 B（`B→A`） |
+| 4 | 关注具体生理过程 | 说得出"关注什么过程"，说不出酶 | 皮肤外源性物质代谢 | 入口 B（`B→A`） |
+| 5 | 已知菌 + 酶家族 | 只说得出"在某个菌里找某类酶" | S. epidermidis 的醇脱氢酶 | 入口 B（`B→A`） |
 
 每个示例都给出“用户可以直接发送的一句话 prompt”、“Agent 按插件 skill 实际会走的分析链”，以及**一次真实运行的结果**——这样你能直接看到输出长什么样。实际运行时，把工具和数据路径替换成你自己的即可。
 
@@ -692,18 +693,50 @@ Agent:
 - FedKEA 对 18 个候选全部给出**其他 EC**（4.1.2.48、2.1.2.1、2.6.1.x、4.4.1.13、2.8.1.7）→ 全部 `USALIGN_OTHER_EC`
 - 交付时**不写"无候选"**：这些是"结构相似、但预测 EC 不同"的候选，附带目标 EC 与预测 EC 并排验证的实验方案
 
-### Example 4: 只给菌和酶家族，先出候选排序表，再交棒筛选
+### Example 4: 关注具体的生理过程，先出相关候选酶和候选菌排序表，再交棒筛选
+
+```text
+User:
+"我比较关注皮肤外源性物质代谢相关的生理过程，有哪些代谢酶和哪些菌值得关注呢？"
+
+Agent:
+- 路由判为入口 B：只有关注点，没有 EC / 反应 / 序列
+- 查库：`skin_xenobiotic` 有 6 个外源代谢类别，但全是 starter（无逐条证据）→ 命中也要说明这一点
+- 库覆盖不全 → `discover_enzyme_candidates.py` 用文献补：中文题目按固定词表转成英文检索词，转不出来就问用户
+- `build_candidate_shortlist.py` 合并库、文献发现、位点菌名单 → 出两张推荐表（证据优先，档内按分数）
+- 你从表里挑一条 → `run_entry_b.py --select <target_id> --ec <EC> --proteome ...` 交棒入口 A 筛选
+```
+
+排序表（真实运行，皮肤 + 外源代谢主题）：
+
+| 排序 | 推荐候选酶 | EC | 证据 |
+| --- | --- | --- | --- |
+| 1 | azoreductase (Azo1) | — | `literature_verified`，PMID 33385118 |
+| 2 | β-葡萄糖醛酸苷酶 | 3.2.1.31 | `curated_prior`（PMID 26972811、36099474，属肠道外推） |
+| 3–6 | 环氧化物水解酶 / 4-羟基苯甲酸 1-羟化酶 / 萘 1,2-双加氧酶 / 醇脱氢酶 | — | `curated_prior`（有引用但不足以支撑皮肤claim） |
+
+| 排序 | 推荐候选菌 | 位点存在 | 代谢合理性 |
+| --- | --- | --- | --- |
+| 1 | *Cutibacterium acnes* | 5.000 | 4.000 |
+| 2 | *Staphylococcus epidermidis* | 5.000 | 4.000 |
+| 3 | *Staphylococcus aureus* | 5.000 | 3.000 |
+
+交棒时两条分支都是真实结果：
+
+- **选了有 EC 的候选**（β-葡萄糖醛酸苷酶，EC 3.2.1.31）→ 对 *S. epidermidis* 筛选：11 个 reviewed 模板、0 条命中（identity≥20 / cov≥0.7 / E≤1e-5）。**0 命中也是结论**，交付里写明筛了什么、阈值多少、下一步该做什么（换结构通道 / 有意识地放宽阈值并说明）
+- **选了没有 EC 的候选**（azoreductase）→ 插件**停下来要 EC**：一个家族名对应多个 EC，插件不替你定
+
+### Example 5: 只给菌和酶家族，收敛后筛选出候选
 
 ```text
 User:
 "对 Staphylococcus epidermidis 进行醇脱氢酶的挖掘。"
 
 Agent:
-- 路由判为入口 B→A：句中只有酶**家族名**和菌名，没有 EC / 反应式 / 序列，所以是关注点而不是目标
-- 先收敛：一个家族名对应多个 EC（底物与辅因子不同），请你定一个（本案例选 EC 1.1.1.1）
-- 收敛后交棒入口 A：建档 → 取 reviewed 模板 → CD-HIT（单基因组 100%）→ DIAMOND（identity≥20、cov≥0.7、E≤1e-5）
+- 同样是入口 B：句中只有酶**家族名**和菌名，没有 EC / 反应式 / 序列
+- 先收敛：一个家族名对应多个 EC（底物与辅因子不同），用户选定 EC 1.1.1.1
+- 交棒入口 A：建档 → 取 reviewed 模板 → CD-HIT（单基因组 100%）→ DIAMOND
 - 命中后并入候选自身注释（来自基因组 GenBank），同向即 `SEQUENCE_ANNOTATION_CONFIRMED`，跳过结构
-- 交付集写入 `outputs/task/`，并跑 `check_deliverables.py` 自查
 ```
 
 结果（真实运行：*S. epidermidis* GCF_038181645.1，2,372 个蛋白）：
@@ -717,7 +750,7 @@ Agent:
 
 - 26 个 reviewed 模板，24 条模板-候选对齐，4 个蛋白通过快速通道
 - 另一个 25.4% identity 的 2,3-丁二醇脱氢酶**没有**被确认——它的注释是另一个活性
-- **注意**：模板集若包含同种条目（*S. epidermidis* 自己的 reviewed ADH），最高命中会变成 100%，那是**同种自比对**，不是跨物种证据；看到 100% 先核对模板物种
+- **注意**：模板集若包含同种条目（*S. epidermidis* 自己的 reviewed ADH），最高命中会变成 100%，那是**同种自比对**，不是跨物种证据
 
 ---
 

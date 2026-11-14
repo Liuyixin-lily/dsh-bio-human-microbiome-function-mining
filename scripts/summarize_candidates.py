@@ -437,12 +437,53 @@ def project_card(project: dict, project_path: Path | None = None) -> dict:
     return {}
 
 
+def write_no_candidate_delivery(outdir: Path, scored_path: Path, project_path: str | None) -> None:
+    """A zero-hit screen is a result, not a crash.
+
+    Summarising used to abort with "no candidate rows", so a legitimate "nothing passed the
+    thresholds" run produced no deliverable at all and the completeness check called it incomplete.
+    The delivery is an empty table plus a note that says what was screened and what to try next.
+    """
+    outdir.mkdir(parents=True, exist_ok=True)
+    write_tsv(outdir / "final_target_candidates.tsv", FINAL_FIELDS, [])
+    write_tsv(outdir / "high_confidence_candidate_summary.tsv", SUMMARY_FIELDS, [])
+    write_tsv(outdir / "experimental_hypotheses.tsv", HYPOTHESIS_FIELDS, [])
+    card = project_card({"target_function_card": (project_path or "")}, Path(project_path) if project_path else None)
+    ec = str(card.get("ec") or "").strip()
+    name = str(card.get("enzyme_name") or card.get("target_name") or "").strip()
+    lines = [
+        "# Why final_target_candidates.tsv is empty",
+        "",
+        f"No candidate passed the sequence screening thresholds for `{name or 'the target'}`"
+        + (f" (EC {ec})" if ec else "") + ".",
+        f"The scored table `{scored_path.name}` has zero data rows, so there is nothing to rank.",
+        "",
+        "This is a real result, not a failed run: nothing in the candidate proteome matched the "
+        "reference set at the configured identity/coverage/E-value cut-offs.",
+        "",
+        "What to try, in order:",
+        "",
+        "1. Confirm the reference set actually covers the target — count the templates and check "
+        "whether they are host-only, which will miss a bacterial fold.",
+        "2. Widen the cut-offs deliberately and record the change: "
+        "`--identity 15 --coverage 0.5` (say so in the report; a loosened threshold is a different "
+        "claim).",
+        "3. Switch channel: if candidate structure files exist, US-align against the templates; "
+        "sequence identity is a poor guide below ~20%.",
+        "4. Accept the negative and write it up: a statement of no sequence-level candidate is a "
+        "finding when the search space and thresholds are stated.",
+        "",
+    ]
+    (outdir / "final_target_candidates_note.md").write_text("\n".join(lines), encoding="utf-8")
+    print(f"wrote an empty delivery set with an explanation in {outdir}")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     rows = read_tsv(args.scored)
     if not rows:
-        print(f"error: no candidate rows in {args.scored}", file=sys.stderr)
-        return 2
+        write_no_candidate_delivery(args.outdir, args.scored, args.project)
+        return 0
     evidence_rows = read_tsv(args.gene_evidence) if args.gene_evidence else []
     evidence_by_id = {row.get("candidate_id") or row.get("protein_accession") or "": row for row in evidence_rows if row}
     literature_rows = read_tsv(args.literature) if args.literature else []

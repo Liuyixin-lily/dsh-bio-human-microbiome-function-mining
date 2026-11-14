@@ -495,7 +495,8 @@ research scenarios:
 | 1 | Known metabolic reaction | Substrate/product is known, but no template sequence or EC. | sphingomyelin -> ceramide + phosphocholine | `reaction` |
 | 2 | Known enzyme name / EC | Functional annotation is known. | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
 | 3 | Known reference sequence | A FASTA or UniProt accession is available. | DDC / P20711 | `sequence` |
-| 4 | Known microbe + enzyme family | Only "this enzyme class in this species" is known. | alcohol dehydrogenase in S. epidermidis | entry B (`B→A`) |
+| 4 | A physiological process is the focus | The process is known, the enzyme is not. | skin xenobiotic metabolism | entry B (`B→A`) |
+| 5 | Known microbe + enzyme family | Only "this enzyme class in this species" is known. | alcohol dehydrogenase in S. epidermidis | entry B (`B→A`) |
 
 Each example contains a prompt you can send directly, the workflow the Agent
 will run with the bundled skills, and the result of a real run so you can see what
@@ -663,22 +664,62 @@ Raw tool output paths, tool names, versions, thresholds, and source annotations 
 - [references/literature_evidence.md](references/literature_evidence.md): verified literature evidence chain guide.
 - [references/acceptance_criteria.md](references/acceptance_criteria.md): task completion checklist.
 
-### Example 4: given only a microbe and an enzyme family, rank the candidates first and then hand off to screening
+### Example 4: focus on a physiological process, get the ranked candidate enzyme and taxa lists, then hand off to screening
+
+```text
+User:
+"I am interested in the physiological processes of skin xenobiotic metabolism.
+Which metabolic enzymes and which microbes are worth looking at?"
+
+Agent:
+- Routes to entry B: a focus point only, no EC, reaction or sequence.
+- Search the library: `skin_xenobiotic` holds six xenobiotic classes, all `starter` (no per-item
+  evidence), and the hits must be labelled as such.
+- The library does not cover it fully, so `discover_enzyme_candidates.py` fills in from literature: a
+  CJK topic is mapped through a fixed domain-term table, and if nothing maps the agent asks instead
+  of guessing.
+- `build_candidate_shortlist.py` merges the library, the literature discovery and the site taxa list
+  into two recommendation tables (evidence tier first, score within the tier).
+- You pick a row, then `run_entry_b.py --select <target_id> --ec <EC> --proteome ...` hands off to
+  entry A for screening.
+```
+
+Recommendation tables (real run, skin + xenobiotic metabolism):
+
+| Rank | Recommended enzyme | EC | Evidence |
+| --- | --- | --- | --- |
+| 1 | azoreductase (Azo1) | - | `literature_verified`, PMID 33385118 |
+| 2 | beta-glucuronidase | 3.2.1.31 | `curated_prior` (PMID 26972811, 36099474; extrapolated from gut) |
+| 3-6 | epoxide hydrolase / 4-hydroxybenzoate 1-hydroxylase / naphthalene 1,2-dioxygenase / alcohol dehydrogenase | - | `curated_prior` (references retrieved, not sufficient for a skin claim) |
+
+| Rank | Recommended microbe | Site presence | Metabolic plausibility |
+| --- | --- | --- | --- |
+| 1 | *Cutibacterium acnes* | 5.000 | 4.000 |
+| 2 | *Staphylococcus epidermidis* | 5.000 | 4.000 |
+| 3 | *Staphylococcus aureus* | 5.000 | 3.000 |
+
+Both handoff branches are real results:
+
+- **A candidate with an EC** (beta-glucuronidase, EC 3.2.1.31) screened against *S. epidermidis*:
+  11 reviewed templates, **0 alignments** above identity 20 / coverage 0.7 / E 1e-5. A zero-hit
+  screen is a result: the delivery records what was screened, at which thresholds, and what to try
+  next (structure channel, or a deliberately loosened threshold that is stated as such).
+- **A candidate without an EC** (azoreductase): the handoff **stops and asks for an EC**. One family
+  name maps to several ECs; the plugin does not choose for you.
+
+### Example 5: given only a microbe and an enzyme family, converge and then screen out the candidates
 
 ```text
 User:
 "Mine alcohol dehydrogenase in Staphylococcus epidermidis."
 
 Agent:
-- Routes to entry B->A: the sentence names an enzyme **family** and a species, but no EC, reaction or
-  sequence, so it is a focus point rather than a target.
-- Converge first: one family name maps to several ECs (different substrates and cofactors), so the
-  user picks one (EC 1.1.1.1 in this case).
-- Then hand off to entry A: build the card, fetch reviewed templates, CD-HIT (single genome 100%),
-  DIAMOND (identity>=20, coverage>=0.7, E<=1e-5).
-- Join each hit's own annotation from the genome's GenBank; if it agrees with the target activity the
-  row is `SEQUENCE_ANNOTATION_CONFIRMED` and structure screening is skipped.
-- Deliverables go to `outputs/task/` and the run ends with `check_deliverables.py`.
+- Also entry B: the sentence names an enzyme family and a species, but no EC, reaction or sequence.
+- Converge first: one family maps to several ECs (different substrates and cofactors); the user picks
+  EC 1.1.1.1.
+- Hand off to entry A: card, reviewed templates, CD-HIT (single genome 100%), DIAMOND.
+- Join each hit's own annotation from the genome's GenBank; if it agrees, the row is
+  `SEQUENCE_ANNOTATION_CONFIRMED` and structure screening is skipped.
 ```
 
 Result (real run: *S. epidermidis* GCF_038181645.1, 2,372 proteins):
@@ -690,9 +731,8 @@ Result (real run: *S. epidermidis* GCF_038181645.1, 2,372 proteins):
 | 3 | WP_002470719.1 | sp\|P9WQB9\|ADHD_MYCTU | 39.9% | 97.8% | 9.9e-76 | zinc-dependent ADH family |
 | 4 | WP_002456033.1 | sp\|Q0KDL6\|ADH_CUPNH | 34.9% | 96.2% | 9.5e-62 | zinc-dependent ADH family |
 
-- 26 reviewed templates, 24 template-candidate alignments, 4 proteins pass the fast path.
+- 26 reviewed templates, 24 template-candidate alignments, four proteins through the fast path.
 - A 2,3-butanediol dehydrogenase at 25.4% identity is **not** confirmed: its annotation is a
   different activity.
-- **Caveat**: if the template set contains a same-species entry (*S. epidermidis*'s own reviewed
-  ADH), the best hit becomes 100% - that is a self-match, not cross-species evidence. Check the
-  template organism before reading 100% as a discovery.
+- **Caveat**: a same-species template (*S. epidermidis*'s own reviewed ADH) makes the best hit 100%,
+  which is a self-match, not cross-species evidence.

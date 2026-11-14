@@ -3713,6 +3713,35 @@ def main() -> int:
         assert explained.returncode == 1
         assert "explains the empty table" in explained.stdout
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # a zero-hit screen must deliver an explained empty set, not abort
+        scored = tmp / "scored_candidates.tsv"
+        scored.write_text("candidate_id\n", encoding="utf-8")
+        out = tmp / "outputs" / "task"
+        out.mkdir(parents=True)
+        (out / "scored_candidates.tsv").write_text("candidate_id\n", encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "summarize_candidates.py"),
+             "--scored", str(out / "scored_candidates.tsv"), "--outdir", str(out)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        for name in ("final_target_candidates.tsv", "high_confidence_candidate_summary.tsv",
+                     "experimental_hypotheses.tsv", "final_target_candidates_note.md"):
+            assert (out / name).is_file(), name
+        note = (out / "final_target_candidates_note.md").read_text(encoding="utf-8")
+        assert "zero data rows" in note
+        assert "What to try" in note
+        # and the completeness check accepts it
+        checked = subprocess.run(
+            [sys.executable, str(SCRIPTS / "check_deliverables.py"), "--project-dir", str(tmp)],
+            capture_output=True, text=True,
+        )
+        assert "explains the empty table" in checked.stdout
+        assert "no candidate passed the screening thresholds" in checked.stdout
+        assert "complete" in checked.stdout
+
     print("example test passed")
     return 0
 

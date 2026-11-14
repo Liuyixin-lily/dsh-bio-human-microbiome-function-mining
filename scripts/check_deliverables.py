@@ -70,7 +70,14 @@ def check(project_dir: Path) -> list[dict[str, str]]:
             "--outdir outputs/task")
     else:
         count = rows(final)
-        add(final.name, "ok" if count else "empty", f"{count} row(s)")
+        scored_rows = rows(scored) if scored is not None else 0
+        if count:
+            add(final.name, "ok", f"{count} row(s)")
+        elif scored_rows == 0:
+            # a zero-hit screen is a delivered result, not an unfinished run
+            add(final.name, "ok", "0 row(s): no candidate passed the screening thresholds")
+        else:
+            add(final.name, "empty", f"0 row(s) although {scored_rows} candidate(s) were scored")
         if count == 0:
             note = task / "final_target_candidates_note.md"
             if note.is_file():
