@@ -1,5 +1,5 @@
 {
-  "library_version": "2.1.0",
+  "library_version": "2.2.0",
   "reviewed_on": "2026-11-14",
   "domain": {
     "id": "skin",
@@ -9,13 +9,11 @@
     "role": "shipped_example",
     "expansion": {
       "method": "manual_curation",
-      "note_zh": "2.0 版只保留逐条有已验证文献的条目。原先 27 条未带引用的策展条目已移到 examples/unverified/，不再默认加载。"
+      "note_zh": "2.x 版只保留逐条有已验证文献、且在 README 示例中出现过的条目。原先 27 条未带引用的策展条目在 examples/unverified/；组氨酸酶（EC 4.3.1.3）虽已带证据，但不在示例中，2.2.0 起移除。"
     },
     "keywords_zh": [
       "保湿",
-      "光保护",
       "头皮",
-      "尿刊酸",
       "敏感肌",
       "氨",
       "湿疹",
@@ -27,35 +25,25 @@
       "皮脂腺",
       "磷酸胆碱",
       "神经酰胺",
-      "精氨酸",
       "精氨酸酶",
-      "组氨酸",
-      "组氨酸酶",
       "表皮",
       "面部",
       "鞘磷脂"
     ],
     "keywords_en": [
       "ammonia",
-      "arginase",
-      "arginine",
-      "arginine deiminase",
       "atopic dermatitis",
       "ceramide",
       "epidermis",
-      "histidase",
-      "histidine",
       "phosphocholine",
-      "photoprotection",
       "sebaceous",
       "skin",
       "skin barrier",
       "skin microbiome",
-      "sphingomyelin",
-      "urocanic acid"
+      "sphingomyelin"
     ],
-    "niche_summary_zh": "皮肤是低生物量、高脂质、偏酸的表面。本域只收录两条有已验证文献支撑的靶点：角质层鞘磷脂水解（屏障破坏）与组氨酸→尿刊酸（光保护/NMF）。",
-    "selection_hint_zh": "这个域很小，是刻意为之：每条都带真实 PMID。用户要别的部位或别的过程时，按 library/README 的流程用检索证据自己生成域，而不是期望这里覆盖。",
+    "niche_summary_zh": "皮肤是低生物量、高脂质、偏酸的表面。本域只收录有已验证文献支撑的靶点：角质层鞘磷脂水解（屏障破坏）——与 README 示例 1/2 同一个 EC，便于对照。",
+    "selection_hint_zh": "这个域刻意只留一条：它与 README 的示例 1/2（EC 3.1.4.12）对应，带真实 PMID，能直接对着示例走一遍。要别的部位或过程，按 library/README 的流程用检索证据自己生成域。",
     "focus_taxa": [
       {
         "taxon": "Staphylococcus aureus",
@@ -68,18 +56,6 @@
         "name_zh": "表皮葡萄球菌",
         "role_zh": "皮肤优势共生菌；基因组存在鞘磷脂酶同源基因，但体内活性尚无定论（本条为待验证候选，不是已证明）。",
         "attention": "medium"
-      },
-      {
-        "taxon": "Pseudomonas putida",
-        "name_zh": "恶臭假单胞菌",
-        "role_zh": "HutH（组氨酸酶）的经典模式菌：酶被纯化并表征，是微生物侧参考/阳性对照，不是皮肤定植菌。",
-        "attention": "low"
-      },
-      {
-        "taxon": "Bacillus subtilis",
-        "name_zh": "枯草芽孢杆菌",
-        "role_zh": "hut 操纵子与 hutH 已被测序注释，作为细菌组氨酸酶的对照参考。",
-        "attention": "low"
       }
     ],
     "processes": [
@@ -150,89 +126,6 @@
             "provenance_source": "literature",
             "provenance_note_zh": "EC 3.1.4.12 取自 IUBMB 酶命名。金黄色葡萄球菌 hlb 编码鞘磷脂酶、Sph 为毒力决定因子，由 PMID 41100442 与 42809547 支持；PMID 42254005 为 α/β-溶血素综述；PMID 9874672 观察到特应性皮炎皮肤菌群携带鞘磷脂酶相关基因。表皮葡萄球菌那条仅为候选，不被上述文献支持为已证明功能。",
             "validation_note_zh": "以荧光或 LC-MS 鞘磷脂底物测磷酸胆碱/神经酰胺释放，比较野生株与 hlb/sph 缺失株，并做回补；这一步才能把“有同源基因”升级为“该菌确有鞘磷脂酶活性”。"
-          }
-        ]
-      },
-      {
-        "id": "skin_histidine_urocanic",
-        "name_zh": "组氨酸分解与尿刊酸（NMF / 光保护）",
-        "name_en": "Histidine catabolism to urocanic acid",
-        "keywords_zh": [
-          "组氨酸",
-          "组氨酸酶",
-          "尿刊酸",
-          "UCA",
-          "天然保湿因子",
-          "NMF",
-          "光保护",
-          "紫外线",
-          "丝聚蛋白",
-          "皮肤屏障"
-        ],
-        "keywords_en": [
-          "histidine",
-          "histidase",
-          "histidine ammonia-lyase",
-          "HAL",
-          "urocanic acid",
-          "UCA",
-          "natural moisturizing factor",
-          "NMF",
-          "photoprotection",
-          "UV"
-        ],
-        "why_it_matters_zh": "角质层把丝聚蛋白降解产生的游离组氨酸经组氨酸酶转为反式尿刊酸，后者是角质层主要的紫外线吸收物质，也是天然保湿因子的一部分。宿主这一通路已被充分证明；皮肤菌是否也贡献这一步尚无定论——这正是值得筛的问题。",
-        "host_context_zh": "角化细胞在终末分化时上调组氨酸酶，把 L-组氨酸转为反式尿刊酸 + 氨；组氨酸酶缺失（histidinemic）小鼠角质层尿刊酸显著下降、对 UVB 更敏感（PMID 20686493）。",
-        "microbe_effect_zh": "细菌 HutH 催化同一反应（L-组氨酸 -> 反式尿刊酸 + NH3）。皮肤表面细菌是否在体表贡献尿刊酸池、贡献多大，需要先做序列/结构筛查再用酶活验证。",
-        "key_taxa": [
-          "Pseudomonas putida",
-          "Bacillus subtilis"
-        ],
-        "enzymes": [
-          {
-            "id": "skin_histidine_ammonia_lyase",
-            "enzyme_name_zh": "组氨酸酶（组氨酸氨裂解酶）",
-            "enzyme_name_en": "histidine ammonia-lyase (histidase)",
-            "gene_symbols": [
-              "hutH",
-              "HAL"
-            ],
-            "ec": "4.3.1.3",
-            "ec_confidence": "full",
-            "reaction_zh": "L-组氨酸 -> 反式尿刊酸 + NH3",
-            "substrate_zh": "L-组氨酸",
-            "product_zh": "反式尿刊酸 + 氨",
-            "cofactor": "",
-            "fold_hint": "含催化性脱氢丙氨酸（dehydroalanine）亲电中心的四聚体，属 lyase 类",
-            "known_microbial_examples": [
-              {
-                "taxon": "Pseudomonas putida",
-                "detail_zh": "HutH 在大肠杆菌中高表达后被纯化并表征，是细菌组氨酸酶的经典参考（PMID 8251759）。"
-              },
-              {
-                "taxon": "Bacillus subtilis",
-                "detail_zh": "hut 操纵子含 hutH（组氨酸酶）并已被测序注释（PMID 7704263）。"
-              },
-              {
-                "taxon": "Streptomyces griseus",
-                "detail_zh": "HutH 被纯化至均一并克隆了结构基因（PMID 1612436）。"
-              }
-            ],
-            "entry_point": "ec",
-            "dark_matter": false,
-            "priority": "high",
-            "evidence_status": "literature_verified",
-            "evidence_refs": [
-              "PMID:41002986",
-              "PMID:20686493",
-              "PMID:18280705",
-              "PMID:8251759",
-              "PMID:1612436",
-              "PMID:7704263"
-            ],
-            "provenance_source": "literature",
-            "provenance_note_zh": "EC 4.3.1.3 取自 IUBMB 酶命名。证据分两层：宿主侧——皮肤氨基酸代谢综述（PMID 41002986）、组氨酸酶决定角质层尿刊酸与 UVB 敏感性（PMID 20686493）、角化细胞组氨酸酶表达调控（PMID 18280705）；微生物侧——HutH 的纯化表征与基因（PMID 8251759、1612436、7704263）。**皮肤菌在体表对尿刊酸池的贡献没有任何文献结论**，本条目的价值正是把这个问题变成可筛的目标，而不是声称已有答案。",
-            "validation_note_zh": "以 L-组氨酸为底物、277 nm 监测反式尿刊酸生成（文献同法），比较候选菌野生株与 hutH 缺失株；同时 LC-MS 定量培养上清尿刊酸，并设宿主角化细胞对照以区分宿主贡献。只有缺失株失去该活性，才能证明是菌源酶而非培养基或宿主残留。"
           }
         ]
       }

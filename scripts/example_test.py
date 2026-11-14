@@ -419,7 +419,7 @@ def main() -> int:
         )
         # the shipped library is deliberately tiny: only entries with verified literature
         assert [d["id"] for d in domains] == ["skin"]
-        assert domains[0]["processes"] and len(domains[0]["processes"]) == 2
+        assert domains[0]["processes"] and len(domains[0]["processes"]) == 1
         # the shipped domain is a reference example, not a coverage claim
         assert domains[0]["role"] == "shipped_example"
 
@@ -524,7 +524,7 @@ def main() -> int:
         card = json.loads(sel_dir.joinpath("target_function_card.json").read_text(encoding="utf-8"))
         assert card["input_source"] == "library"
         assert card["library_id"] == "skin_sphingomyelin_phosphodiesterase"
-        assert card["library_version"] == "2.1.0"
+        assert card["library_version"] == "2.2.0"
         assert card["ec"] == "3.1.4.12"
         assert card["known_microbial_enzymes"]
         # every later stage must accept the card unchanged
@@ -560,7 +560,7 @@ def main() -> int:
         with flat.open("r", encoding="utf-8") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
         # the shipped library is exactly the evidenced set
-        assert len(rows) == 2
+        assert len(rows) == 1
         assert {row["domain_id"] for row in rows} == {"skin"}
         assert all(row["evidence_status"] == "literature_verified" for row in rows)
         assert all(row["evidence_refs"] for row in rows)
@@ -1380,14 +1380,14 @@ def main() -> int:
             [sys.executable, str(browse), "--list-domains"],
             check=True, capture_output=True, text=True,
         ).stdout
-        assert "2 processes, 2 enzyme targets" in plain
+        assert "1 process, 1 enzyme target" in plain
 
         # The shipped library passes its own gate: every entry carries a verified id.
         gated = subprocess.run(
             [sys.executable, str(browse), "--require-evidence", "--list-domains"],
             check=True, capture_output=True, text=True,
         ).stdout
-        assert "2 processes, 2 enzyme targets" in gated
+        assert "1 process, 1 enzyme target" in gated
         assert "已隔离" not in gated
 
         # The unverified reference content is entirely quarantined by the same gate.

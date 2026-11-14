@@ -696,6 +696,11 @@ def _merged_taxa_view(index: "Index", domains: list[dict[str, Any]]) -> dict[str
     }
 
 
+def _plural(count: int, singular: str, plural: str | None = None) -> str:
+    word = singular if count == 1 else (plural or singular + "s")
+    return f"{count} {word}"
+
+
 def fmt_keywords(items: list[str], limit: int = 8) -> str:
     return ", ".join(items[:limit]) + (" …" if len(items) > limit else "")
 
@@ -715,7 +720,8 @@ def render_domain_line(domain: dict[str, Any], index: "Index | None" = None) -> 
     role_tag = "" if role in (None, "shipped_example") else f" [{role}]"
     return (
         f"{domain['id']:<8} {domain['name_zh']} / {domain['name_en']} "
-        f"[{domain.get('content_status')}]{role_tag}  {n_process} processes, {n_enzyme} enzyme targets"
+        f"[{domain.get('content_status')}]{role_tag}  "
+        f"{_plural(n_process, 'process', 'processes')}, {_plural(n_enzyme, 'enzyme target')}"
     )
 
 
@@ -823,7 +829,7 @@ def render_hit(hit: dict[str, Any]) -> str:
         n_enzyme = sum(len(p.get("enzymes") or []) for p in domain.get("processes") or [])
         return (
             f"[{hit['score']:>3}] DOMAIN  {domain['id']}: {domain['name_zh']} / {domain['name_en']} "
-            f"({n_process} processes, {n_enzyme} enzyme targets)\n"
+            f"({_plural(n_process, 'process', 'processes')}, {_plural(n_enzyme, 'enzyme target')})\n"
             f"        -> 看生理过程: --list-processes {domain['id']}"
             f"   看关注菌: --list-taxa {domain['id']}"
         )
