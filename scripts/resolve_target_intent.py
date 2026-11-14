@@ -522,6 +522,20 @@ def plan_route(detected: dict[str, Any], coverage: dict[str, Any]) -> dict[str, 
                     "按身体部位 → 生理过程 → 酶目标逐级展示，让用户选。",
                     "python3 scripts/browse_target_library.py --interactive --output-dir outputs/task",
                 ),
+                _step(
+                    "候选多于一个时先排序，再让用户挑先做哪个（酶与菌各一张表）。",
+                    "python3 scripts/score_target_priorities.py "
+                    "--seed-from-library library/<domain>.json --output outputs/task/priorities",
+                    needs=["按 0–5 补空的分项", "或提供 --genomes / --literature 让它可推导"],
+                ),
+                _step(
+                    "补齐分项后再出正式排名（TM 优先或层级优先由用户选）。",
+                    "python3 scripts/score_target_priorities.py "
+                    "--enzymes outputs/task/priorities/enzyme_registry.seed.tsv "
+                    "--taxa outputs/task/priorities/taxa_registry.seed.tsv "
+                    "--library library/<domain>.json --auto-score --site <site> "
+                    "--output outputs/task/priorities",
+                ),
             ],
             "missing": [],
         }

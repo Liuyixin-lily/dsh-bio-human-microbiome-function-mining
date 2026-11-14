@@ -366,6 +366,9 @@ class AutoScorer:
         disease: str | None = None,
     ) -> None:
         self.enzyme_facts: dict[str, dict[str, Any]] = {}
+        # focus_taxa from the library say which organisms a curated process actually implicates;
+        # that is the only library-derived signal a taxon ranking can legitimately use.
+        self.taxa_focus: dict[str, str] = {}
         self.reference_rows: dict[str, list[dict[str, str]]] = {}
         self.taxa_stats: dict[str, dict[str, Any]] = {}
         self.sources_loaded: list[str] = []
@@ -381,6 +384,11 @@ class AutoScorer:
             for process in (payload.get("domain") or {}).get("processes") or []:
                 for enzyme in process.get("enzymes") or []:
                     self.enzyme_facts[enzyme.get("id", "")] = enzyme
+            for taxon in (payload.get("domain") or {}).get("focus_taxa") or []:
+                name = str(taxon.get("taxon") or "").strip()
+                attention = str(taxon.get("attention") or "").strip().lower()
+                if name:
+                    self.taxa_focus[name] = attention
             self.sources_loaded.append(f"library={library_path.name}")
 
         if reference_path is not None and reference_path.is_file():
@@ -426,6 +434,24 @@ class AutoScorer:
             else:
                 novelty = 2.0
             out["novelty_score"] = (novelty, "auto:library")
+
+            # Evidence strength has to count. Without it a target that merely carries an EC
+            # outranks the only entry the literature actually supports, which is exactly backwards
+            # for "which candidate should I work on first".
+            status = str(facts.get("evidence_status") or "").strip()
+            ref_count = len(facts.get("evidence_refs") or [])
+            if status == "literature_verified" and ref_count >= 2:
+                site_score = 5.0
+            elif status == "literature_verified":
+                site_score = 4.0
+            elif ref_count:
+                site_score = 2.0     # references retrieved, but not sufficient for the claim
+            else:
+                # curated prior with no references is UNKNOWN, not "low evidence". Leaving it
+                # unset keeps the distinction the whole plugin depends on.
+                site_score = None
+            if site_score is not None:
+                out["site_evidence_score"] = (site_score, "auto:library")
 
         out.update(self._literature_scores(target_id, facts))
 
@@ -550,7 +576,12 @@ class AutoScorer:
     # -- taxa ------------------------------------------------------------
     def taxa_scores(self, genus: str, species: str) -> dict[str, tuple[float, str]]:
         out: dict[str, tuple[float, str]] = {}
-        candidates = [f"{genus} {species}".strip(), species.strip(), genus.strip()]
+        binomial = f"{genus} {species}".strip()
+        if binomial in self.taxa_focus:
+            attention = self.taxa_focus[binomial]
+            plausibility = {"high": 4.0, "medium": 3.0, "low": 2.0}.get(attention, 2.0)
+            out["metabolic_plausibility_score"] = (plausibility, "auto:library")
+        candidates = [binomial, species.strip(), genus.strip()]
         stats = None
         for key in candidates:
             if key and key in self.taxa_stats:

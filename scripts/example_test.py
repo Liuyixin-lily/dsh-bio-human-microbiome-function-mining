@@ -3151,6 +3151,90 @@ def main() -> int:
         )
         assert "1 process, 1 enzyme target" in gated2.stdout
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # Ranking must reflect evidence, and "no evidence" must not be scored as "low evidence".
+        enumerator = tmp / "enzymes.tsv"
+        enumerator.write_text(
+            "target_id\tname\tsite_process\tbiochemical_clarity_score\n"
+            "verified_two\tazoreductase\tp\t\n"
+            "prior_only\testerase\tp\t\n",
+            encoding="utf-8",
+        )
+        library = tmp / "lib.json"
+        library.write_text(json.dumps({"library_version": "0.1.0", "domain": {
+            "id": "skin_x", "name_zh": "皮肤", "name_en": "Skin",
+            "content_status": "starter", "role": "user_defined",
+            "keywords_zh": ["x"], "keywords_en": ["x"],
+            "niche_summary_zh": "t", "selection_hint_zh": "t",
+            "focus_taxa": [{"taxon": "Cutibacterium acnes", "attention": "high"}],
+            "processes": [{"id": "p", "name_zh": "p", "name_en": "p",
+                           "keywords_zh": ["x"], "keywords_en": ["x"], "why_it_matters_zh": "t",
+                           "host_context_zh": "h", "microbe_effect_zh": "m",
+                           "key_taxa": ["Cutibacterium acnes"],
+                           "enzymes": [
+                               {"id": "verified_two", "enzyme_name_zh": "a",
+                                "enzyme_name_en": "a", "ec": "", "ec_confidence": "none",
+                                "reaction_zh": "r", "substrate_zh": "s", "product_zh": "p",
+                                "entry_point": "reaction", "dark_matter": False,
+                                "priority": "high", "evidence_status": "literature_verified",
+                                "evidence_refs": ["PMID:11111111", "PMID:22222222"],
+                                "provenance_source": "literature",
+                                "provenance_note_zh": "two refs", "validation_note_zh": "assay"},
+                               {"id": "prior_only", "enzyme_name_zh": "b",
+                                "enzyme_name_en": "b", "ec": "", "ec_confidence": "none",
+                                "reaction_zh": "r", "substrate_zh": "s", "product_zh": "p",
+                                "entry_point": "reaction", "dark_matter": False,
+                                "priority": "medium", "evidence_status": "curated_prior",
+                                "evidence_refs": [], "provenance_source": "user_supplied",
+                                "provenance_note_zh": "prior", "validation_note_zh": "assay"},
+                           ]}],
+        }}, ensure_ascii=False), encoding="utf-8")
+
+        out = tmp / "ranked"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_target_priorities.py"),
+             "--enzymes", str(enumerator), "--library", str(library),
+             "--auto-score", "--allow-missing-scores", "--site", "skin",
+             "--output", str(out)],
+            check=True, capture_output=True,
+        )
+        with (out / "enzyme_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            rows = {r["target_id"]: r for r in csv.DictReader(handle, delimiter="\t")}
+        # verified with two references earns a high site-evidence score
+        assert rows["verified_two"]["site_evidence_score"] == "5.000"
+        # curated prior with no references stays UNKNOWN: the cell counts as 0 for the weighted
+        # sum (the documented convention) but the provenance says "missing", not "auto:library",
+        # so nobody can mistake it for measured low evidence
+        assert "site_evidence_score=missing" in rows["prior_only"]["score_sources"]
+        assert rows["prior_only"]["site_evidence_score"] == "0.000"
+        # and the verified target therefore ranks first
+        assert rows["verified_two"]["rank"] == "1"
+
+        # focus_taxa feed metabolic plausibility for the taxa ranking
+        taxa = tmp / "taxa.tsv"
+        taxa.write_text(
+            "taxon_id\tgenus\tspecies\tdisplay_name\tsite_presence_score\n"
+            "cutibacterium_acnes\tCutibacterium\tacnes\tCutibacterium acnes\t5\n"
+            "other_species\tOther\tspecies\tOther species\t5\n",
+            encoding="utf-8",
+        )
+        taxa_out = tmp / "taxa_ranked"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_target_priorities.py"),
+             "--taxa", str(taxa), "--library", str(library),
+             "--auto-score", "--allow-missing-scores", "--site", "skin",
+             "--output", str(taxa_out)],
+            check=True, capture_output=True,
+        )
+        with (taxa_out / "taxa_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            taxa_rows = {r["taxon_id"]: r for r in csv.DictReader(handle, delimiter="\t")}
+        assert taxa_rows["cutibacterium_acnes"]["metabolic_plausibility_score"] == "4.000"
+        # same convention as above: not derived -> source says missing, cell counts as 0
+        assert "metabolic_plausibility_score=missing" in taxa_rows["other_species"]["score_sources"]
+        assert taxa_rows["other_species"]["metabolic_plausibility_score"] == "0.000"
+
     print("example test passed")
     return 0
 
