@@ -1,5 +1,24 @@
 # Target library / 目标库
 
+## 这个库是必需的还是可选的
+
+**可选的。** 删掉 `library/` 里的全部内容，插件仍然能做完所有功能——只是少了「先看哪几个酶」这份菜单。代价是明确可数的：
+
+| 能力 | 有库 | 没有库 |
+| --- | --- | --- |
+| 入口 B（凭兴趣挑目标） | 有菜单可挑 | 无，只能走入口 A（给出 EC / 反应 / 序列） |
+| `--auto-score` 自动分项 | 8 项自动（库 3 + 参考酶 1 + genome-search 2 + 文献 2） | 4 项自动（genome-search 2 + 文献 2），另外 3 项退回人工/缺口 |
+| 按部位挑基因组、序列/结构/注释/文献、排序、外包工作单 | 一样 | 一样 |
+
+空库是被支持的状态，不是错误：
+
+```bash
+python3 scripts/browse_target_library.py --library-dir /tmp/empty --list-domains
+# 目标库为空（/tmp/empty）。这不是错误——库只是可选的「菜单」。
+```
+
+路由脚本也会区分两种"没有命中"：`library: not configured`（没配库）与 `library: MISS at this site`（配了库但这个部位没覆盖）。
+
 ## 为什么只有两个部位
 
 必须先说清楚：`skin.json` 和 `gut.json` 是**示例参考域**（`role: shipped_example`），不是人体微生物组的覆盖范围。

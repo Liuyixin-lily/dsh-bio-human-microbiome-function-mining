@@ -46,6 +46,18 @@ already has.
 If a user starts vague and then names the enzyme themselves, stop browsing and
 switch to `build-target-function-card` immediately — do not keep showing menus.
 
+## The library is optional
+
+Nothing here is required for the plugin to work. With no library at all, entry A
+(EC / reaction / sequence), per-site genome search, screening, literature evidence,
+ranking and the CRO work order all still run. What the library adds is a menu of
+"which enzymes are worth screening at this site", plus per-enzyme facts the
+pre-screening ranker can derive scores from.
+
+So: if `--list-domains` says the library is empty, that is a **supported state**,
+not a broken install. Take the user to entry A or to `genome-search --source
+<site>`, and only build a domain when they want durable coverage.
+
 ## What the library is
 
 `library/<domain>.json` holds a three-level curated index:

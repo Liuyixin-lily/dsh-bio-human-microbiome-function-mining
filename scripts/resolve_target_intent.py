@@ -297,6 +297,15 @@ def library_coverage(
     payloads, errors = load_library(library_dir)
     if errors:
         return {"available": False, "error": "; ".join(errors), "hits": [], "hit_count": 0}
+    if not payloads:
+        # Not configured is different from "configured but does not cover this".
+        return {
+            "available": False,
+            "reason": "not_configured",
+            "hits": [],
+            "hit_count": 0,
+            "domains": [],
+        }
     index = Index(payloads)
     wanted = set(source_ids or [])
     same_site: list[dict[str, Any]] = []
@@ -456,6 +465,7 @@ def plan_route(detected: dict[str, Any], coverage: dict[str, Any]) -> dict[str, 
         }
 
     # 4. the curated library covers this phrasing -> entry B
+    library_configured = coverage.get("available", False)
     if library_hit:
         return {
             "entry": "B",
@@ -485,8 +495,10 @@ def plan_route(detected: dict[str, Any], coverage: dict[str, Any]) -> dict[str, 
         ) or query
         steps = [
             _step(
-                f"目标库没有覆盖「{site_text} · {group_text}」，这不是“功能不存在”，只是未策展。"
-                "先把问题收敛到一个可筛的东西：一个反应、一个 EC 号，或一个酶家族名。",
+                (f"目标库没有覆盖「{site_text} · {group_text}」，这不是“功能不存在”，只是未策展。"
+                 if library_configured
+                 else f"没有配置目标库，所以没有「{site_text} · {group_text}」的可选菜单；这不是“做不了”。")
+                + "先把问题收敛到一个可筛的东西：一个反应、一个 EC 号，或一个酶家族名。",
                 "python3 scripts/browse_target_library.py --validate   # 先确认这是未覆盖，而不是库坏了",
                 ["一个具体反应 / 一个 EC 号 / 一个酶名"],
             ),
@@ -506,10 +518,17 @@ def plan_route(detected: dict[str, Any], coverage: dict[str, Any]) -> dict[str, 
                 "--enzyme-name \"<酶名>\" --ec <EC>",
             ),
         ]
+        if not library_configured:
+            reason = (
+                f"识别到部位/表型（{site_text} · {group_text}）；未配置目标库，"
+                "因此没有可选菜单，直接走部位通用路径。"
+            )
+        else:
+            reason = f"识别到部位/表型（{site_text} · {group_text}），但目标库未覆盖。"
         return {
             "entry": "escalate",
             "confidence": "medium",
-            "reason_zh": f"识别到部位/表型（{site_text} · {group_text}），但目标库未覆盖。",
+            "reason_zh": reason,
             "literature_search_terms": search_terms,
             "steps": steps,
             "missing": ["把问题收敛到一个反应 / EC / 酶名"],
@@ -572,7 +591,10 @@ def render_text(result: dict[str, Any]) -> str:
 
     cov = result["library_coverage"]
     if not cov.get("available"):
-        lines.append(f"library: unavailable ({cov.get('error')})")
+        if cov.get("reason") == "not_configured":
+            lines.append("library: not configured (optional; every site still works via entry A)")
+        else:
+            lines.append(f"library: unavailable ({cov.get('error')})")
     elif cov["hit_count"]:
         top = cov["hits"][0]
         where = top["enzyme"] or top["process"] or top["domain"]

@@ -95,6 +95,8 @@ Users rarely know which enzyme they want; they know a phenotype ("skin metabolis
 | `library/skin.json` | Skin, `curated`: 10 processes / 19 enzyme targets (sebum lipolysis, ceramide homeostasis, surface acidification, ureolysis, thioalcohol body odour, amino-acid volatiles, nitrate-NO, hyaluronan degradation, Malassezia lipid dependence, lantibiotic competition) | `shipped_example` |
 | `library/gut.json` | Gut, `starter`: 5 processes / 8 enzyme targets (bile salt deconjugation, secondary bile acids, TMA, butyrate, tryptophan-indole) | `shipped_example` |
 
+**The library itself is optional.** Empty `library/` and the plugin still does everything except offering a menu of "which enzymes to look at first": entry A, per-site genome search, sequence/structure/annotation/literature evidence, ranking and the CRO work order are unaffected. The only countable cost is that `--auto-score` derives 8 components instead of 4, with 3 falling back to manual or a visible gap. An empty library is a supported state: `--list-domains` prints "empty, not an error" plus three alternative routes, and the router distinguishes `not configured` from `MISS at this site`.
+
 **Those two domains are reference examples, not a coverage claim.** They are skin and gut because the plugin grew out of those two projects, not because of any coverage argument. The per-site capability is generic: target cards, `genome-search` (seven built-in site vocabularies), sequence/structure/annotation/literature evidence are all site-agnostic — only the *menu* of "which enzymes are worth screening at this site" is limited. `--list-domains` prints the same reminder.
 
 ```bash

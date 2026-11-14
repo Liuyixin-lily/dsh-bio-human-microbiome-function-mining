@@ -164,7 +164,9 @@ def load_library(library_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
     errors: list[str] = []
     files = library_files(library_dir)
     if not files:
-        errors.append(f"no library JSON files found in {library_dir}")
+        # An empty library is a supported state: the plugin works without any
+        # curated menu (entry A + genome-search cover every body site). Only
+        # malformed content is an error.
         return payloads, errors
     for path in files:
         try:
@@ -1160,9 +1162,32 @@ def main(argv: list[str] | None = None) -> int:
 
     index = Index(payloads)
     did_something = False
+    empty_library = not index.domains
+
+    def print_empty_library_state() -> None:
+        print(f"目标库为空（{args.library_dir}）。这不是错误——库只是可选的「菜单」。")
+        print("没有库时仍然可以：")
+        print("  1) 直接给目标建档（入口 A）：")
+        print("     python3 scripts/build_target_function_card.py --output outputs/task/target_function_card.json \\")
+        print("            --enzyme-name \"<酶名>\" --ec <EC> --input-source ec")
+        print("  2) 按部位挑基因组（不依赖库）：")
+        print("     python3 skills/genome-search/scripts/genome_source_search.py taxa \\")
+        print("            --input work/taxa.txt --source <skin|oral|gut|respiratory|urogenital|blood|environment> \\")
+        print("            --out-xlsx work/genome_search/x.xlsx --out-tsv work/genome_search/x.tsv")
+        print("  3) 想要一份可选菜单就生成一个域：")
+        print("     python3 scripts/build_library_domain.py --init --domain <site> --output specs/<site>.json")
+        print("     python3 scripts/build_library_domain.py --build --spec specs/<site>.json --output library/<site>.json")
+        print("  4) 也可以指向另一份库：--library-dir <path>")
+
+    if empty_library and (args.list_domains or args.list_processes or args.list_taxa or args.search or args.show or args.interactive):
+        print_empty_library_state()
+        return 0
 
     if args.validate:
         did_something = True
+        if empty_library:
+            print(f"目标库为空（{args.library_dir}），没有内容需要校验。")
+            return 0
         errors = validate_library(payloads)
         if errors:
             print(f"library validation failed with {len(errors)} issue(s):", file=sys.stderr)

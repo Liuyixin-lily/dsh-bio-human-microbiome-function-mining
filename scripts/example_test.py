@@ -1265,6 +1265,90 @@ def main() -> int:
         assert "44444444(direct_functional_evidence,unverified)" in report
         assert "共现证据" in report
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        empty = tmp / "empty_library"
+        empty.mkdir()
+        browse = SCRIPTS / "browse_target_library.py"
+        resolver = SCRIPTS / "resolve_target_intent.py"
+
+        # The curated library is an optional menu. With no library at all the
+        # plugin must still work, and must say so instead of failing.
+        listed = subprocess.run(
+            [sys.executable, str(browse), "--library-dir", str(empty), "--list-domains"],
+            capture_output=True,
+            text=True,
+        )
+        assert listed.returncode == 0, listed.stderr
+        assert "目标库为空" in listed.stdout
+        assert "不是错误" in listed.stdout
+        assert "build_target_function_card.py" in listed.stdout
+        assert "genome_source_search.py" in listed.stdout
+
+        validated = subprocess.run(
+            [sys.executable, str(browse), "--library-dir", str(empty), "--validate"],
+            capture_output=True,
+            text=True,
+        )
+        assert validated.returncode == 0
+        assert "没有内容需要校验" in validated.stdout
+
+        # a routed question must distinguish "no menu configured" from
+        # "configured but this site is not covered"
+        no_menu = json.loads(
+            subprocess.run(
+                [sys.executable, str(resolver), "--library-dir", str(empty),
+                 "--query", "口腔牙周炎相关菌有哪些酶值得看", "--json"],
+                check=True, capture_output=True, text=True,
+            ).stdout
+        )
+        assert no_menu["library_coverage"]["reason"] == "not_configured"
+        assert "未配置目标库" in no_menu["route"]["reason_zh"]
+
+        with_menu = json.loads(
+            subprocess.run(
+                [sys.executable, str(resolver),
+                 "--query", "口腔牙周炎相关菌有哪些酶值得看", "--json"],
+                check=True, capture_output=True, text=True,
+            ).stdout
+        )
+        assert with_menu["library_coverage"]["available"] is True
+        assert "未覆盖" in with_menu["route"]["reason_zh"]
+
+        # with no library the auto-scorer simply has fewer sources; it must not
+        # silently score the missing ones
+        seed_dir = tmp / "seed"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_target_priorities.py"),
+             "--seed-from-library", str(ROOT / "library" / "skin.json"), "--output", str(seed_dir)],
+            check=True, capture_output=True,
+        )
+        seed = seed_dir / "enzyme_registry.seed.tsv"
+        with seed.open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        fields = list(rows[0].keys())
+        for row in rows:
+            row["assay_feasibility_score"] = "3"
+        with seed.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+
+        no_lib_out = tmp / "no_lib_ranked"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_target_priorities.py"),
+             "--enzymes", str(seed), "--auto-score", "--allow-missing-scores",
+             "--site", "skin", "--output", str(no_lib_out)],
+            check=True, capture_output=True,
+        )
+        with (no_lib_out / "enzyme_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            ranked = list(csv.DictReader(handle, delimiter="\t"))[0]
+        sources = dict(p.split("=", 1) for p in ranked["score_sources"].split(";") if "=" in p)
+        # without a library these must be gaps, not invented numbers
+        for key in ("biochemical_clarity_score", "microbial_plausibility_score", "novelty_score"):
+            assert sources[key] == "missing", (key, sources[key])
+        assert "按 0 计入" in (no_lib_out / "ranking_report.md").read_text(encoding="utf-8")
+
     print("example test passed")
     return 0
 
