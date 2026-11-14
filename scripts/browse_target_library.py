@@ -1390,6 +1390,30 @@ def main(argv: list[str] | None = None) -> int:
                         )
             if len(hits) > args.limit:
                 print(f"  … {len(hits) - args.limit} more hit(s); raise --limit to see them.")
+            if hits and all(hit["kind"] == "domain" for hit in hits):
+                # Matching only the body-site word is not coverage. "皮肤外源性物质代谢" hits the
+                # skin domain while the library covers exactly one skin process (sphingolipid),
+                # so reporting "1 hit" would tell the user the topic is curated when it is not.
+                print()
+                print(
+                    "注意：命中的只是**部位名**，没有过程或酶覆盖这个说法。"
+                    "库里该部位现有的过程如下，供判断这是否是你想问的："
+                )
+                seen_domains = set()
+                for hit in hits:
+                    domain = hit["domain"]
+                    if domain["id"] in seen_domains:
+                        continue
+                    seen_domains.add(domain["id"])
+                    for process in index.iter_processes(domain):
+                        print(
+                            f"  - [{domain['id']}] {process['id']}: "
+                            f"{process.get('name', process.get('label', ''))}"
+                        )
+                print(
+                    "  → 如果都不相关，说明这个问题尚未策展；用 resolve_target_intent.py --query 走路由，"
+                    "或 build_library_domain.py --init 建一个新域。"
+                )
 
     if args.list_taxa:
         did_something = True

@@ -2912,6 +2912,47 @@ def main() -> int:
         assert "DECISION REQUIRED" in summary.stderr
         assert "[include_other_ec]" in summary.stderr
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # A query that matches only the body-site word is not coverage: "皮肤外源性物质代谢"
+        # scored 80 on the skin domain while the library's only skin process is sphingolipid,
+        # so both the search output and the router must say the topic is not curated.
+        search = subprocess.run(
+            [sys.executable, str(SCRIPTS / "browse_target_library.py"),
+             "--search", "皮肤外源性物质代谢"],
+            capture_output=True, text=True,
+        )
+        assert search.returncode == 0, search.stderr
+        assert "命中的只是**部位名**" in search.stdout
+        assert "尚未策展" in search.stdout
+
+        routed = subprocess.run(
+            [sys.executable, str(SCRIPTS / "resolve_target_intent.py"),
+             "--query", "我比较关注皮肤外源性物质代谢相关的生理过程，有哪些代谢酶和哪些菌值得关注呢？"],
+            capture_output=True, text=True,
+        )
+        assert routed.returncode == 0, routed.stderr
+        assert "这个主题未被覆盖" in routed.stdout
+        assert "route: entry escalate" in routed.stdout
+        # it must NOT claim the library covers the topic
+        assert "目标库已覆盖这个说法" not in routed.stdout
+        assert "只命中部位名" in routed.stdout
+        # and it must name the three honest next routes
+        for route in ("browse_target_library.py --validate",
+                      "run_literature_search.sh",
+                      "build_library_domain.py --init"):
+            assert route in routed.stdout, route
+
+        # an explicit enzyme query still hits for real
+        enzyme = subprocess.run(
+            [sys.executable, str(SCRIPTS / "browse_target_library.py"),
+             "--search", "sphingomyelinase"],
+            capture_output=True, text=True,
+        )
+        assert enzyme.returncode == 0
+        assert "命中的只是**部位名**" not in enzyme.stdout
+
     print("example test passed")
     return 0
 

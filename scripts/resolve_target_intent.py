@@ -338,6 +338,12 @@ def library_coverage(
         if entry["score"] < COVERAGE_MIN_SCORE:
             weak_hits.append(entry)
             continue
+        # Matching the body-site word alone is not coverage. "皮肤外源性物质代谢" scores 80 on the
+        # skin DOMAIN while the library's only skin process is sphingolipid metabolism; calling
+        # that coverage tells the user their topic is curated when it is not.
+        if entry["kind"] == "domain":
+            weak_hits.append({**entry, "reason": "只命中部位名，没有过程/酶覆盖"})
+            continue
         if not wanted or entry["domain"] in wanted:
             same_site.append(entry)
         else:
@@ -352,6 +358,7 @@ def library_coverage(
         "other_site_hits": other_site[:3],
         "taxon_hits": taxon_hits[:3],
         "weak_hit_count": len(weak_hits),
+        "weak_hits": weak_hits[:5],
     }
 
 
@@ -600,16 +607,23 @@ def render_text(result: dict[str, Any]) -> str:
         where = top["enzyme"] or top["process"] or top["domain"]
         lines.append(f"library: HIT x{cov['hit_count']} (top: {top['kind']} {where})")
     else:
-        lines.append(f"library: MISS at this site (covered sites: {', '.join(cov.get('domains') or [])})")
+        lines.append(
+            "library: 这个主题未被覆盖"
+            f"（该部位的库是有的：{', '.join(cov.get('domains') or [])}）"
+        )
     for th in cov.get("taxon_hits") or []:
         bound = ", ".join(th["processes"]) or "no process yet"
         lines.append(
             f"library: taxon known — {th['taxon']} @ {th['domain']} (bound processes: {bound})"
         )
     if cov.get("weak_hit_count"):
+        reasons: dict[str, int] = {}
+        for item in cov.get("weak_hits") or []:
+            key = item.get("reason") or "词只出现在描述里"
+            reasons[key] = reasons.get(key, 0) + 1
+        detail = "；".join(f"{k} {v} 条" for k, v in reasons.items())
         lines.append(
-            f"library: {cov['weak_hit_count']} weak text match(es) ignored "
-            "(a word buried in prose is not coverage)"
+            f"library: {cov['weak_hit_count']} 条弱命中不计为覆盖（{detail or '词只出现在描述里'}）"
         )
     if cov.get("other_site_hit_count"):
         other = cov["other_site_hits"][0]
