@@ -400,6 +400,8 @@ def main() -> int:
         assert "falsification_criteria" in hyp_text
         assert "critical_experiments" in hyp_text
 
+    LEGACY_LIBRARY = ROOT / "examples" / "unverified"
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         browse = SCRIPTS / "browse_target_library.py"
@@ -415,9 +417,11 @@ def main() -> int:
                 text=True,
             ).stdout
         )
-        assert {d["id"] for d in domains} >= {"skin", "gut"}
-        # the shipped domains are reference examples, not a coverage claim
-        assert all(d["role"] == "shipped_example" for d in domains if d["id"] in {"skin", "gut"})
+        # the shipped library is deliberately tiny: only entries with verified literature
+        assert [d["id"] for d in domains] == ["skin"]
+        assert domains[0]["processes"] and len(domains[0]["processes"]) == 2
+        # the shipped domain is a reference example, not a coverage claim
+        assert domains[0]["role"] == "shipped_example"
 
         # the CLI must say so out loud, and must point at the library-free routes
         banner = subprocess.run(
@@ -434,7 +438,8 @@ def main() -> int:
         # natural-language keyword search must resolve a user phrase to a process
         hits = json.loads(
             subprocess.run(
-                [sys.executable, str(browse), "--search", "油脂分泌", "--json"],
+                [sys.executable, str(browse), "--library-dir", str(LEGACY_LIBRARY),
+                 "--search", "油脂分泌", "--json"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -455,7 +460,8 @@ def main() -> int:
         # the taxon layer must be listable on its own
         taxa = json.loads(
             subprocess.run(
-                [sys.executable, str(browse), "--list-taxa", "skin", "--json"],
+                [sys.executable, str(browse), "--library-dir", str(LEGACY_LIBRARY),
+                 "--list-taxa", "skin", "--json"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -482,7 +488,7 @@ def main() -> int:
         # a taxon query must resolve to the taxon itself, with its processes
         taxon_hits = json.loads(
             subprocess.run(
-                [sys.executable, str(browse), "--search", "Cutibacterium acnes", "--json"],
+                [sys.executable, str(browse), "--search", "Staphylococcus aureus", "--json"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -500,7 +506,7 @@ def main() -> int:
             ).stdout
         )
         merged_names = {t["taxon"] for t in all_taxa}
-        assert {"Staphylococcus epidermidis", "Akkermansia muciniphila"} <= merged_names
+        assert {"Staphylococcus aureus", "Staphylococcus epidermidis"} <= merged_names
 
         # exporting a library selection must produce a schema-valid card
         sel_dir = tmp / "selection"
@@ -518,8 +524,9 @@ def main() -> int:
         card = json.loads(sel_dir.joinpath("target_function_card.json").read_text(encoding="utf-8"))
         assert card["input_source"] == "library"
         assert card["library_id"] == "skin_sphingomyelin_phosphodiesterase"
-        assert card["library_version"] == "1.0.0"
+        assert card["library_version"] == "2.1.0"
         assert card["ec"] == "3.1.4.12"
+        assert card["known_microbial_enzymes"]
         # every later stage must accept the card unchanged
         sys.path.insert(0, str(SCRIPTS))
         from build_target_function_card import validate_card  # noqa: PLC0415
@@ -533,6 +540,8 @@ def main() -> int:
             [
                 sys.executable,
                 str(browse),
+                "--library-dir",
+                str(LEGACY_LIBRARY),
                 "--export-card",
                 "skin_c_s_lyase",
                 "--output-dir",
@@ -550,11 +559,26 @@ def main() -> int:
         )
         with flat.open("r", encoding="utf-8") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
-        assert len(rows) >= 20
-        assert {"skin", "gut"} <= {row["domain_id"] for row in rows}
-        # the library is a curated prior: nothing may claim to be literature-verified yet
-        assert all(row["evidence_status"] == "curated_prior" for row in rows)
-        assert all(not row["evidence_refs"] for row in rows)
+        # the shipped library is exactly the evidenced set
+        assert len(rows) == 2
+        assert {row["domain_id"] for row in rows} == {"skin"}
+        assert all(row["evidence_status"] == "literature_verified" for row in rows)
+        assert all(row["evidence_refs"] for row in rows)
+
+        # the full reference content is still available when explicitly requested
+        flat_all = tmp / "library_all.tsv"
+        subprocess.run(
+            [sys.executable, str(browse), "--library-dir", str(LEGACY_LIBRARY),
+             "--export-tsv", str(flat_all)],
+            check=True,
+        )
+        with flat_all.open("r", encoding="utf-8") as handle:
+            rows_all = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(rows_all) >= 20
+        assert {"skin", "gut"} <= {row["domain_id"] for row in rows_all}
+        # that reference content is a curated prior, not evidence
+        assert all(row["evidence_status"] == "curated_prior" for row in rows_all)
+        assert all(not row["evidence_refs"] for row in rows_all)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
@@ -562,14 +586,12 @@ def main() -> int:
         builder = SCRIPTS / "build_library_domain.py"
         browse = SCRIPTS / "browse_target_library.py"
 
-        def route(query: str) -> dict:
+        def route(query: str, library_dir: Path | None = None) -> dict:
+            cmd = [sys.executable, str(resolver), "--query", query, "--json"]
+            if library_dir is not None:
+                cmd += ["--library-dir", str(library_dir)]
             return json.loads(
-                subprocess.run(
-                    [sys.executable, str(resolver), "--query", query, "--json"],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                ).stdout
+                subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
             )
 
         # an EC number means entry A, and the library must not be used
@@ -584,13 +606,13 @@ def main() -> int:
         assert rxn["route"]["entry"] == "A"
 
         # a covered phrasing means entry B
-        covered = route("我关注头皮屑")
+        covered = route("我关注头皮屑", library_dir=LEGACY_LIBRARY)
         assert covered["route"]["entry"] == "B"
         assert covered["library_coverage"]["hit_count"] >= 1
 
         # an uncovered body site must escalate, and must not be answered with an
         # off-site library hit
-        oral = route("口腔牙周炎相关菌有哪些酶值得看")
+        oral = route("口腔牙周炎相关菌有哪些酶值得看", library_dir=LEGACY_LIBRARY)
         assert oral["detected"]["source_ids"] == ["oral"]
         assert oral["route"]["entry"] == "escalate"
         assert oral["library_coverage"]["hit_count"] == 0
@@ -598,25 +620,25 @@ def main() -> int:
         assert any("run_literature_search.sh" in s["command"] for s in oral["route"]["steps"])
 
         # a vaginal question must not be answered by the skin acidification process
-        vaginal = route("阴道菌群和乳酸杆菌")
+        vaginal = route("阴道菌群和乳酸杆菌", library_dir=LEGACY_LIBRARY)
         assert vaginal["route"]["entry"] == "escalate"
         assert vaginal["library_coverage"]["hit_count"] == 0
         assert vaginal["library_coverage"]["other_site_hit_count"] >= 1
 
         # a taxon-only question must not crash and must not claim library coverage
-        taxon_route = route("Akkermansia muciniphila")
+        taxon_route = route("Akkermansia muciniphila", library_dir=LEGACY_LIBRARY)
         assert taxon_route["detected"]["taxa"] == ["Akkermansia"]
         assert taxon_route["route"]["entry"] == "A"
         assert taxon_route["library_coverage"]["hit_count"] == 0
         assert taxon_route["library_coverage"]["taxon_hits"]
 
         # a word that merely appears in prose is not coverage
-        immunity = route("我想研究肠道菌对免疫的影响")
+        immunity = route("我想研究肠道菌对免疫的影响", library_dir=LEGACY_LIBRARY)
         assert immunity["route"]["entry"] == "escalate"
         assert immunity["library_coverage"]["hit_count"] == 0
 
         # a phenotype the library really does cover resolves to the exact process
-        butyrate = route("粪便 丁酸")
+        butyrate = route("粪便 丁酸", library_dir=LEGACY_LIBRARY)
         assert butyrate["route"]["entry"] == "B"
         assert butyrate["library_coverage"]["hits"][0]["process"] == "gut_butyrate_production"
 
@@ -983,7 +1005,7 @@ def main() -> int:
         subprocess.run(
             [
                 sys.executable, str(ranker),
-                "--seed-from-library", str(ROOT / "library" / "skin.json"),
+                "--seed-from-library", str(LEGACY_LIBRARY / "skin.full.json"),
                 "--output", str(seeded),
             ],
             check=True,
@@ -1017,7 +1039,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         ranker = SCRIPTS / "score_target_priorities.py"
-        library = ROOT / "library" / "skin.json"
+        library = LEGACY_LIBRARY / "skin.full.json"
 
         # --- auto-scoring: derive what is computable, never guess the rest ---
         seed_dir = tmp / "seed"
@@ -1177,7 +1199,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         ranker = SCRIPTS / "score_target_priorities.py"
-        library = ROOT / "library" / "skin.json"
+        library = LEGACY_LIBRARY / "skin.full.json"
 
         # a literature table with every evidence shape the ranker must distinguish
         lit = tmp / "literature_evidence.tsv"
@@ -1320,7 +1342,7 @@ def main() -> int:
         seed_dir = tmp / "seed"
         subprocess.run(
             [sys.executable, str(SCRIPTS / "score_target_priorities.py"),
-             "--seed-from-library", str(ROOT / "library" / "skin.json"), "--output", str(seed_dir)],
+             "--seed-from-library", str(LEGACY_LIBRARY / "skin.full.json"), "--output", str(seed_dir)],
             check=True, capture_output=True,
         )
         seed = seed_dir / "enzyme_registry.seed.tsv"
@@ -1358,17 +1380,25 @@ def main() -> int:
             [sys.executable, str(browse), "--list-domains"],
             check=True, capture_output=True, text=True,
         ).stdout
-        assert "10 processes, 19 enzyme targets" in plain
+        assert "2 processes, 2 enzyme targets" in plain
 
-        # With the gate, an entry must carry a verified identifier to be selectable.
+        # The shipped library passes its own gate: every entry carries a verified id.
         gated = subprocess.run(
             [sys.executable, str(browse), "--require-evidence", "--list-domains"],
             check=True, capture_output=True, text=True,
         ).stdout
-        assert "0 processes, 0 enzyme targets" in gated
-        assert "已隔离" in gated
-        # and the gate must be honest about why the menu is now empty
-        assert "literature-evidence" in gated
+        assert "2 processes, 2 enzyme targets" in gated
+        assert "已隔离" not in gated
+
+        # The unverified reference content is entirely quarantined by the same gate.
+        gated_legacy = subprocess.run(
+            [sys.executable, str(browse), "--library-dir", str(LEGACY_LIBRARY),
+             "--require-evidence", "--list-domains"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "0 processes, 0 enzyme targets" in gated_legacy
+        assert "已隔离" in gated_legacy
+        assert "literature-evidence" in gated_legacy
 
         # One evidenced entry is enough to open its process
         lib = tmp / "lib"

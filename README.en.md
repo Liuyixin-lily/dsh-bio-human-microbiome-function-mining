@@ -92,31 +92,14 @@ Users rarely know which enzyme they want; they know a phenotype ("skin metabolis
 
 | Library file | Content | role |
 | --- | --- | --- |
-| `library/skin.json` | Skin, `curated`: 10 processes / 19 enzyme targets (sebum lipolysis, ceramide homeostasis, surface acidification, ureolysis, thioalcohol body odour, amino-acid volatiles, nitrate-NO, hyaluronan degradation, Malassezia lipid dependence, lantibiotic competition) | `shipped_example` |
-| `library/gut.json` | Gut, `starter`: 5 processes / 8 enzyme targets (bile salt deconjugation, secondary bile acids, TMA, butyrate, tryptophan-indole) | `shipped_example` |
+| `library/skin.json` | Skin: 2 processes / 2 enzyme targets, **each with verified PMIDs** — sphingomyelin phosphodiesterase (EC 3.1.4.12) and histidine ammonia-lyase / histidase (EC 4.3.1.3) | `shipped_example` |
+| `examples/unverified/*.json` | The previous 27 uncited curated entries (skin 10 processes / gut 5), **not loaded by default** | reference material |
 
-**Measured against "an entry needs a verified identifier", the current library has zero usable entries.** `--require-evidence` only admits entries with `evidence_status: literature_verified` and non-empty `evidence_refs`; all 27 shipped entries are `curated_prior` with no citations, so every one is quarantined. The gate exists to make "library knowledge must come from retrieval" an executable check rather than a claim.
+**The default library is deliberately tiny.** It holds only entries with real literature support, and passes its own `--require-evidence` gate 2/2. The previous 27 entries carried no citations, so they moved to `examples/unverified/` where that gate quarantines all of them — they are no longer presented as a menu.
 
-**The library itself is optional.** Empty `library/` and the plugin still does everything except offering a menu of "which enzymes to look at first": entry A, per-site genome search, sequence/structure/annotation/literature evidence, ranking and the CRO work order are unaffected. The only countable cost is that `--auto-score` derives 8 components instead of 4, with 3 falling back to manual or a visible gap. An empty library is a supported state: `--list-domains` prints "empty, not an error" plus three alternative routes, and the router distinguishes `not configured` from `MISS at this site`.
+The histidase entry is worth reading for how evidence is layered: the **host** side (stratum corneum histidine to urocanic acid, the main UV-absorbing molecule) is directly established; the **microbial** side has enzyme-level evidence only (purified HutH from *P. putida* and *S. griseus*, the annotated *B. subtilis* hut operon), with **no conclusion anywhere about how much skin bacteria contribute to the urocanic acid pool**. Both layers are spelled out in `provenance_note_zh`, and `key_taxa` is marked as reference controls (attention=low) rather than claiming proven skin function.
 
-**Those two domains are reference examples, not a coverage claim.** They are skin and gut because the plugin grew out of those two projects, not because of any coverage argument. The per-site capability is generic: target cards, `genome-search` (seven built-in site vocabularies), sequence/structure/annotation/literature evidence are all site-agnostic — only the *menu* of "which enzymes are worth screening at this site" is limited. `--list-domains` prints the same reminder.
-
-```bash
-# which body sites are available
-python3 scripts/browse_target_library.py --list-domains
-# what processes exist for skin
-python3 scripts/browse_target_library.py --list-processes skin
-# search with the user's own words (Chinese or English)
-python3 scripts/browse_target_library.py --search "sebum"
-# menu-driven selection, ending in a card
-python3 scripts/browse_target_library.py --interactive --output-dir outputs/task
-# flatten the whole library into one table for manual ticking
-python3 scripts/browse_target_library.py --export-tsv outputs/task/target_library.tsv
-# audit the library content itself
-python3 scripts/browse_target_library.py --validate
-```
-
-A selection writes `target_function_card.json` (`input_source: library` plus `library_id` / `library_version`) and `target_selection.md` (why this process, key taxa, recommended entry point, evidence status, falsifying experiment).
+**The library itself is optional.** Empty `library/` and the plugin still does everything except offering a menu of "which enzymes to look at first": entry A, per-site genome search, sequence/structure/annotation/literature evidence, ranking and the CRO work order are unaffected. The only countable cost is that `--auto-score` derives 8 components instead of 4.
 
 ### Ranking several candidates before screening
 

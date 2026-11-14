@@ -90,31 +90,14 @@ domain（身体部位）  ->  process（生理过程）  ->  enzyme（真正拿�
 
 | 库文件 | 内容 | role |
 | --- | --- | --- |
-| `library/skin.json` | 皮肤，`curated`：10 个生理过程 / 19 个酶目标（皮脂水解、神经酰胺稳态、表面酸化、尿素分解、体味硫醇、氨基酸挥发酸、硝酸盐-NO、透明质酸降解、马拉色菌脂质依赖、羊毛硫抗生素） | `shipped_example` |
-| `library/gut.json` | 肠道，`starter`：5 个生理过程 / 8 个酶目标（胆汁酸去结合、次级胆汁酸、三甲胺、丁酸、色氨酸-吲哚） | `shipped_example` |
+| `library/skin.json` | 皮肤：2 个过程 / 2 个酶目标，**每条带已验证 PMID**——鞘磷脂酶（EC 3.1.4.12）、组氨酸酶（EC 4.3.1.3） | `shipped_example` |
+| `examples/unverified/*.json` | 旧的 27 条未带引用的策展条目（皮肤 10 过程 / 肠道 5 过程），**不默认加载** | 参考内容 |
 
-**用"必须有已验证文献"这个标准衡量，当前库可用条目是 0。** `--require-evidence` 只放行 `evidence_status: literature_verified` 且 `evidence_refs` 非空的条目；现有 27 条全是 `curated_prior`、零引用，因此会被全部隔离。这条门槛的意义是把"库里的知识必须来自检索"变成可执行的检查，而不是一句声明。
+**默认库刻意很小。** 它只放逐条有真实文献支撑的条目，用 `--require-evidence` 衡量是 2/2 通过。旧的 27 条没有引用，已移到 `examples/unverified/`，在那个门槛下会被全部隔离——所以不再摆在默认菜单里。
 
-**目标库本身是可选的。** 清空 `library/` 后插件仍能做完全部功能，只是没有「先看哪几个酶」的菜单：入口 A（EC/反应/序列）、按部位挑基因组、序列/结构/注释/文献证据、排序、外包工作单都不受影响。唯一可数的代价是 `--auto-score` 的自动分项从 8 项降到 4 项，另外 3 项退回人工或缺口。空库是受支持状态——`--list-domains` 会打印"库为空、不是错误"和三条替代路径，路由脚本也会把 `not configured`（没配库）与 `MISS at this site`（配了但没覆盖）分开报。
+组氨酸酶那一条值得看它怎么写证据：宿主侧（角质层组氨酸→尿刊酸、UV 吸收）有直接文献；微生物侧只有细菌 HutH 的酶学表征（*P. putida*、*S. griseus*、*B. subtilis*），**皮肤菌是否贡献尿刊酸没有任何结论**。条目把这两层分开写在 `provenance_note_zh` 里，`key_taxa` 标为参考对照（attention=low），不假装皮肤菌已被证明。
 
-**这两个域是示例参考，不是覆盖范围。** 它们之所以是皮肤和肠道，是因为插件最初就长在这两个课题上，不是覆盖性论证的结果。插件按部位工作的能力是通用的：目标建档、`genome-search`（内置 7 套部位来源词表）、序列/结构/注释/文献证据都不受库限制——受限制的只有"这个部位有哪些酶值得筛"这份**菜单**。其他部位的正确路径见下节；`--list-domains` 也会打印这条提示。
-
-```bash
-# 有哪些身体部位
-python3 scripts/browse_target_library.py --list-domains
-# 皮肤域有哪些生理过程
-python3 scripts/browse_target_library.py --list-processes skin
-# 用用户自己的话搜（中英文都行）
-python3 scripts/browse_target_library.py --search "油脂分泌"
-# 菜单式选择，最后写出卡片
-python3 scripts/browse_target_library.py --interactive --output-dir outputs/task
-# 把整库摊平成一张表交给用户勾选
-python3 scripts/browse_target_library.py --export-tsv outputs/task/target_library.tsv
-# 审计库内容自身
-python3 scripts/browse_target_library.py --validate
-```
-
-选中后会写出 `target_function_card.json`（`input_source: library` + `library_id` / `library_version`）和 `target_selection.md`（为什么做这个过程、关键菌、推荐起手式、证据状态、可证伪的验证实验）。
+**库整体是可选的。** 清空 `library/` 后插件仍能做完全部功能，只是没有「先看哪几个酶」的菜单：入口 A（EC/反应/序列）、按部位挑基因组、序列/结构/注释/文献证据、排序、外包工作单都不受影响。唯一可数的代价是 `--auto-score` 的自动分项从 8 项降到 4 项。空库是受支持状态——`--list-domains` 会打印"库为空、不是错误"和三条替代路径。
 
 ### 多个候选之间怎么排 / Ranking before screening
 
