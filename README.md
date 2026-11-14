@@ -295,7 +295,9 @@ entry B (user only knows):   vague interest "油脂分泌" / "皮肤屏障" / "�
                    -> 合格候选不足、且用户同意时，才启用 DEER fallback
   -> FedKEA（酶/EC 补充证据）/ SignalP（信号肽）
   -> literature-evidence（只保留核验过的 PMID/DOI）
-  -> merge combined_candidates.tsv -> 显式优先级排序（默认 TM 主键）
+  -> merge combined_candidates.tsv
+  -> score_candidates.py --project project.json（从目标卡片取 EC/酶名，
+     否则快速通道无法判定）-> 显式优先级排序（默认 TM 主键）
   -> 可证伪假设 + 实验设计
 ```
 

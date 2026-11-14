@@ -2321,6 +2321,81 @@ def main() -> int:
         # dry-run must not create any output file
         assert not list(tmp.glob("*.tsv"))
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        scorer = SCRIPTS / "score_candidates.py"
+
+        # a sequence hit whose existing annotation names the target enzyme: this is the
+        # documented fast path, and it must be reachable from the project card alone
+        combined = tmp / "combined.tsv"
+        fields = ["candidate_id", "protein_accession", "sequence_score", "pident",
+                  "query_coverage", "source_product", "annotation", "structure_support",
+                  "tm_score_mean", "fedkea_binary", "fedkea_ec", "notes"]
+        with combined.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t",
+                                    lineterminator="\n")
+            writer.writeheader()
+            writer.writerow({
+                "candidate_id": "WP_1", "protein_accession": "WP_1",
+                "sequence_score": "43.4", "pident": "51.4", "query_coverage": "84.7",
+                "source_product": "sphingomyelin phosphodiesterase",
+                "annotation": "sphingomyelin phosphodiesterase",
+                "structure_support": "", "tm_score_mean": "", "fedkea_binary": "",
+                "fedkea_ec": "", "notes": "",
+            })
+
+        card = tmp / "card.json"
+        card.write_text(json.dumps({
+            "target_id": "SMASE",
+            "enzyme_name": "sphingomyelin phosphodiesterase",
+            "ec": "3.1.4.12",
+            "input_source": "reaction",
+        }), encoding="utf-8")
+        project = tmp / "project.json"
+        project.write_text(json.dumps({
+            "project_name": "fast_path",
+            "target_function_card": json.loads(card.read_text(encoding="utf-8")),
+        }), encoding="utf-8")
+
+        def score(*extra: str) -> list[dict[str, str]]:
+            out = tmp / ("scored_" + str(len(extra)) + ".tsv")
+            subprocess.run(
+                [sys.executable, str(scorer), "--input", str(combined),
+                 "--output", str(out), *extra],
+                check=True, capture_output=True,
+            )
+            with out.open("r", encoding="utf-8") as handle:
+                return list(csv.DictReader(handle, delimiter="\t"))
+
+        # without a target the fast path is not evaluated: say so instead of silently
+        # producing a different tier for the same data
+        plain = subprocess.run(
+            [sys.executable, str(scorer), "--input", str(combined),
+             "--output", str(tmp / "scored_plain.tsv")],
+            capture_output=True, text=True,
+        )
+        assert plain.returncode == 0
+        assert "fast path" in plain.stderr
+        assert "SEQUENCE_ONLY" in (tmp / "scored_plain.tsv").read_text(encoding="utf-8")
+
+        # the project card supplies target ec + enzyme name
+        by_project = score("--project", str(project))
+        assert by_project[0]["priority_tier"] == "SEQUENCE_ANNOTATION_CONFIRMED"
+
+        # explicit flags still win / also work
+        by_flags = score("--target-name", "sphingomyelin phosphodiesterase")
+        assert by_flags[0]["priority_tier"] == "SEQUENCE_ANNOTATION_CONFIRMED"
+
+        # a non-matching annotation must NOT be promoted
+        combined.write_text(
+            "candidate_id\tprotein_accession\tsequence_score\tpident\tquery_coverage\t"
+            "source_product\tannotation\n"
+            "WP_2\tWP_2\t40.0\t45.0\t80.0\tMFS transporter\tMFS transporter\n",
+            encoding="utf-8",
+        )
+        mismatch = score("--project", str(project))
+        assert mismatch[0]["priority_tier"] == "SEQUENCE_ONLY"
+
     print("example test passed")
     return 0
 

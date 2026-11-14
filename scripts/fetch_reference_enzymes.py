@@ -33,6 +33,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import shutil
+import subprocess
 import re
 import sys
 import time
@@ -59,6 +61,12 @@ EVIDENCE_REVIEWED = "reviewed (Swiss-Prot)"
 
 
 def http_get(url: str, timeout: int = 60) -> bytes:
+    """Fetch a URL, falling back to curl when urllib cannot complete the TLS handshake.
+
+    urllib failed its handshake against rest.uniprot.org on node7 while curl on the same host
+    returned 200 in 1.4s, so a working network looked like "no templates exist" and the
+    set silently degraded to NCBI. curl is already a de facto dependency of this plugin.
+    """
     req = urllib.request.Request(url, headers={"User-Agent": "deepseek-harness/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -66,6 +74,19 @@ def http_get(url: str, timeout: int = 60) -> bytes:
     except urllib.error.HTTPError as exc:
         print(f"HTTP {exc.code} for {url}", file=sys.stderr)
         raise
+    except Exception as exc:                       # SSL / connection errors
+        curl = shutil.which("curl")
+        if not curl:
+            raise
+        print(f"urllib failed ({exc.__class__.__name__}); retrying with curl: {url[:80]}",
+              file=sys.stderr)
+        proc = subprocess.run([curl, "-sS", "--max-time", str(timeout), url],
+                              capture_output=True)
+        if proc.returncode != 0 or not proc.stdout:
+            print(f"curl also failed for {url}: {proc.stderr.decode('utf-8', 'replace')[:160]}",
+                  file=sys.stderr)
+            raise exc
+        return proc.stdout
 
 
 def ncbi_esearch(term: str, retmax: int = DEFAULT_RETMAX) -> list[str]:

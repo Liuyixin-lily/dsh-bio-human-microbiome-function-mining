@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -72,6 +73,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Assign explicit priority overall_rank, overall_score, and priority_tier."
     )
     parser.add_argument("--input", type=Path, required=True, help="combined_candidates.tsv.")
+    parser.add_argument(
+        "--project",
+        type=Path,
+        default=None,
+        help="project.json carrying target_function_card; supplies --target-ec/--target-name "
+             "so the sequence+annotation fast path can be evaluated without retyping them.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -388,8 +396,34 @@ def main(argv: list[str] | None = None) -> int:
         if field not in fields:
             fields.append(field)
 
-    target_ecs = {ec.strip() for ec in args.target_ec.split(",") if ec.strip()}
-    target_names = {name.strip().lower() for name in args.target_name.split(",") if name.strip()}
+    target_ecs = {ec.strip() for ec in (args.target_ec or "").split(",") if ec.strip()}
+    target_names = {name.strip().lower() for name in (args.target_name or "").split(",") if name.strip()}
+
+    # The fast path is the plugin's centrepiece, and it is only reachable when the target is
+    # known here. Reading it from the project card means a caller following the documented
+    # workflow does not have to remember two extra flags.
+    project_target: dict[str, str] = {}
+    if args.project is not None:
+        if not args.project.is_file():
+            print(f"error: project not found: {args.project}", file=sys.stderr)
+            return 2
+        project = json.loads(args.project.read_text(encoding="utf-8"))
+        card = project.get("target_function_card") or {}
+        if not card and project.get("target_card_file"):
+            card_path = (args.project.parent / project["target_card_file"]).resolve()
+            if card_path.is_file():
+                card = json.loads(card_path.read_text(encoding="utf-8"))
+        project_target = {
+            "ec": str(card.get("ec") or "").strip(),
+            "name": str(card.get("enzyme_name") or card.get("target_name") or "").strip(),
+        }
+        if project_target["ec"]:
+            target_ecs.add(project_target["ec"])
+        if project_target["name"]:
+            target_names.add(project_target["name"].lower())
+        if not project_target["ec"] and not project_target["name"]:
+            print("warning: --project carries no target_function_card with ec/enzyme_name; "
+                  "the fast path still cannot be evaluated", file=sys.stderr)
     if not target_names:
         # The annotation half of the fast path can only be evaluated by name. Say so
         # rather than silently leaving SEQUENCE_ANNOTATION_CONFIRMED unreachable: a
@@ -400,10 +434,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         if carries_annotation:
             print(
-                "warning: --target-name not given, so the sequence+annotation fast path "
+                "warning: no target name is known, so the sequence+annotation fast path "
                 "(SEQUENCE_ANNOTATION_CONFIRMED) cannot be evaluated even though some rows "
-                "carry annotations. Pass --target-name with comma-separated enzyme "
-                "names/synonyms to enable it.",
+                "carry annotations. Pass --project (reads target_function_card) or "
+                "--target-name with comma-separated enzyme names/synonyms.",
                 file=sys.stderr,
             )
     policy = args.policy or (

@@ -119,6 +119,9 @@ Available scripts:
   project.json` when the project JSON records `candidate_sequences.candidates`
   source genome paths; missing `organism_or_strain` and `assembly_accession`
   values are filled from that metadata instead of remaining blank.
+- `score_candidates.py`: reads `--project` to obtain the target EC and enzyme name, because
+  the `SEQUENCE_ANNOTATION_CONFIRMED` fast path can only be evaluated with a target to match
+  against; without it the tier silently degrades to `SEQUENCE_ONLY`.
 - `score_candidates.py`: assigns deterministic `overall_score`, `overall_rank`,
   `priority_tier`, `priority_rule`, and `priority_order` to the combined table.
   Ranking is TM-score-first by default (`--rank-by structure`); `--rank-by

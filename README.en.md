@@ -288,7 +288,9 @@ entry B (user only knows):   vague interest "sebum" / "skin barrier" / "body odo
                    -> DEER fallback only when too few pass, and only with user consent
   -> FedKEA (enzyme/EC evidence) / SignalP (signal peptide)
   -> literature-evidence (verified PMID/DOI only)
-  -> merge combined_candidates.tsv -> explicit priority ranking (TM-score first by default)
+  -> merge combined_candidates.tsv
+  -> score_candidates.py --project project.json (takes EC/enzyme name from the card; without
+     it the fast path cannot be evaluated) -> explicit priority ranking (TM-score first)
   -> falsifiable hypotheses + experimental design
 ```
 
