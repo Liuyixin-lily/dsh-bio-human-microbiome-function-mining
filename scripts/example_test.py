@@ -3640,6 +3640,36 @@ def main() -> int:
         )
         assert bad.returncode != 0 and "accession column" in bad.stderr
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # DIAMOND m8: two templates hit the same candidate -> one candidate row, best kept,
+        # and the template it matched must survive into the table
+        m8 = tmp / "hits.m8"
+        m8.write_text(
+            "sp|P39451|ADHP_ECOLI\tWP_1\t68.5\t350\t0\t0\t1\t350\t1\t350\t2e-161\t480\t99.7\n"
+            "sp|Q5HRD6|ADH_STAEQ\tWP_1\t100.0\t350\t0\t0\t1\t350\t1\t350\t1e-240\t700\t100.0\n"
+            "sp|P0A9Q7|ADHE_ECOLI\tWP_2\t49.3\t320\t1\t0\t1\t320\t1\t320\t9e-274\t779\t95.8\n",
+            encoding="utf-8",
+        )
+        hits = tmp / "hits.tsv"
+        cands = tmp / "cands.tsv"
+        parsed = subprocess.run(
+            [sys.executable, str(SCRIPTS / "parse_sequence_hits.py"), "--input", str(m8),
+             "--out-hits", str(hits), "--out-candidates", str(cands), "--tool", "diamond"],
+            capture_output=True, text=True,
+        )
+        assert parsed.returncode == 0, parsed.stderr
+        hit_rows = list(csv.DictReader(hits.open("r", encoding="utf-8"), delimiter="\t"))
+        assert len(hit_rows) == 3
+        # every pair keeps its template
+        assert {r["representative_id"] for r in hit_rows} == {
+            "sp|P39451|ADHP_ECOLI", "sp|Q5HRD6|ADH_STAEQ", "sp|P0A9Q7|ADHE_ECOLI"}
+        cand_rows = list(csv.DictReader(cands.open("r", encoding="utf-8"), delimiter="\t"))
+        assert len(cand_rows) == 2, cand_rows
+        best = {r["candidate_id"]: r for r in cand_rows}["WP_1"]
+        assert best["representative_id"] == "sp|Q5HRD6|ADH_STAEQ"
+        assert str(best["pident"]).startswith("100")
+
     print("example test passed")
     return 0
 

@@ -18,7 +18,9 @@ from typing import Any
 
 
 READABLE_HEADERS = {
-    "qseqid": "query_id",
+    # the template a candidate matched. Dropping it left every row saying only "a sequence hit"
+    # with no way to tell which reference enzyme it resembled.
+    "qseqid": "representative_id",
     "sseqid": "candidate_id",
     "pident": "pident",
     "length": "query_length",
@@ -161,6 +163,7 @@ def main(argv: list[str] | None = None) -> int:
 
     hits_fields = [
         "candidate_id",
+        "representative_id",
         "protein_accession",
         "assembly_accession",
         "organism_or_strain",
@@ -174,10 +177,30 @@ def main(argv: list[str] | None = None) -> int:
         "tool_version",
     ]
     candidate_fields = hits_fields + ["sequence_score", "priority_tier"]
+
+    # hits keeps every (template, candidate) pair; the candidate table keeps one row per candidate,
+    # represented by its best alignment. Without this the same protein appeared once per matching
+    # template and read as several candidates.
+    best: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        key = row["candidate_id"]
+        current = best.get(key)
+        if current is None:
+            best[key] = row
+            continue
+        try:
+            better = (float(row.get("pident") or 0), float(row.get("bitscore") or 0)) > (
+                float(current.get("pident") or 0), float(current.get("bitscore") or 0)
+            )
+        except ValueError:
+            better = False
+        if better:
+            best[key] = row
+    candidate_rows = list(best.values())
     write_tsv(args.out_hits, hits_fields, rows)
-    write_tsv(args.out_candidates, candidate_fields, rows)
+    write_tsv(args.out_candidates, candidate_fields, candidate_rows)
     print(f"wrote {args.out_hits} ({len(rows)} rows)")
-    print(f"wrote {args.out_candidates} ({len(rows)} rows)")
+    print(f"wrote {args.out_candidates} ({len(candidate_rows)} rows, one per candidate)")
     return 0
 
 
