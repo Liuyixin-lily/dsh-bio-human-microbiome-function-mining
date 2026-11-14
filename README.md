@@ -578,141 +578,121 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples / 使用示例
 
-以下示例按四种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
+四个示例按"用户手里已经有什么"排列，都改写自真实跑过的案例。每个示例给出三样东西：**可以直接发送的一句 prompt**、**Agent 实际走的链**、**一次真实运行的结果**。运行前把工具与数据路径换成你自己的。
 
-| # | 输入类型 | 触发点 | 举例 | 起手式 |
-| --- | --- | --- | --- | --- |
-| 1 | 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC | sphingomyelin → ceramide + phosphocholine | `reaction` |
-| 2 | 已知酶名/EC | 有酶功能或功能类别注释 | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
-| 3 | 已知参考序列 | 有模板蛋白 FASTA 或 UniProt accession | DDC / P20711 | `sequence` |
-| 4 | 关注具体生理过程 | 说得出"关注什么过程"，说不出酶 | 皮肤外源性物质代谢 → 交棒后筛醇脱氢酶 | 入口 B（`B→A`） |
+| # | 用户手里有什么 | 起手式 | 示例 |
+| --- | --- | --- | --- |
+| 1 | 一个反应（底物 → 产物） | `reaction` | 鞘磷脂 → 神经酰胺 + 磷酸胆碱 |
+| 2 | 一个酶名 / EC | `ec` | neutral sphingomyelinase / EC 3.1.4.12 |
+| 3 | 一段参考序列 | `sequence` | DDC / P20711 |
+| 4 | 只说得出关注点 | 入口 B | 皮肤外源性物质代谢 → 交棒后筛醇脱氢酶 |
 
-每个示例都给出“用户可以直接发送的一句话 prompt”、“Agent 按插件 skill 实际会走的分析链”，以及**一次真实运行的结果**——这样你能直接看到输出长什么样。实际运行时，把工具和数据路径替换成你自己的即可。
-
-### Example 1: 从代谢反应出发，预测人体微生物是否编码相关基因
+### Example 1：从代谢反应出发
 
 ```text
 User:
-"已知代谢反应的产物为神经酰胺和磷酸胆碱，预测皮肤微生物
-表皮葡萄球菌（GCF_038181645.1）是否含有相关代谢基因，
+"已知代谢反应的产物为神经酰胺和磷酸胆碱，预测皮肤微生物表皮葡萄球菌
+（GCF_038181645.1）是否含有相关代谢基因，并给出可以验证的实验方案。"
+```
+
+**Agent 走的链**
+
+- `build-target-function-card` 由产物反推反应，得到 EC 3.1.4.12，写成 `target_function_card.json`
+- `preflight_inputs.py` 盘点输入：候选蛋白组已给 → 直接用，不下载、不重注释
+- `screen-sequence-candidates`：CD-HIT（单基因组 100%）→ DIAMOND（identity≥20 / cov≥0.7 / E≤1e-5）
+- `parse_source_annotations.py` 取 `.gbff` 里的既有注释，并入候选
+- 命中且注释同向 → `SEQUENCE_ANNOTATION_CONFIRMED`，**跳过结构**；最后 `summarize_candidates.py` 出交付集
+
+**结果**（*S. epidermidis* GCF_038181645.1，2,372 个蛋白）
+
+| 项 | 值 |
+| --- | --- |
+| DIAMOND 命中 | 7 条，全部指向 **WP_002468583.1** |
+| 最佳比对 | 52.2% identity / 89.2% coverage / E=7.5e-107 |
+| 候选自身注释 | `MULTISPECIES: sphingomyelin phosphodiesterase`（与目标同向） |
+| 判定 | `SEQUENCE_ANNOTATION_CONFIRMED`，结构流程跳过 |
+
+**看点**：宿主鞘磷脂酶模板**一条都没命中**——细菌 SMase 折叠与宿主不同。命中模板与确有该功能是两件事。
+
+### Example 2：从已知酶 / EC 出发，多基因组
+
+```text
+User:
+"预测给出的三个皮肤微生物基因组（Streptococcus pyogenes、Streptococcus thermophilus、
+Staphylococcus xylosus）是否含有 neutral sphingomyelinase 相关的代谢基因，
 并给出可以验证的实验方案。"
-
-Agent:
-- 用 `build-target-function-card` 由产物反推反应 sphingomyelin + H2O -> ceramide + phosphocholine（EC 3.1.4.12），写成 `target_function_card.json`
-- 输入清点：把候选蛋白组/基因组、目标序列、目标结构、候选结构目录分成已提供 / 待获取；「已提供」的一律直接用，不下载、不重注释、不预测、不覆盖；仅对「待获取」的候选用 `genome-search` / `genome-download` / `genome-annotation`
-  准备候选 proteome；参考酶集同理，用户已给目标序列/结构时直接加载
-- 用 `preflight_inputs.py` 校验并固化这个划分，缺文件或空文件在重型流程前报错
-- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 序列筛选
-- 用 `parse_source_annotations.py` 解析 `.faa`/`.gbff` 已有的 protein/gene、EC、Pfam/InterPro/KEGG 注释
-- 快速通道优先：DIAMOND 命中且注释匹配目标即标记 `SEQUENCE_ANNOTATION_CONFIRMED`
-- 用 `literature-evidence` 补充可验证的 PMID/DOI 证据链（只保留核验过的）
-- 用 `score_candidates.py` 按优先级规则排序，输出 `scored_candidates_full.tsv`、`experimental_hypotheses.tsv` 和 `experimental_design.md`
-
-回答会明确：
-- 是否检出候选基因
-- 代表候选 accession/locus_tag
-- 证据链和置信度
-- 可执行的实验验证方案
 ```
 
-结果（真实运行：*S. epidermidis* GCF_038181645.1，2,372 个蛋白）：
+**Agent 走的链**
 
-- **序列通道**：DIAMOND 命中 7 条，全部指向 **WP_002468583.1**，最佳 52.2% identity / 89.2% coverage，E=7.5e-107
-- 该蛋白自带注释 `MULTISPECIES: sphingomyelin phosphodiesterase`，与新算出的活性同向 → **SEQUENCE_ANNOTATION_CONFIRMED**，按快速通道**跳过结构分析**
-- **宿主鞘磷脂酶模板一条都没命中**——细菌 SMase 折叠与宿主不同。这说明"命中模板"和"确有该功能"是两件事
-- 交付集在 `outputs/task/`（最终候选表、摘要、实验假设、说明）
+- 以 EC 3.1.4.12 建档，取 reviewed 模板（宿主 + 微生物）
+- 三个基因组各自 CD-HIT（100%）→ DIAMOND；**都没有命中**
+- 转结构通道：对每个基因组的候选结构直接 US-align（双向 TM≥0.5）
+- `parse_fedkea.py` + `merge_candidates.py --fedkea` 验证 EC；最后打分、汇总
 
-### Example 2: 从已知酶出发，预测人体微生物是否编码相关的代谢基因
+**结果**
+
+| 项 | 值 |
+| --- | --- |
+| 序列通道 | 三个基因组 **0 命中**（放松 coverage 也一样） |
+| 结构通道 | US-align 跑 1,625 / 1,744 / 2,795 个结构文件 → **2 / 3 / 1** 个候选 |
+| FedKEA 升级 | *S. pyogenes* `WP_023610742.1`（TM 0.7088）、*S. thermophilus* `..._bin.19_00773`（TM 0.6988）→ `USALIGN_TARGET_EC` |
+| 其余 | `USALIGN_OTHER_EC`（TM 达标，FedKEA 给的是别的 EC） |
+| DEER | 未使用 |
+
+**看点**：这一轮第一次跑时**漏了 FedKEA**，最终表因此为空。空表交付里的第一句现在就是"先查 FedKEA 跑没跑"，而不是"放宽规则集"。
+
+### Example 3：从已知序列出发
 
 ```text
 User:
-"预测给出的三个皮肤微生物基因组（Streptococcus pyogenes、
-Streptococcus thermophilus、Staphylococcus xylosus）是否含有
-neutral sphingomyelinase 相关的代谢基因，并给出可以验证的
-实验方案。"
-
-Agent:
-- 用 `build-target-function-card` 以 neutral sphingomyelinase /EC 3.1.4.12 建目标卡片
-- 自动或手动准备参考酶集合，优先写明来源（NCBI/PDB/UniProt）
-- 严格检查用户给的基因组和结构仓库路径，缺文件或空文件在重型流程前报错
-- 跑重流程前执行 `preflight_inputs.py`，对三个基因组逐个核对 `.faa`、`.ffn`、`.gbff` 和候选结构目录
-- 对三个基因组分别跑 `screen-sequence-candidates`：先 CD-HIT 去冗余（100%），再 DIAMOND 筛选
-- 先看每个 DIAMOND 命中是否已有注释匹配 neutral sphingomyelinase /EC 3.1.4.12；只有序列无命中、或命中但注释不匹配时，才检查全部候选结构文件；
-- 缺少结构就跑 `structure-prediction`，随后用 `screen-structure-candidates` 对当前基因组所有候选结构文件直接 US-align；按基因组分别判断：某基因组完全没有 US-align 合格候选、或合格候选不足；此时经用户同意才跑 DEER fallback
-- 用 FedKEA 对最终候选做酶/EC 验证，并保留 binary/enzyme/probability 结果
-- 用 `literature-evidence` 补充可验证的 PMID/DOI 证据链
-- 用 `score_candidates.py` 排序，输出每个物种的候选表、代表候选与实验设计
-
-回答会明确：
-- 每个物种是否有候选
-- 有候选/无候选的关键证据
-- DEER fallback 是否被使用及其原因
-- 后续实验建议
+"预测给定的肠道微生物青春双歧杆菌 Bifidobacterium adolescentis 是否可能编码
+人类褪黑素合成的关键酶 DDC（P20711），并给出可以验证的实验方案。"
 ```
 
-结果（真实运行：EC 3.1.4.12，三个皮肤基因组）：
+**Agent 走的链**
 
-- **序列通道：三个基因组都没有命中**（把 coverage 阈值放开也一样）
-- **结构通道**：US-align 全量跑 1,625 / 1,744 / 2,795 个结构文件，分别得到 **2 / 3 / 1** 个 TM≥0.5（双向）候选
-- FedKEA 把其中 2 个升级为 `USALIGN_TARGET_EC`：*S. pyogenes* `WP_023610742.1`（TM 0.7088）、*S. thermophilus* `..._bin.19_00773`（TM 0.6988）
-- 其余为 `USALIGN_OTHER_EC`：TM 达标，但 FedKEA 给的是别的 EC
-- DEER 未被使用
-- 第一次跑时**漏了 FedKEA**，最终表因此为空（只有 `USALIGN_UNVALIDATED`）；补跑 FedKEA 后两个候选升为 `USALIGN_TARGET_EC`，与上面的结果一致。这条经验写进了空表的说明文件：先查 FedKEA 是否跑过，再考虑放宽规则
+- 以 DDC / EC 4.1.1.28 / 参考序列 P20711 建档（没有 FASTA 时先给检索命令，不编序列）
+- CD-HIT（100%）→ DIAMOND：**0 命中**
+- 结构通道：对全部候选结构直接 US-align
+- FedKEA 交叉核对，最后按 TM 排序并出实验假设
 
-### Example 3: 从已知序列出发，预测人体微生物是否编码类似的代谢基因
+**结果**
 
-```text
-User:
-"预测给定的肠道微生物青春双歧杆菌 Bifidobacterium adolescentis
-是否可能编码人类褪黑素合成的关键酶 DDC（P20711），并给出
-可以验证的实验方案。"
+| 项 | 值 |
+| --- | --- |
+| 序列通道 | **0 命中** |
+| 结构通道 | 18 个候选，TM 0.60–0.71（双向），最佳模板 3RBF |
+| FedKEA | 全部指向**其他 EC**（4.1.2.48、2.1.2.1、2.6.1.x、4.4.1.13、2.8.1.7） |
+| 判定 | 18 条全部 `USALIGN_OTHER_EC` |
 
-Agent:
-- 用 `build-target-function-card` 以 DDC / aromatic L-amino acid decarboxylase（EC 4.1.1.28）建目标卡片，UniProt 参考 = P20711
-- 没有用户提供的 FASTA 时，先给 UniProt 获取命令，不要自己编序列；如项目配置了参考酶抓取，也会用 `fetch_reference_enzymes.py` 自动准备参考酶记录
-- 先跑 `scripts/preflight_inputs.py --project project.json`，检查候选基因组的文件和结构目录是否存在
-- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选
-- 先检查 DIAMOND 命中是否已有 P20711/DDC 相关注释；匹配则标记 `SEQUENCE_ANNOTATION_CONFIRMED` 并跳过结构流程
-- 只有序列无命中、或命中但注释不匹配时，才用 `screen-structure-candidates` 对全部候选结构文件直接 US-align
-- 用 FedKEA 和已有注释/Pfam/InterPro 交叉核对
-- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认以 TM-score 为主键；`--rank-by priority` 可回到优先级规则排序）
+**看点**：交付**不写"无候选"**。这些是"结构相似、但预测 EC 不同"的候选，附带目标 EC 与预测 EC 并排验证的方案——同源折叠可以承载趋同或 moonlighting 活性，而 FedKEA 只是预测。
 
-回答会明确：
-- 是否检出 DDC 类候选
-- 代表候选 accession/locus_tag
-- 候选的序列/结构/FedKEA 证据链
-- 验证 DDC/褪黑素合成的实验路径
-```
-
-结果（真实运行：DDC / P20711，*B. adolescentis* GCF_000010425.1）：
-
-- **序列通道：0 条命中**
-- **结构通道**：18 个候选，TM 0.60–0.71（双向），最佳模板 3RBF
-- FedKEA 对 18 个候选全部给出**其他 EC**（4.1.2.48、2.1.2.1、2.6.1.x、4.4.1.13、2.8.1.7）→ 全部 `USALIGN_OTHER_EC`
-- 交付时**不写"无候选"**：这些是"结构相似、但预测 EC 不同"的候选，附带目标 EC 与预测 EC 并排验证的实验方案
-
-### Example 4: 关注具体的生理过程，先出相关候选酶和候选菌排序表，再交棒筛选
+### Example 4：关注具体的生理过程，先出候选排序表，再交棒筛选
 
 ```text
 User:
 "我比较关注皮肤外源性物质代谢相关的生理过程，有哪些代谢酶和哪些菌值得关注呢？"
-
-Agent:
-- 路由判为入口 B：只有关注点，没有 EC / 反应 / 序列
-- 查库：`skin_xenobiotic` 有 6 个外源代谢类别，但全是 starter（无逐条证据）→ 命中也要说明这一点
-- 库覆盖不全 → `discover_enzyme_candidates.py` 用文献补：中文题目按固定词表转成英文检索词，转不出来就问用户
-- `build_candidate_shortlist.py` 合并库、文献发现、位点菌名单 → 出两张推荐表（证据优先，档内按分数）
 ```
 
-排序表（真实运行，皮肤 + 外源代谢主题）：
+**Agent 走的链**
 
-| 排序 | 推荐候选酶 | EC | 证据 |
+- 路由判为入口 B：只有关注点，没有 EC / 反应 / 序列
+- 查库：`skin_xenobiotic` 有 6 个外源代谢类别，但全是 `starter`（无逐条证据），命中也要说明
+- 库覆盖不全 → `discover_enzyme_candidates.py` 用文献补（中文题目按固定词表转成英文检索词，转不出就问用户）
+- `build_candidate_shortlist.py` 合并库、文献发现、位点菌名单 → 两张推荐表（证据优先，档内按分数）
+
+**结果：推荐候选酶**
+
+| 排序 | 候选酶 | EC | 证据 |
 | --- | --- | --- | --- |
-| 1 | azoreductase (Azo1) | — | `literature_verified`，PMID 33385118 |
-| 2 | β-葡萄糖醛酸苷酶 | 3.2.1.31 | `curated_prior`（PMID 26972811、36099474，属肠道外推） |
-| 3–6 | 环氧化物水解酶 / 4-羟基苯甲酸 1-羟化酶 / 萘 1,2-双加氧酶 / 醇脱氢酶 | — | `curated_prior`（有引用但不足以支撑皮肤claim） |
+| 1 | azoreductase (Azo1) | — | `literature_verified`（PMID 33385118） |
+| 2 | β-葡萄糖醛酸苷酶 | 3.2.1.31 | `curated_prior`（PMID 26972811、36099474，肠道外推） |
+| 3–6 | 环氧化物水解酶 / 4-羟基苯甲酸 1-羟化酶 / 萘 1,2-双加氧酶 / 醇脱氢酶 | — | `curated_prior`（有引用，不足以支撑皮肤 claim） |
 
-| 排序 | 推荐候选菌 | 位点存在 | 代谢合理性 |
+**结果：推荐候选菌**
+
+| 排序 | 候选菌 | 位点存在 | 代谢合理性 |
 | --- | --- | --- | --- |
 | 1 | *Cutibacterium acnes* | 5.000 | 4.000 |
 | 2 | *Staphylococcus epidermidis* | 5.000 | 4.000 |
@@ -720,20 +700,16 @@ Agent:
 
 你从表里挑一条，就用 `run_entry_b.py --select <target_id> --ec <EC> --proteome ...` 交棒给入口 A。下面的追问就是一次真实的交棒：
 
-#### 交棒之后：把"关注的过程"落成一条可筛的目标
-
 ```text
 User（接着问）:
 "对 Staphylococcus epidermidis 进行醇脱氢酶的挖掘。"
-
-Agent:
-- 这一句里只有酶**家族名**和菌名，仍然没有 EC / 反应式 / 序列：家族名不是目标
-- 先收敛：`alcohol dehydrogenase` 对应多个 EC，用户选定 EC 1.1.1.1
-- 交棒入口 A：建档 → 取 reviewed 模板 → CD-HIT（单基因组 100%）→ DIAMOND → 并入源注释
-- 命中后并入候选自身注释（来自基因组 GenBank），同向即 `SEQUENCE_ANNOTATION_CONFIRMED`，跳过结构
 ```
 
-交棒之后的结果（真实运行：*S. epidermidis* GCF_038181645.1，2,372 个蛋白）：
+- 这一句里只有酶**家族名**和菌名，仍然没有 EC / 反应 / 序列：家族名不是目标
+- 先收敛：`alcohol dehydrogenase` 对应多个 EC，用户选定 EC 1.1.1.1
+- 交棒入口 A：建档 → reviewed 模板 → CD-HIT（100%）→ DIAMOND → 并入源注释
+
+**交棒之后的结果**（*S. epidermidis* GCF_038181645.1，2,372 个蛋白）
 
 | 排序 | 候选蛋白 | 比对模板 | identity | coverage | E | 注释 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -742,23 +718,19 @@ Agent:
 | 3 | WP_002470719.1 | sp\|P9WQB9\|ADHD_MYCTU | 39.9% | 97.8% | 9.9e-76 | zinc-dependent ADH 家族 |
 | 4 | WP_002456033.1 | sp\|Q0KDL6\|ADH_CUPNH | 34.9% | 96.2% | 9.5e-62 | zinc-dependent ADH 家族 |
 
-- 26 个 reviewed 模板，24 条模板-候选对齐，4 个蛋白通过快速通道
-- 另一个 25.4% identity 的 2,3-丁二醇脱氢酶**没有**被确认——它的注释是另一个活性
-- **注意**：模板集若包含同种条目（*S. epidermidis* 自己的 reviewed ADH），最高命中会变成 100%，那是**同种自比对**，不是跨物种证据
+26 个 reviewed 模板、24 条模板-候选对齐，4 个蛋白通过快速通道；另一个 25.4% identity 的 2,3-丁二醇脱氢酶**没有**被确认（注释是另一个活性）。
+
+**看点**：模板集若包含同种条目（*S. epidermidis* 自己的 reviewed ADH），最高命中会变成 100%——那是**同种自比对**，不是跨物种证据。看到 100% 先核对模板物种。
 
 ---
 
-### 如何把这些示例变成你自己的 demo
+### 复现这些示例 / Reproducing them
 
-1. 在 `project.json` 中填入用户自己的数据路径和工具路径。
-2. 如果目标不是 NSMase/DDC，修改 `inputs.target_sequence_fasta`、`reference_enzyme.enzyme_name`、`reference_enzyme.ec`，或用底物/产物起动。
-3. 让 Agent 按主 skill 先跑 light 流程：CD-HIT + DIAMOND -> 已有注释匹配（可走
-   `SEQUENCE_ANNOTATION_CONFIRMED` 快速路径）-> 必要时才 US-align / DEER -> FedKEA
-   -> 文献证据/实验假设 -> 最终排序。
-4. 实验方案由 Agent 结合已验证文献和实验体系生成；没有文献支持时不要伪造引用。
-5. 示例 4 分两段：前半段只需要库 + 文献（不跑比对），用来产出候选排序表；后半段（ADH）才需要基因组蛋白组和比对工具。想只复现排序表，可以只做前半段。
-
----
+1. `project.json` 填自己的数据路径与工具路径。
+2. 目标不是 NSMase / DDC 时，改 `inputs.target_sequence_fasta`、`reference_enzyme.enzyme_name`、`reference_enzyme.ec`，或用底物/产物起动。
+3. 先用 light 流程：CD-HIT + DIAMOND → 注释同向即走快速通道 → 必要时才 US-align / DEER → FedKEA → 文献证据与实验假设 → 排序。
+4. 示例 4 分两段：前半段只需库 + 文献（不跑比对）就能出排序表；后半段（ADH）才需要蛋白组与比对工具。**只复现前半段是合理的终点。**
+5. 每个示例的交付集都在 `outputs/task/`，用 `check_deliverables.py` 自查。
 
 ## Key outputs / 主要输出
 

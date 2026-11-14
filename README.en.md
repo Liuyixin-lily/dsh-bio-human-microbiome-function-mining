@@ -487,144 +487,188 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples
 
-The examples are organized by common input type and adapted from real, executable
-research scenarios:
+Four examples, ordered by what the user already has, all adapted from real runs. Each one gives three
+things: **a prompt you can send as-is**, **the chain the Agent actually walks**, and **the result of one
+real run**, so you can see what the output looks like before you start. Replace tool and data paths
+with your own.
 
-| # | Input type | Trigger | Example | Entry point |
-| --- | --- | --- | --- | --- |
-| 1 | Known metabolic reaction | Substrate/product is known, but no template sequence or EC. | sphingomyelin -> ceramide + phosphocholine | `reaction` |
-| 2 | Known enzyme name / EC | Functional annotation is known. | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
-| 3 | Known reference sequence | A FASTA or UniProt accession is available. | DDC / P20711 | `sequence` |
-| 4 | A physiological process is the focus | The process is known, the enzyme is not. | skin xenobiotic metabolism, then screen alcohol dehydrogenase | entry B (`B→A`) |
+| # | What the user has | Entry point | Example |
+| --- | --- | --- | --- |
+| 1 | A reaction (substrate -> product) | `reaction` | sphingomyelin -> ceramide + phosphocholine |
+| 2 | An enzyme name / EC | `ec` | neutral sphingomyelinase / EC 3.1.4.12 |
+| 3 | A reference sequence | `sequence` | DDC / P20711 |
+| 4 | Only a focus point | entry B | skin xenobiotic metabolism, then screen alcohol dehydrogenase |
 
-Each example contains a prompt you can send directly, the workflow the Agent
-will run with the bundled skills, and the result of a real run so you can see what
-the output actually looks like. Replace tool and data paths with your own.
-
-### Example 1: predict whether human microbiome microbes encode a target reaction from a product/substrate reaction
+### Example 1: from a metabolic reaction
 
 ```text
 User:
-"Known metabolic reaction products are ceramide and phosphocholine.
-Predict whether the skin microbe Staphylococcus epidermidis
-(GCF_038181645.1) contains related metabolic genes and provide a
-verifiable experimental design."
-
-Agent:
-- Use `build-target-function-card` to infer the reaction from the reported products: sphingomyelin + H2O -> ceramide + phosphocholine (EC 3.1.4.12), written into `target_function_card.json`
-- Inventory the inputs: split candidate proteome/genome, target sequence, target structure and candidate structure directory into PROVIDED vs TO ACQUIRE. PROVIDED items are used as-is - no download, re-annotation, prediction or overwrite; use `genome-search` / `genome-download` / `genome-annotation`
-  to prepare candidate proteomes only for TO ACQUIRE items, and likewise load the reference enzyme set directly when the user already supplied the target sequence/structure
-- Verify and pin that split with `preflight_inputs.py`; fail before heavy work when a required path is missing or empty
-- Use `screen-sequence-candidates` to run CD-HIT deduplication (single-genome 100%) then DIAMOND sequence screening
-- Parse existing `.faa`/`.gbff` protein/gene names, ECs and Pfam/InterPro/KEGG annotations with `parse_source_annotations.py`
-- Apply the fast path first: a DIAMOND hit with matching annotation for the target marks the row `SEQUENCE_ANNOTATION_CONFIRMED`
-- Attach a verifiable PMID/DOI evidence chain with `literature-evidence` (verified references only)
-- Rank with `score_candidates.py` by the explicit priority rules and output `scored_candidates_full.tsv`, `experimental_hypotheses.tsv` and `experimental_design.md`
-
-The response clearly reports:
-- whether candidate genes are detected
-- representative candidate accession/locus_tag
-- evidence chain and confidence
-- actionable experimental verification plan
+"Known metabolic reaction products are ceramide and phosphocholine. Predict whether
+the skin microbe Staphylococcus epidermidis (GCF_038181645.1) contains related
+metabolic genes and provide a verifiable experimental design."
 ```
 
-Result (real run: *S. epidermidis* GCF_038181645.1, 2,372 proteins):
+**The chain**
 
-- Sequence route: 7 DIAMOND hits, all pointing at **WP_002468583.1**, best 52.2% identity /
-  89.2% coverage, E=7.5e-107.
-- That protein's own annotation is `MULTISPECIES: sphingomyelin phosphodiesterase`, which agrees with
-  the inferred activity, so it is `SEQUENCE_ANNOTATION_CONFIRMED` and structure screening is skipped.
-- **No host sphingomyelinase template matched at all** — the bacterial SMase fold differs from the
-  host enzyme. A template hit and a confirmed function are not the same thing.
-- The delivery set lands in `outputs/task/`.
+- `build-target-function-card` infers the reaction from the products: EC 3.1.4.12, written to
+  `target_function_card.json`
+- `preflight_inputs.py` inventories the inputs: the proteome is PROVIDED, so it is used as-is - no
+  download, no re-annotation
+- `screen-sequence-candidates`: CD-HIT (single genome 100%), then DIAMOND (identity>=20 / coverage>=0.7
+  / E<=1e-5)
+- `parse_source_annotations.py` pulls the existing `.gbff` annotations and joins them onto the hits
+- a hit whose annotation agrees becomes `SEQUENCE_ANNOTATION_CONFIRMED` and **structure is skipped**;
+  `summarize_candidates.py` writes the delivery set
 
-### Example 2: predict whether human microbiome microbes encode related metabolic genes from a known enzyme
+**Result** (*S. epidermidis* GCF_038181645.1, 2,372 proteins)
+
+| Item | Value |
+| --- | --- |
+| DIAMOND hits | 7, all pointing at **WP_002468583.1** |
+| Best alignment | 52.2% identity / 89.2% coverage / E=7.5e-107 |
+| The candidate's own annotation | `MULTISPECIES: sphingomyelin phosphodiesterase` (agrees with the target) |
+| Verdict | `SEQUENCE_ANNOTATION_CONFIRMED`, structure skipped |
+
+**Why it matters**: **no host sphingomyelinase template matched at all** - the bacterial SMase fold
+differs from the host enzyme. A template hit and a real function are two different claims.
+
+### Example 2: from an enzyme / EC, several genomes
 
 ```text
 User:
-"Predict whether the three skin microbiome genomes we provide
-(Streptococcus pyogenes, Streptococcus thermophilus,
-Staphylococcus xylosus) contain metabolic genes related to
+"Predict whether the three skin microbiome genomes we provide (Streptococcus pyogenes,
+Streptococcus thermophilus, Staphylococcus xylosus) contain metabolic genes related to
 neutral sphingomyelinase and provide a verifiable experimental design."
-
-Agent:
-- Use `build-target-function-card` for neutral sphingomyelinase / EC 3.1.4.12
-- Prepare the reference enzyme set automatically or manually, and record NCBI, PDB, and/or UniProt provenance
-- Aggressively check each genome and structure repository path; reject empty/missing required input before heavy work
-- Run `preflight_inputs.py` before heavy work and verify each genome's `.faa`, `.ffn`, `.gbff`, and candidate structure directory
-- Run `screen-sequence-candidates` on each genome: CD-HIT deduplication (100%), then DIAMOND screening
-- For each genome, first check whether a DIAMOND hit already matches the neutral sphingomyelinase / EC 3.1.4.12 annotation; only when there is no sequence hit, or a hit whose annotation does not match, check all candidate structure files;
-- If structure is missing, run `structure-prediction`, then use `screen-structure-candidates` to US-align all available candidate structure files for that genome directly; treat DEER as a per-genome fallback only when US-align yields no qualifying candidate for that genome, or too few of them, and the user agrees
-- Validate final candidates with FedKEA and keep the binary/enzyme/probability outputs
-- Use `literature-evidence` to attach verifiable PMID/DOI evidence
-- Score with `score_candidates.py` and output per-species candidate tables, representative candidates, and experimental design
-
-
-- whether each species has candidates
-- key evidence for positive/negative results
-- whether DEER fallback was used and why
-- recommended downstream experiments
 ```
 
-Result (real run: EC 3.1.4.12, three skin genomes):
+**The chain**
 
-- Sequence route: **no hits in any of the three genomes**, even with the coverage filter relaxed.
-- Structure route: US-align across 1,625 / 1,744 / 2,795 structure files yields **2 / 3 / 1**
-  candidates at TM>=0.5 in both directions.
-- FedKEA promotes two to `USALIGN_TARGET_EC`: *S. pyogenes* `WP_023610742.1` (TM 0.7088) and
-  *S. thermophilus* `..._bin.19_00773` (TM 0.6988).
-- The rest are `USALIGN_OTHER_EC`: TM threshold met, but FedKEA assigns a different EC.
-- DEER was not used.
+- Build the card for EC 3.1.4.12 and fetch reviewed templates (host + microbial)
+- CD-HIT (100%) and DIAMOND per genome: **no hits in any of them**
+- Switch to the structure channel: US-align every candidate structure file (both-direction TM>=0.5)
+- `parse_fedkea.py` plus `merge_candidates.py --fedkea` validate the EC, then score and summarize
 
-### Example 3: predict whether human microbiome microbes encode similar metabolic genes from a known sequence
+**Result**
+
+| Item | Value |
+| --- | --- |
+| Sequence channel | **0 hits** in all three genomes, even with the coverage filter relaxed |
+| Structure channel | US-align over 1,625 / 1,744 / 2,795 structure files -> **2 / 3 / 1** candidates |
+| FedKEA promotion | *S. pyogenes* `WP_023610742.1` (TM 0.7088) and *S. thermophilus* `..._bin.19_00773` (TM 0.6988) -> `USALIGN_TARGET_EC` |
+| The rest | `USALIGN_OTHER_EC` (TM threshold met, FedKEA assigns a different EC) |
+| DEER | not used |
+
+**Why it matters**: the first run of this example **skipped FedKEA**, so the final table was empty. The
+empty-table note now opens with "check whether FedKEA was run", not with "widen the rule set".
+
+### Example 3: from a reference sequence
 
 ```text
 User:
-"Predict whether the given gut microbe Bifidobacterium adolescentis may encode
-the key enzyme of human melatonin synthesis, DDC (P20711), and provide a
-verifiable experimental design."
-
-Agent:
-- Use `build-target-function-card` for DDC / aromatic L-amino acid decarboxylase (EC 4.1.1.28), with UniProt reference = P20711
-- If the user does not provide FASTA, give the UniProt retrieval command instead of fabricating a sequence; when reference-enzyme fetching is configured, also use `fetch_reference_enzymes.py` to prepare local reference records
-- Run `scripts/preflight_inputs.py --project project.json` to check that the candidate genome files and structure directory exist
-- Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND screening
-- Check whether a DIAMOND hit already has P20711/DDC-related annotation; if yes, mark `SEQUENCE_ANNOTATION_CONFIRMED` and skip structure steps
-- Only when there is no sequence hit, or a hit whose annotation does not match, use `screen-structure-candidates` to US-align all candidate structure files directly
-- Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
-- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (TM-score-first by default; `--rank-by priority` restores priority-tier ordering)
-
-
-- whether DDC-like candidates are detected
-- representative candidate accession/locus_tag
-- sequence/structure/FedKEA evidence chain
-- an experimental path for validating DDC and melatonin synthesis
+"Predict whether the given gut microbe Bifidobacterium adolescentis may encode the key
+enzyme of human melatonin synthesis, DDC (P20711), and provide a verifiable
+experimental design."
 ```
 
-Result (real run: DDC / P20711, *B. adolescentis* GCF_000010425.1):
+**The chain**
 
-- Sequence route: **0 hits**.
-- Structure route: 18 candidates, TM 0.60-0.71 in both directions, best template 3RBF.
-- FedKEA assigns **other ECs** to all 18 (4.1.2.48, 2.1.2.1, 2.6.1.x, 4.4.1.13, 2.8.1.7), so every
-  row is `USALIGN_OTHER_EC`.
-- The delivery does **not** say "no candidate": these are structurally similar proteins whose
-  predicted EC differs, delivered with a side-by-side assay for the target EC and the predicted EC.
+- Build the card from DDC / EC 4.1.1.28 / reference P20711 (with no FASTA supplied, give the retrieval
+  command rather than inventing a sequence)
+- CD-HIT (100%) then DIAMOND: **0 hits**
+- Structure channel: US-align all candidate structures directly
+- FedKEA cross-check, then rank by TM and write the hypotheses
+
+**Result**
+
+| Item | Value |
+| --- | --- |
+| Sequence channel | **0 hits** |
+| Structure channel | 18 candidates, TM 0.60-0.71 both directions, best template 3RBF |
+| FedKEA | **other ECs** for all of them (4.1.2.48, 2.1.2.1, 2.6.1.x, 4.4.1.13, 2.8.1.7) |
+| Verdict | all 18 are `USALIGN_OTHER_EC` |
+
+**Why it matters**: the delivery does **not** say "no candidate". These are structurally similar
+proteins whose predicted EC differs, and they come with a side-by-side assay for the target EC and the
+predicted one - a shared fold can carry convergent or moonlighting activity, and FedKEA is a
+prediction.
+
+### Example 4: focus on a physiological process, get the ranked lists, then hand off to screening
+
+```text
+User:
+"I am interested in the physiological processes of skin xenobiotic metabolism.
+Which metabolic enzymes and which microbes are worth looking at?"
+```
+
+**The chain**
+
+- Routes to entry B: a focus point only, no EC, reaction or sequence
+- Search the library: `skin_xenobiotic` holds six xenobiotic classes, all `starter` (no per-item
+  evidence), and the hits must be labelled as such
+- The library does not cover it fully, so `discover_enzyme_candidates.py` fills in from literature (a
+  CJK topic is mapped through a fixed domain-term table; if nothing maps, the agent asks)
+- `build_candidate_shortlist.py` merges the library, the literature discovery and the site taxa list
+  into two recommendation tables (evidence tier first, score within the tier)
+
+**Result: recommended enzymes**
+
+| Rank | Enzyme | EC | Evidence |
+| --- | --- | --- | --- |
+| 1 | azoreductase (Azo1) | - | `literature_verified` (PMID 33385118) |
+| 2 | beta-glucuronidase | 3.2.1.31 | `curated_prior` (PMID 26972811, 36099474; extrapolated from gut) |
+| 3-6 | epoxide hydrolase / 4-hydroxybenzoate 1-hydroxylase / naphthalene 1,2-dioxygenase / alcohol dehydrogenase | - | `curated_prior` (references retrieved, not sufficient for a skin claim) |
+
+**Result: recommended microbes**
+
+| Rank | Microbe | Site presence | Metabolic plausibility |
+| --- | --- | --- | --- |
+| 1 | *Cutibacterium acnes* | 5.000 | 4.000 |
+| 2 | *Staphylococcus epidermidis* | 5.000 | 4.000 |
+| 3 | *Staphylococcus aureus* | 5.000 | 3.000 |
+
+Pick one row and `run_entry_b.py --select <target_id> --ec <EC> --proteome ...` hands it off to entry A.
+The follow-up below is one real handoff:
+
+```text
+User (follow-up):
+"Mine alcohol dehydrogenase in Staphylococcus epidermidis."
+```
+
+- The follow-up names an enzyme **family** and a species, still no EC, reaction or sequence: a family
+  name is not a target
+- Converge first: `alcohol dehydrogenase` maps to several ECs; the user picks EC 1.1.1.1
+- Hand off to entry A: card, reviewed templates, CD-HIT (100%), DIAMOND, join source annotations
+
+**Result after the handoff** (*S. epidermidis* GCF_038181645.1, 2,372 proteins)
+
+| Rank | Candidate | Template | Identity | Coverage | E | Annotation |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | WP_002438761.1 | sp\|P39451\|ADHP_ECOLI | 68.5% | 99.7% | 2.1e-161 | alcohol dehydrogenase **AdhP** |
+| 2 | WP_002456130.1 | sp\|P0A9Q7\|ADHE_ECOLI | 49.3% | 95.8% | 8.9e-274 | bifunctional AdhE |
+| 3 | WP_002470719.1 | sp\|P9WQB9\|ADHD_MYCTU | 39.9% | 97.8% | 9.9e-76 | zinc-dependent ADH family |
+| 4 | WP_002456033.1 | sp\|Q0KDL6\|ADH_CUPNH | 34.9% | 96.2% | 9.5e-62 | zinc-dependent ADH family |
+
+26 reviewed templates, 24 template-candidate alignments, four proteins through the fast path. A
+2,3-butanediol dehydrogenase at 25.4% identity is **not** confirmed: its annotation is a different
+activity.
+
+**Why it matters**: if the template set contains a same-species entry (*S. epidermidis*'s own reviewed
+ADH), the best hit becomes 100% - that is a **self-match**, not cross-species evidence. Check the
+template organism before reading 100% as a discovery.
 
 ---
 
-### Turning these examples into your own demo
+### Reproducing them
 
-1. Put the user's data paths and tool paths into `project.json`.
-2. If the target is not NSMase/DDC, change `inputs.target_sequence_fasta`, `reference_enzyme.enzyme_name`, and `reference_enzyme.ec`, or start from a substrate/product reaction.
-3. Ask the Agent to run the light workflow first: CD-HIT + DIAMOND -> existing-annotation
-   match (which can take the `SEQUENCE_ANNOTATION_CONFIRMED` fast path) -> US-align / DEER
-   only when needed -> FedKEA -> literature evidence / experimental hypotheses -> final
-   ranking.
-4. Experimental design should be generated with verified literature and the user's assay context; do not fabricate citations when literature support is absent.
-
----
-
----
+1. Put your own data and tool paths in `project.json`.
+2. If the target is not NSMase / DDC, change `inputs.target_sequence_fasta`,
+   `reference_enzyme.enzyme_name`, `reference_enzyme.ec`, or start from substrate/product.
+3. Run the light path first: CD-HIT + DIAMOND -> fast path when the annotation agrees -> only then
+   US-align / DEER -> FedKEA -> literature evidence and hypotheses -> ranking.
+4. Example 4 has two stages: the first needs only the library and literature (no alignment) and yields
+   the recommendation tables; the second (ADH) needs a proteome and the alignment tools. **Reproducing
+   only the first stage is a legitimate stopping point.**
+5. Every example's delivery set lands in `outputs/task/`; verify it with `check_deliverables.py`.
 
 ## Key outputs
 
@@ -662,76 +706,3 @@ Raw tool output paths, tool names, versions, thresholds, and source annotations 
 - [references/tool_fallback.md](references/tool_fallback.md): tool-running and fallback policy.
 - [references/literature_evidence.md](references/literature_evidence.md): verified literature evidence chain guide.
 - [references/acceptance_criteria.md](references/acceptance_criteria.md): task completion checklist.
-
-### Example 4: focus on a physiological process, get the ranked candidate enzyme and taxa lists, then hand off to screening
-
-```text
-User:
-"I am interested in the physiological processes of skin xenobiotic metabolism.
-Which metabolic enzymes and which microbes are worth looking at?"
-
-Agent:
-- Routes to entry B: a focus point only, no EC, reaction or sequence.
-- Search the library: `skin_xenobiotic` holds six xenobiotic classes, all `starter` (no per-item
-  evidence), and the hits must be labelled as such.
-- The library does not cover it fully, so `discover_enzyme_candidates.py` fills in from literature: a
-  CJK topic is mapped through a fixed domain-term table, and if nothing maps the agent asks instead
-  of guessing.
-- `build_candidate_shortlist.py` merges the library, the literature discovery and the site taxa list
-  into two recommendation tables (evidence tier first, score within the tier).
-```
-
-Recommendation tables (real run, skin + xenobiotic metabolism):
-
-| Rank | Recommended enzyme | EC | Evidence |
-| --- | --- | --- | --- |
-| 1 | azoreductase (Azo1) | - | `literature_verified`, PMID 33385118 |
-| 2 | beta-glucuronidase | 3.2.1.31 | `curated_prior` (PMID 26972811, 36099474; extrapolated from gut) |
-| 3-6 | epoxide hydrolase / 4-hydroxybenzoate 1-hydroxylase / naphthalene 1,2-dioxygenase / alcohol dehydrogenase | - | `curated_prior` (references retrieved, not sufficient for a skin claim) |
-
-| Rank | Recommended microbe | Site presence | Metabolic plausibility |
-| --- | --- | --- | --- |
-| 1 | *Cutibacterium acnes* | 5.000 | 4.000 |
-| 2 | *Staphylococcus epidermidis* | 5.000 | 4.000 |
-| 3 | *Staphylococcus aureus* | 5.000 | 3.000 |
-
-Pick one row and `run_entry_b.py --select <target_id> --ec <EC> --proteome ...` hands it off to
-entry A. The follow-up below is one real handoff:
-
-#### After the handoff: turning the process into one screenable target
-
-```text
-User (follow-up):
-"Mine alcohol dehydrogenase in Staphylococcus epidermidis."
-
-Agent:
-- The follow-up names an enzyme family and a species, still no EC, reaction or sequence: a family name is not a target.
-- Converge first: one family maps to several ECs (different substrates and cofactors); the user picks
-  EC 1.1.1.1.
-- Hand off to entry A: card, reviewed templates, CD-HIT (single genome 100%), DIAMOND, join source annotations.
-- Join each hit's own annotation from the genome's GenBank; if it agrees, the row is
-  `SEQUENCE_ANNOTATION_CONFIRMED` and structure screening is skipped.
-```
-
-Result after the handoff (real run: *S. epidermidis* GCF_038181645.1, 2,372 proteins):
-
-| Rank | Candidate | Template | Identity | Coverage | E | Annotation |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | WP_002438761.1 | sp\|P39451\|ADHP_ECOLI | 68.5% | 99.7% | 2.1e-161 | alcohol dehydrogenase **AdhP** |
-| 2 | WP_002456130.1 | sp\|P0A9Q7\|ADHE_ECOLI | 49.3% | 95.8% | 8.9e-274 | bifunctional AdhE |
-| 3 | WP_002470719.1 | sp\|P9WQB9\|ADHD_MYCTU | 39.9% | 97.8% | 9.9e-76 | zinc-dependent ADH family |
-| 4 | WP_002456033.1 | sp\|Q0KDL6\|ADH_CUPNH | 34.9% | 96.2% | 9.5e-62 | zinc-dependent ADH family |
-
-- 26 reviewed templates, 24 template-candidate alignments, four proteins through the fast path.
-- A 2,3-butanediol dehydrogenase at 25.4% identity is **not** confirmed: its annotation is a
-  different activity.
-- **Caveat**: a same-species template (*S. epidermidis*'s own reviewed ADH) makes the best hit 100%,
-  which is a self-match, not cross-species evidence.
-
-## Reproducing these examples / 复现这些示例
-
-- Example 4 has two stages: the first needs only the library and the curated literature (no alignment)
-  and produces the recommendation tables; the second (the alcohol dehydrogenase run) needs a proteome
-  and the alignment tools. Reproducing only the tables is a legitimate stopping point.
-- The other examples need the candidate proteome and, for structure work, the candidate structure
-  files — the Agent asks for those paths before running anything heavy.
