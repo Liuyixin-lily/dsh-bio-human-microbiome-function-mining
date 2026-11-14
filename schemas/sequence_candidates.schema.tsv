@@ -28,6 +28,11 @@ notes
 
 # Notes
 
+- One row per candidate (`candidate_id`), represented by its best alignment; `representative_id`
+  is that alignment's template. `sequence_hits.tsv` keeps every (template, candidate) pair.
+- pident / query_coverage / evalue describe the retained alignment and must travel with it into
+  the scored and final tables.
+
 - `evidence_class` should be one of: known, ambiguous, unknown, weak, sequence_supported.
 - `sequence_category` may store the original screening bucket: known, ambiguous, unknown.
 - `sequence_score` should reflect only sequence-based evidence and be consistent with the configured identity/coverage/E-value policy.

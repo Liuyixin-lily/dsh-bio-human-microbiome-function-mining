@@ -1,6 +1,7 @@
 # Required columns for sequence_hits.tsv
 
 candidate_id
+representative_id
 protein_accession
 assembly_accession
 organism_or_strain
@@ -15,7 +16,6 @@ tool_version
 
 # Optional but recommended
 
-representative_id
 query_coverage_numerator
 query_length
 subject_length
@@ -23,6 +23,13 @@ tier
 notes
 
 # Notes
+
+- `representative_id` is the reference/template enzyme the candidate was aligned to (DIAMOND
+  `qseqid`). It is required because a hit without its template says only "something matched":
+  two candidates at 40% identity to different enzymes are not the same evidence. One row per
+  (template, candidate) pair here; `sequence_candidates.tsv` keeps one row per candidate.
+- If the candidate's own annotation is empty, join it from `source_feature_annotations.tsv`
+  (`scripts/merge_source_annotations.py`) before the fast path can be evaluated.
 
 - `evidence_class` should be one of: known, ambiguous, unknown, weak, sequence_supported.
 - Empty numeric fields should be left blank, not replaced with fabricated values.

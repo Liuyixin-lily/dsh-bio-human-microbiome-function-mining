@@ -17,6 +17,7 @@ contains multiple genomes per organism (a pan-proteome). Set
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import os
 import shutil
@@ -127,6 +128,59 @@ def write_checkpoint(path: Path, status: str, step: str, command: list[str], out
         handle.write("\n")
 
 
+def assembly_from_db(db: Path | None) -> str:
+    """Assembly accession from the proteome file name (GCF_../GCA_..), never guessed."""
+    if db is None:
+        return ""
+    # a symlinked proteome hides the accession; resolve before reading the name
+    match = re.search(r"(GC[AF]_\d+\.\d+)", Path(str(db)).resolve().name)
+    return match.group(1) if match else ""
+
+
+def tool_version(exe: str) -> str:
+    """`diamond --version` prints e.g. 'diamond version 2.1.11'; the table records the number.
+
+    An empty tool_version made the schema warning permanent and left the report unable to say which
+    build produced the numbers.
+    """
+    try:
+        result = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    text = (result.stdout or "") + (result.stderr or "")
+    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", text)
+    return match.group(1) if match else ""
+
+
+def organism_from_db(db: Path | None) -> str:
+    """Read the organism from the first FASTA header of the candidate proteome, if it states one.
+
+    NCBI protein headers end in '[Staphylococcus epidermidis]'; when they do not, the column stays
+    empty rather than being filled with a guess.
+    """
+    if db is None:
+        return ""
+    path = Path(db)
+    if not path.is_file():
+        return ""
+    # HSMD lays proteomes out as <Genus_species>/<accession>_protein.faa; the directory name is a
+    # binomial, which is more informative than a phylum in the FASTA header ('[Bacillota]').
+    resolved = path.resolve()
+    parent = resolved.parent.name
+    if parent.count("_") == 1 and parent[0].isupper() and parent.replace("_", "").isalpha():
+        return parent.replace("_", " ")
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if not line.startswith(">"):
+                    continue
+                match = re.search(r"\[([^\]]+)\]", line)
+                return match.group(1).strip() if match else ""
+    except OSError:
+        return ""
+    return ""
+
+
 def parse_filtered(args: argparse.Namespace, root: Path, outdir: Path, tool_version: str = "") -> int:
     filtered = outdir / "diamond_hits.filtered.tsv"
     parse_input = filtered
@@ -151,6 +205,12 @@ def parse_filtered(args: argparse.Namespace, root: Path, outdir: Path, tool_vers
     ]
     if tool_version:
         cmd += ["--tool-version", str(tool_version)]
+    organism = organism_from_db(getattr(args, "db", None))
+    if organism:
+        cmd += ["--organism", organism]
+    assembly = assembly_from_db(getattr(args, "db", None))
+    if assembly:
+        cmd += ["--assembly", assembly]
     print(collection_cmd(cmd))
     return subprocess.run(cmd, cwd=str(root)).returncode
 
@@ -291,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
             write_checkpoint(checkpoint, "failed", "diamond", cmd, [], f"exit={result.returncode}")
             return result.returncode
 
-    parsed = parse_filtered(args, root, outdir)
+    parsed = parse_filtered(args, root, outdir, tool_version=tool_version(exe))
     if parsed != 0:
         write_checkpoint(checkpoint, "failed", "diamond", commands[-1], [], "parse step failed")
         return parsed

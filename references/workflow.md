@@ -99,3 +99,21 @@ FedKEA comparison, literature alignment, and hypothesis generation.
   is recorded in `fedkea_notes`.
 - Keep the original FedKEA file paths and tool version in `fedkea_results.tsv`
   and `combined_candidates.tsv` so every validation field is traceable.
+
+
+## 序列证据链（快速通道）/ the sequence evidence chain
+
+快速通道不是"有一条命中"就算，它要求三件事同时成立，并且都写进表里：
+
+1. **参照物**：`representative_id` —— 命中的是哪条模板酶（DIAMOND `qseqid`）。没有它，两行
+   40% identity 到不同酶的命中看起来是同一类证据。
+2. **比对强度**：`pident` / `query_coverage` / `evalue`，随候选一起进入 scored 与 final 表。
+3. **候选自己的注释**：来自基因组的 GenBank/GFF（`merge_source_annotations.py` 并入），
+   与目标活性方向一致才算 `SEQUENCE_ANNOTATION_CONFIRMED`。
+
+粒度约定：`sequence_hits.tsv` 保留每一条 (模板, 候选) 对齐；`sequence_candidates.tsv` 与
+`final_target_candidates.tsv` 每个蛋白一行（取最佳比对），所以"候选数"不等于"对齐数"。
+
+**已知限制**：模板集可能包含与目标同种的条目（如 *S. epidermidis* 自己的 reviewed ADH）。
+这时 100% identity 是同种自比对，不是跨物种的功能证据；当前表能看出模板 accession，但还不能
+自动标记 `same_species`。看到 100% 命中时先核对模板物种。

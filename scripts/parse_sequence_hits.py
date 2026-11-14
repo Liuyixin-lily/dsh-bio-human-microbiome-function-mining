@@ -93,9 +93,11 @@ def normalize_row(row: dict[str, str], args: argparse.Namespace) -> dict[str, An
         if dst == "pident" or dst == "query_coverage":
             value = parse_float(value)
         out[dst] = value
-    out["assembly_accession"] = row.get("assembly_accession", "").strip()
+    out["assembly_accession"] = (row.get("assembly_accession", "").strip()
+                                or (args.assembly or "").strip())
     out["protein_accession"] = out["candidate_id"]
-    out["organism_or_strain"] = row.get("organism_or_strain", "").strip()
+    out["organism_or_strain"] = (row.get("organism_or_strain", "").strip()
+                                 or (args.organism or "").strip())
     out["annotation"] = row.get("annotation", "").strip()
     out["evidence_class"] = row.get("evidence_class", args.evidence_class).strip()
     out["tool"] = args.tool
@@ -140,6 +142,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--out-hits", type=Path, required=True, help="Output sequence_hits.tsv.")
     parser.add_argument("--out-candidates", type=Path, required=True, help="Output sequence_candidates.tsv.")
     parser.add_argument("--tool", default="diamond", help="Tool name, default: diamond.")
+    parser.add_argument(
+        "--organism",
+        default="",
+        help="Organism or strain the candidate proteome came from; fills a schema-required column "
+             "that otherwise stays empty.",
+    )
+    parser.add_argument("--assembly", default="", help="Assembly accession for the candidate proteome.")
     parser.add_argument("--tool-version", default="", help="Tool version.")
     parser.add_argument(
         "--evidence-class",

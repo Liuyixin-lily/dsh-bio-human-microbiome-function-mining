@@ -72,6 +72,14 @@ Available scripts:
   reference actually supports (including "this is only a prediction" or "the evidence is from
   another body site"), stored verbatim in `provenance_note_zh`. `curated_prior` may also carry
   refs, so retrieval stays visible while the gate still quarantines the entry.
+- `parse_sequence_hits.py`: keeps `representative_id` (the template each candidate matched) and
+  writes two tables with different granularity — `sequence_hits.tsv` keeps every
+  (template, candidate) pair, `sequence_candidates.tsv` keeps one row per candidate represented by
+  its best alignment. Accepts `--organism`/`--assembly` so the schema-required columns are filled
+  from the candidate proteome rather than left blank.
+- `run_diamond.py`: fills the organism from the proteome's binomial directory name (falling back to
+  the FASTA header) and records `diamond --version`, so the tables say which strain and which build
+  produced the numbers.
 - `merge_source_annotations.py`: fills the empty `annotation` column of a candidate table from
   `parse_source_annotations.py` output, keyed on accession; never overwrites an existing value.
   Needed because `parse_sequence_hits.py` cannot know product names (the FASTA carries accessions

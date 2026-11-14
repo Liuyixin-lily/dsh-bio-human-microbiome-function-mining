@@ -3655,7 +3655,9 @@ def main() -> int:
         cands = tmp / "cands.tsv"
         parsed = subprocess.run(
             [sys.executable, str(SCRIPTS / "parse_sequence_hits.py"), "--input", str(m8),
-             "--out-hits", str(hits), "--out-candidates", str(cands), "--tool", "diamond"],
+             "--out-hits", str(hits), "--out-candidates", str(cands), "--tool", "diamond",
+             "--tool-version", "2.1.11", "--organism", "Staphylococcus epidermidis",
+             "--assembly", "GCF_038181645.1"],
             capture_output=True, text=True,
         )
         assert parsed.returncode == 0, parsed.stderr
@@ -3664,6 +3666,11 @@ def main() -> int:
         # every pair keeps its template
         assert {r["representative_id"] for r in hit_rows} == {
             "sp|P39451|ADHP_ECOLI", "sp|Q5HRD6|ADH_STAEQ", "sp|P0A9Q7|ADHE_ECOLI"}
+        # the provenance columns the schema requires are filled from the proteome, not left blank
+        with hits.open("r", encoding="utf-8") as handle:
+            first = next(csv.DictReader(handle, delimiter="\t"))
+        for column in ("representative_id", "organism_or_strain", "assembly_accession", "tool_version"):
+            assert first.get(column), column
         cand_rows = list(csv.DictReader(cands.open("r", encoding="utf-8"), delimiter="\t"))
         assert len(cand_rows) == 2, cand_rows
         best = {r["candidate_id"]: r for r in cand_rows}["WP_1"]

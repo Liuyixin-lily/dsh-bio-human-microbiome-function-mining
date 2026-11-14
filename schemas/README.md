@@ -7,9 +7,12 @@ must follow these schemas when writing new task files.
 
 - `target_function_card.schema.json`: target function normalization.
 - `reference_enzyme_set.schema.tsv`: loaded reference enzyme table.
-- `sequence_hits.schema.tsv`: sequence screening output.
+- `sequence_hits.schema.tsv`: sequence screening output. One row per (template, candidate) pair;
+  `representative_id` is the template the candidate was aligned to (DIAMOND `qseqid`).
 - `structural_hits.schema.tsv`: structure screening / alignment output.
-- `sequence_candidates.schema.tsv`: candidates supported by sequence evidence.
+- `sequence_candidates.schema.tsv`: candidates supported by sequence evidence. One row per
+  candidate, represented by its best alignment; `representative_id`, `pident`, `query_coverage`
+  and `evalue` describe that alignment and travel with it into the scored and final tables.
 - `structural_candidates.schema.tsv`: candidates supported by structure evidence.
 - `source_feature_annotations.schema.tsv`: existing annotations parsed from user-provided `.faa` or `.gbff` files.
 - `candidate_signal_peptides.schema.tsv`: SignalP cleavage prediction output
@@ -68,6 +71,13 @@ explained in the report. Do not rename or omit standard columns.
 Final delivery summaries written by `scripts/summarize_candidates.py`
 (`high_confidence_candidate_summary.tsv` and `final_target_candidates.tsv`) are
 compact project-facing views of `scored_candidates_full.tsv`, not replacements
-for the full evidence-table contracts documented here. The same script also
+for the full evidence-table contracts documented here.
+
+`final_target_candidates.tsv` also carries the alignment that supports each row:
+`representative_id` (the template), `pident`, `query_coverage`, `evalue`. A candidate list
+without them cannot answer "compared against what?", and two candidates at 40% identity to
+different enzymes are not the same evidence. Rows are deduplicated to one per protein
+(`protein_accession`); duplicate template alignments are collapsed onto the best one and the count
+is reported on stderr. The same script also
 writes `experimental_hypotheses.tsv` until the Agent finalizes
 `experimental_design.md` from literature and the user's assay context.
