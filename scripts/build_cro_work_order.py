@@ -330,6 +330,7 @@ def render_markdown(
     bsl: str,
     sequences_available: bool,
     n_sequences: int,
+    context_blocks: list[tuple[str, str]] | None = None,
 ) -> str:
     scope_text = {
         "assay_first": "只做“把检测方法建起来”这一段（阳性对照酶合成 → 表达纯化 → 方法验证），先确认方法可行，再谈候选。",
@@ -493,6 +494,21 @@ def render_markdown(
     ]:
         lines.append(f"- {q}")
     lines.append("")
+    if context_blocks:
+        lines.append("## 附录 A：我方提供的背景与风险材料")
+        lines.append("")
+        lines.append(
+            "以下内容由委托方提供，用于说明**已知的不确定性**，帮助承接方判断该不该接、"
+            "以及实验设计要注意什么。它是委托方自己的陈述与文献判断，未经承接方核验，"
+            "也不构成对任何蛋白功能的结论。"
+        )
+        lines.append("")
+        for name, text in context_blocks:
+            lines.append(f"### 来源：`{name}`")
+            lines.append("")
+            lines.append(text.rstrip())
+            lines.append("")
+
     lines.append("## 10. 边界声明")
     lines.append("")
     lines.append("- 本文件由插件依据已有证据生成，**不是**实验结果，也不构成任何功能结论。")
@@ -541,6 +557,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--bsl", choices=BSL_CHOICES, default="BSL-1", help="Biosafety level to prefill (must be confirmed by the user's institution)")
     parser.add_argument("--max-candidates", type=int, default=None, help="Only include the first N candidates")
     parser.add_argument("--lang", choices=LANG_CHOICES, default="zh", help="Document language (zh default)")
+    parser.add_argument(
+        "--context",
+        type=Path,
+        action="append",
+        default=None,
+        help="Markdown file with caveats/risk notes we provide to the vendor (repeatable). Included verbatim as an appendix.",
+    )
     return parser.parse_args(argv)
 
 
@@ -568,6 +591,20 @@ def main(argv: list[str] | None = None) -> int:
 
     args.outdir.mkdir(parents=True, exist_ok=True)
     modules = modules_for_scope(args.scope)
+
+    context_blocks: list[tuple[str, str]] = []
+    for path in args.context or []:
+        if not path.is_file():
+            print(f"error: --context file not found: {path}", file=sys.stderr)
+            return 2
+        text = path.read_text(encoding="utf-8")
+        if len(text.splitlines()) > 300:
+            print(
+                f"warning: {path} has {len(text.splitlines())} lines; a very long appendix "
+                "may bury the quotable module table",
+                file=sys.stderr,
+            )
+        context_blocks.append((path.name, text))
 
     # sequences: copy verbatim, matched by accession; never synthesise a placeholder
     written = 0
@@ -628,6 +665,7 @@ def main(argv: list[str] | None = None) -> int:
         args.bsl,
         sequences_available=written > 0,
         n_sequences=written,
+        context_blocks=context_blocks,
     )
     md_path = args.outdir / "cro_work_order.md"
     md_path.write_text(md, encoding="utf-8")
@@ -646,6 +684,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"wrote {args.outdir / 'cro_sequences.MISSING.md'} (no sequences available)")
     if missing:
         print("warning: no sequence found for candidate(s): " + ", ".join(missing), file=sys.stderr)
+    if context_blocks:
+        print(f"附上 {len(context_blocks)} 份背景/风险材料（逐字引用，注明来源）")
     print("提醒：价格与周期一律留空，须由承接方报价；本文件不含任何功能结论。")
     return 0
 

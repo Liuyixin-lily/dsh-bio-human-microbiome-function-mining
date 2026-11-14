@@ -51,6 +51,20 @@ python3 scripts/build_cro_work_order.py \
   --bsl BSL-1
 ```
 
+### Attaching known risks
+
+A vendor quote and assay design both depend on what is *uncertain* about the
+candidates — e.g. "not predicted secreted", "homology model from a 94 % identity
+template", "active-site panel 0/4 in the substrate-binding patch". Pass those notes:
+
+```bash
+python3 scripts/build_cro_work_order.py ... --context outputs/evidence_summary.md
+```
+
+The file is included verbatim as 附录 A, attributed by filename, and explicitly labelled
+as the client's own statement that the vendor has not verified. Without it the work order
+looks like the candidates are straightforward, which they usually are not.
+
 ### Choosing `--scope`
 
 | scope | Modules | Use when |

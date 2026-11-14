@@ -1536,6 +1536,39 @@ def main() -> int:
         assert "crit-Z" not in text
         assert "本次委托范围内" in text
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # risk/caveat material can be attached to the work order, verbatim and attributed
+        card = tmp / "card.json"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "build_target_function_card.py"),
+             "--output", str(card), "--target-id", "T", "--enzyme-name", "e",
+             "--ec", "3.1.4.12", "--input-source", "ec"],
+            check=True, capture_output=True,
+        )
+        cands = tmp / "cands.tsv"
+        cands.write_text("final_rank\tprotein_accession\torganism_or_strain\n1\tCAND_A\tOrg_a\n",
+                         encoding="utf-8")
+        context = tmp / "risks.md"
+        context.write_text("## 已知风险\n\n- 候选预测不分泌\n- 模建模型置信度较低\n",
+                           encoding="utf-8")
+        out = tmp / "cro"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "build_cro_work_order.py"),
+             "--card", str(card), "--candidates", str(cands),
+             "--context", str(context),
+             "--outdir", str(out), "--scope", "candidates"],
+            check=True, capture_output=True,
+        )
+        text = (out / "cro_work_order.md").read_text(encoding="utf-8")
+        assert "附录 A" in text
+        assert "risks.md" in text
+        assert "候选预测不分泌" in text
+        # it must be attributed as our own statement, not presented as fact
+        assert "未经承接方核验" in text
+        # and it must not disturb the boundary statement
+        assert text.index("附录 A") < text.index("边界声明")
+
     print("example test passed")
     return 0
 
