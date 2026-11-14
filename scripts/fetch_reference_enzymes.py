@@ -68,25 +68,36 @@ def http_get(url: str, timeout: int = 60) -> bytes:
     set silently degraded to NCBI. curl is already a de facto dependency of this plugin.
     """
     req = urllib.request.Request(url, headers={"User-Agent": "deepseek-harness/1.0"})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as exc:
-        print(f"HTTP {exc.code} for {url}", file=sys.stderr)
-        raise
-    except Exception as exc:                       # SSL / connection errors
-        curl = shutil.which("curl")
-        if not curl:
+    # 429 is a rate limit, not "this enzyme has no templates": backing off is the fix, and
+    # falling through to the NCBI fallback instead silently changes what the template set is.
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and attempt < 3:
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                wait = int(retry_after) if (retry_after or "").isdigit() else 5 * (attempt + 1)
+                print(f"HTTP 429 rate limit; waiting {wait}s before retry ({url[:70]})",
+                      file=sys.stderr)
+                time.sleep(wait)
+                continue
+            print(f"HTTP {exc.code} for {url}", file=sys.stderr)
             raise
-        print(f"urllib failed ({exc.__class__.__name__}); retrying with curl: {url[:80]}",
-              file=sys.stderr)
-        proc = subprocess.run([curl, "-sS", "--max-time", str(timeout), url],
-                              capture_output=True)
-        if proc.returncode != 0 or not proc.stdout:
-            print(f"curl also failed for {url}: {proc.stderr.decode('utf-8', 'replace')[:160]}",
+        except Exception as exc:                       # SSL / connection errors
+            curl = shutil.which("curl")
+            if not curl:
+                raise
+            print(f"urllib failed ({exc.__class__.__name__}); retrying with curl: {url[:80]}",
                   file=sys.stderr)
-            raise exc
-        return proc.stdout
+            proc = subprocess.run([curl, "-sS", "--max-time", str(timeout), url],
+                                  capture_output=True)
+            if proc.returncode != 0 or not proc.stdout:
+                print(f"curl also failed for {url}: {proc.stderr.decode('utf-8', 'replace')[:160]}",
+                      file=sys.stderr)
+                raise exc
+            return proc.stdout
+    raise RuntimeError("unreachable")
 
 
 def ncbi_esearch(term: str, retmax: int = DEFAULT_RETMAX) -> list[str]:
