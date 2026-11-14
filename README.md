@@ -65,6 +65,14 @@ python3 scripts/intake_environment.py --probe --config environment.json \
 | `missing` | 声明了但找不到 | 只给命令 |
 | `not_provided` | 用户说没有 | 只给命令 |
 
+**这些文件是每个用户自己的，不能预填、不能提交。** `environment.json` / `environment_card.json` / `config.tools.json` 描述的是**某一台机器**，已在 `.gitignore` 里；插件本身只带问卷和全 `null` 的骨架。给插件做示例时用 `/path/to/...` 占位符，并用这条审计兜底（测试里也会跑）：
+
+```bash
+python3 scripts/intake_environment.py --audit-paths .
+```
+
+它会在出现真实主目录（`/Users/<name>/`、`/home/<name>/`）或私有网段地址时报错退出。
+
 同一份回答还能直接生成 `project.json` 需要的 `tools` / `inputs` 片段，不用填两遍：
 
 ```bash

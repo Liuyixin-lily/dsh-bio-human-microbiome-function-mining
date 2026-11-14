@@ -30,7 +30,9 @@ Available scripts:
   This is the counterpart of `preflight_inputs.py`, which checks task inputs rather than
   the environment. `--emit-config` turns the verified card into the `tools`/`inputs`
   fragment that `project.json` expects, writing a path only for `ready` tools and
-  `enabled: false` for the rest, so the environment is not typed twice.
+  `enabled: false` for the rest, so the environment is not typed twice. `--audit-paths DIR`
+  fails when the tree contains a real home directory or private IP address, which keeps
+  one user's paths out of a plugin other people install.
 - `score_target_priorities.py`: the **pre**-screening prioritisation layer. Ranks
   candidate enzyme targets and candidate taxa from human-assigned 0-5 scores
   (weighted sums, configurable), so a user can decide what to screen at all.

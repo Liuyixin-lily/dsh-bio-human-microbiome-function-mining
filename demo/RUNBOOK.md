@@ -2,22 +2,22 @@
 
 This runbook is a clean command sequence for reproducing the real-data demo on
 the demonstration server. It assumes the plugin tree is already present at
-`/home/liuyixin/database/HSMD/plugin_demo/human_microbiome_function_mining/`.
+`/path/to/HSMD/plugin_demo/human_microbiome_function_mining/`.
 
 Server details:
 
 ```text
-server: 172.16.100.7
+server: <demo-host>
 user:   liuyixin
-root:   /home/liuyixin/database/HSMD/plugin_demo
+root:   /path/to/HSMD/plugin_demo
 target: human neutral sphingomyelinase 2 (nSMase2, SMPD3, EC 3.1.4.12)
 ```
 
 ## 1. Enter the demo root
 
 ```bash
-ssh liuyixin@172.16.100.7
-cd /home/liuyixin/database/HSMD/plugin_demo
+ssh <user>@<demo-host>
+cd /path/to/HSMD/plugin_demo
 ```
 
 ## 2. Verify inputs
@@ -48,7 +48,7 @@ already configures `reference_enzyme` in
 run with no additional arguments:
 
 ```bash
-cd /home/liuyixin/database/HSMD/plugin_demo
+cd /path/to/HSMD/plugin_demo
 python3 human_microbiome_function_mining/scripts/fetch_reference_enzymes.py \
   --project human_microbiome_function_mining/projects/nsmase2_hsmd3_demo.project.json
 ```
@@ -70,8 +70,8 @@ project file into the demo root instead, update the path above.
 python3 human_microbiome_function_mining/scripts/run_diamond.py \
   --query inputs/SMPD3_HUMAN.faa \
   --db inputs/candidate_proteome.faa \
-  --executable /home/liuyixin/miniconda3/envs/meta/bin/diamond \
-  --cdhit /home/liuyixin/miniconda3/envs/meta/bin/cd-hit \
+  --executable /path/to/envs/meta/bin/diamond \
+  --cdhit /path/to/envs/meta/bin/cd-hit \
   --cluster-identity 1.0 \
   --identity 20.0 \
   --coverage 0.7 \
@@ -87,7 +87,7 @@ That is the expected behavior for the demo.
 python3 human_microbiome_function_mining/scripts/run_usalign.py \
   --target inputs/SMPD3_HUMAN_5UVG.pdb \
   --candidate-dir inputs/candidate_structures \
-  --executable /data/Xianjinyuan/nihaoran/enzyme_site/USalign/USalign \
+  --executable /path/to/USalign \
   --outdir outputs/alignments/run_full_085
 ```
 
@@ -165,7 +165,7 @@ version when there are fewer than 20 candidate sequences; recommend the local
 FEDKEA software run when there are 20 or more.
 
 For this demo, the 4 US-align candidates were validated with the local FedKEA
-runtime under `/home/liuyixin/00.database/FEDKEA`; the returned files from that
+runtime under `/path/to/FEDKEA`; the returned files from that
 local run were parsed into `outputs/fedkea/fedkea_results.tsv`. Save or copy
 the equivalent returned files
 `binary_result.txt`, `enzyme_result_with_probability.csv`, and

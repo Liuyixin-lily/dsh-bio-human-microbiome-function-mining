@@ -63,6 +63,19 @@ python3 scripts/intake_environment.py --probe --config environment.json \
 | `missing` | declared but not found | hand over the command |
 | `not_provided` | user does not have it | hand over the command |
 
+**These files belong to one user and are never shipped.** `environment.json`,
+`environment_card.json` and `config.tools.json` describe a single machine; they are
+gitignored, and the plugin itself carries only the questionnaire plus an all-`null`
+skeleton. When writing an example for the plugin, use `/path/to/...` placeholders and let
+this audit back it up (it also runs in the test suite):
+
+```bash
+python3 scripts/intake_environment.py --audit-paths .
+```
+
+It fails on a real home directory (`/Users/<name>/`, `/home/<name>/`) or a private IP
+address, so no demo config can quietly acquire one person's paths again.
+
 The same answers also generate the `tools` / `inputs` fragment that `project.json`
 expects, so nothing is typed twice:
 

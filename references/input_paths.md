@@ -49,7 +49,7 @@ cases must be asked about explicitly:
 
 - **Remote host** - if the data or tools are on another machine (for example a
   lab server), ask for `user@host` and the **absolute path there**, and record
-  both, e.g. `liuyixin@172.16.100.7:/home/liuyixin/database/HSMD/<species>/`.
+  both, e.g. `<user>@<demo-host>:/path/to/HSMD/<species>/`.
   Do not silently assume the path is local, and do not treat a remote path as
   missing just because it does not exist on this machine.
 - **User-supplied tool paths on that host** - the executable may only exist on

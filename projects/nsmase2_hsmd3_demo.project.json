@@ -42,8 +42,8 @@
   "tools": {
     "sequence_screen": {
       "name": "DIAMOND",
-      "executable": "/home/liuyixin/miniconda3/envs/meta/bin/diamond",
-      "cdhit_executable": "/home/liuyixin/miniconda3/envs/meta/bin/cd-hit",
+      "executable": "/path/to/envs/meta/bin/diamond",
+      "cdhit_executable": "/path/to/envs/meta/bin/cd-hit",
       "cdhit_identity": 1.0,
       "enabled": true,
       "auto_run_local": true,
@@ -66,7 +66,7 @@
     "usalign": {
       "name": "US-align",
       "enabled": true,
-      "executable": "/data/Xianjinyuan/nihaoran/enzyme_site/USalign/USalign",
+      "executable": "/path/to/USalign",
       "auto_run_local": true,
       "candidate_dir": "inputs/candidate_structures",
       "tm_score_threshold": 0.5,
@@ -75,17 +75,17 @@
     "deer": {
       "name": "DEER",
       "enabled": true,
-      "executable": "/home/liuyixin/miniconda3/envs/deer/bin/python",
-      "script_path": "/home/liuyixin/00.database/deer/do_retrieval.py",
-      "ckpt_dir": "/home/liuyixin/00.database/deer/ckpt",
-      "deer_model_path": "/home/liuyixin/00.database/deer/ckpt/deer_checkpoint.ckpt",
+      "executable": "/path/to/envs/deer/bin/python",
+      "script_path": "/path/to/deer/do_retrieval.py",
+      "ckpt_dir": "/path/to/deer/ckpt",
+      "deer_model_path": "/path/to/deer/ckpt/deer_checkpoint.ckpt",
       "skip_hf_checkpoint": true,
       "auto_run_local": false,
-      "template_pdb_dir": "/home/liuyixin/database/HSMD/plugin_demo/inputs/target_structures",
-      "database_pdb_dir": "/home/liuyixin/database/HSMD/plugin_demo/inputs/candidate_structures",
+      "template_pdb_dir": "/path/to/HSMD/plugin_demo/inputs/target_structures",
+      "database_pdb_dir": "/path/to/HSMD/plugin_demo/inputs/candidate_structures",
       "device": "cpu",
       "top_k": 20,
-      "tmp_dir": "/home/liuyixin/database/HSMD/plugin_demo/outputs/alignments/deer/tmp",
+      "tmp_dir": "/path/to/HSMD/plugin_demo/outputs/alignments/deer/tmp",
       "distance_cutoff": 12.0,
       "require_usalign_evidence": true,
       "output_dir": "outputs/alignments/deer"
@@ -96,10 +96,10 @@
       "preferred_source": "web_download",
       "alternate_source": "local",
       "executable": "python",
-      "script_path": "/home/liuyixin/00.database/FEDKEA/main.py",
+      "script_path": "/path/to/FEDKEA/main.py",
       "env": {
-        "PATH": "/home/liuyixin/miniconda3/envs/fedkea/bin:/usr/local/bin:/usr/bin:/bin",
-        "LD_LIBRARY_PATH": "/home/liuyixin/miniconda3/envs/fedkea/lib"
+        "PATH": "/path/to/envs/fedkea/bin:/usr/local/bin:/usr/bin:/bin",
+        "LD_LIBRARY_PATH": "/path/to/envs/fedkea/lib"
       },
       "auto_run_local": false,
       "local_result_dir": "outputs/fedkea/result",
@@ -123,44 +123,44 @@
     "description": "Source genome FASTA files used to extract final candidate protein/CDS records.",
     "genomes": {
       "Staphylococcus_xylosus": {
-        "protein_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
-        "cds_fasta": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn",
-        "structure_dir": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/structure",
-        "gbff": "/home/liuyixin/database/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.gbff"
+        "protein_fasta": "/path/to/HSMD/Staphylococcus_xylosus/GCF_037693595.1_protein.faa",
+        "cds_fasta": "/path/to/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.ffn",
+        "structure_dir": "/path/to/HSMD/Staphylococcus_xylosus/structure",
+        "gbff": "/path/to/HSMD/Staphylococcus_xylosus/GCF_037693595.1_genomic.gbff"
       },
       "Streptococcus_thermophilus": {
-        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.faa",
-        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.ffn",
-        "structure_dir": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/structure",
+        "protein_fasta": "/path/to/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.faa",
+        "cds_fasta": "/path/to/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.ffn",
+        "structure_dir": "/path/to/HSMD/Streptococcus_thermophilus/structure",
         "gbff": ""
       },
       "Streptococcus_pyogenes": {
-        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_protein.faa",
-        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_genomic.ffn",
-        "structure_dir": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/structure",
+        "protein_fasta": "/path/to/HSMD/Streptococcus_pyogenes/GCF_054182765.1_protein.faa",
+        "cds_fasta": "/path/to/HSMD/Streptococcus_pyogenes/GCF_054182765.1_genomic.ffn",
+        "structure_dir": "/path/to/HSMD/Streptococcus_pyogenes/structure",
         "gbff": ""
       }
     },
     "candidates": {
       "WP_023610742.1": {
         "source_genome": "Streptococcus_pyogenes",
-        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_protein.faa",
-        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_genomic.ffn"
+        "protein_fasta": "/path/to/HSMD/Streptococcus_pyogenes/GCF_054182765.1_protein.faa",
+        "cds_fasta": "/path/to/HSMD/Streptococcus_pyogenes/GCF_054182765.1_genomic.ffn"
       },
       "1111525849483863_bin.19_00773": {
         "source_genome": "Streptococcus_thermophilus",
-        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.faa",
-        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.ffn"
+        "protein_fasta": "/path/to/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.faa",
+        "cds_fasta": "/path/to/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.ffn"
       },
       "1111525849483863_bin.19_01722": {
         "source_genome": "Streptococcus_thermophilus",
-        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.faa",
-        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.ffn"
+        "protein_fasta": "/path/to/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.faa",
+        "cds_fasta": "/path/to/HSMD/Streptococcus_thermophilus/1111525849483863_bin.19.ffn"
       },
       "WP_023610361.1": {
         "source_genome": "Streptococcus_pyogenes",
-        "protein_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_protein.faa",
-        "cds_fasta": "/home/liuyixin/database/HSMD/Streptococcus_pyogenes/GCF_054182765.1_genomic.ffn"
+        "protein_fasta": "/path/to/HSMD/Streptococcus_pyogenes/GCF_054182765.1_protein.faa",
+        "cds_fasta": "/path/to/HSMD/Streptococcus_pyogenes/GCF_054182765.1_genomic.ffn"
       }
     }
   },

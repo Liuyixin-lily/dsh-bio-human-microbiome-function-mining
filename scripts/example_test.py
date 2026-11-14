@@ -1696,6 +1696,34 @@ def main() -> int:
             if isinstance(block, dict) and "auto_run_local" in block:
                 assert block["auto_run_local"] is False, name
 
+    # The plugin must never ship one user's real paths: environment intake is per-user,
+    # so the repo carries placeholders only.
+    audit = subprocess.run(
+        [sys.executable, str(SCRIPTS / "intake_environment.py"), "--audit-paths", str(ROOT)],
+        capture_output=True, text=True,
+    )
+    assert audit.returncode == 0, audit.stderr
+    assert "路径审计通过" in audit.stdout
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # a planted real path must be caught
+        planted = "data: " + "/" + "home" + "/" + "someone/project/data.faa" + "\n"
+        (tmp / "leak.md").write_text(planted, encoding="utf-8")
+        caught = subprocess.run(
+            [sys.executable, str(SCRIPTS / "intake_environment.py"), "--audit-paths", str(tmp)],
+            capture_output=True, text=True,
+        )
+        assert caught.returncode == 1
+        assert "路径审计失败" in caught.stderr
+        # generic placeholders and private-IP-free text must pass
+        (tmp / "leak.md").write_text("data: /path/to/project/data.faa\n", encoding="utf-8")
+        ok = subprocess.run(
+            [sys.executable, str(SCRIPTS / "intake_environment.py"), "--audit-paths", str(tmp)],
+            capture_output=True, text=True,
+        )
+        assert ok.returncode == 0, ok.stderr
+
     print("example test passed")
     return 0
 

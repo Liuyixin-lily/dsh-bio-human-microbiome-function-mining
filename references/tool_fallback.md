@@ -80,8 +80,8 @@ These environment variables can also be recorded inside `project.json` under
 
 ```json
 "env": {
-  "PATH": "/home/liuyixin/miniconda3/envs/fedkea/bin:/usr/local/bin:/usr/bin:/bin",
-  "LD_LIBRARY_PATH": "/home/liuyixin/miniconda3/envs/fedkea/lib"
+  "PATH": "/path/to/envs/fedkea/bin:/usr/local/bin:/usr/bin:/bin",
+  "LD_LIBRARY_PATH": "/path/to/envs/fedkea/lib"
 }
 ```
 
@@ -89,7 +89,7 @@ The wrapper accepts repeatable `--env-var NAME=VALUE` flags for ad-hoc runs
 without editing the project file.
 
 The FedKEA local path was tested on the demo server
-(`172.16.100.7:/home/liuyixin/00.database/FEDKEA`) with the activation commands
+(`<demo-host>:/path/to/FEDKEA`) with the activation commands
 above using three sequences from the upstream `Testset`. It completed all six
 helper stages and the wrapper wrote `fedkea_results.tsv` with the expected
 `binary_result.txt`, `enzyme_result_with_probability.csv`, and

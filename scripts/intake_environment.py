@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -574,6 +575,40 @@ CONFIG_TOOL_KEYS_CONSUMED = {"diamond", "cd-hit", "usalign", "deer", "fedkea", "
 
 
 # ---------------------------------------------------------------------------
+# path-leak audit: the repo must never carry one user's real paths
+# ---------------------------------------------------------------------------
+
+AUDIT_PATTERNS = [
+    (re.compile(r"/Users/[A-Za-z0-9._-]+/"), "个人 macOS 主目录"),
+    (re.compile(r"/home/(?!you/|user/|<)[A-Za-z0-9._-]+/"), "他人 Linux 主目录"),
+    (re.compile(r"\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b"), "私有网段地址"),
+]
+AUDIT_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "dist", "runs"}
+AUDIT_SUFFIXES = {".md", ".json", ".py", ".sh", ".tsv", ".yml", ".yaml", ".txt", ".js"}
+
+
+def audit_paths(root: Path) -> list[tuple[str, int, str, str]]:
+    """Return (relative path, line, matched text, reason) for real paths in the tree."""
+    findings: list[tuple[str, int, str, str]] = []
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in AUDIT_SUFFIXES:
+            continue
+        if any(part in AUDIT_SKIP_DIRS for part in path.parts):
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for lineno, line in enumerate(lines, 1):
+            for pattern, reason in AUDIT_PATTERNS:
+                match = pattern.search(line)
+                if match:
+                    findings.append((str(path.relative_to(root)), lineno, match.group(0), reason))
+                    break
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # cli
 # ---------------------------------------------------------------------------
 
@@ -586,6 +621,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mode.add_argument("--ask", action="store_true", help="Print the questionnaire to send to the user.")
     mode.add_argument("--init", action="store_true", help="Write an environment.json skeleton.")
     mode.add_argument("--probe", action="store_true", help="Verify the environment described by --config.")
+    mode.add_argument(
+        "--audit-paths",
+        nargs="?",
+        const=".",
+        metavar="DIR",
+        help="Fail if DIR (default: cwd) contains a real home directory or private IP address.",
+    )
     parser.add_argument("--config", type=Path, default=None, help="environment.json for --probe.")
     parser.add_argument("--output", type=Path, default=None, help="Where --init writes the skeleton.")
     parser.add_argument("--output-card", type=Path, default=None, help="Where --probe writes environment_card.json.")
@@ -606,6 +648,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.ask:
         print(QUESTIONNAIRE)
         return 0
+
+    if args.audit_paths is not None:
+        root = Path(args.audit_paths).resolve()
+        findings = audit_paths(root)
+        if not findings:
+            print(f"路径审计通过：{root} 里没有他人主目录或私有网段地址。")
+            return 0
+        print(f"路径审计失败：{len(findings)} 处疑似真实路径（插件不能携带任何人的本地路径）", file=sys.stderr)
+        for rel, lineno, text, reason in findings[:40]:
+            print(f"  {rel}:{lineno}  {text}  ← {reason}", file=sys.stderr)
+        if len(findings) > 40:
+            print(f"  ... 还有 {len(findings) - 40} 处", file=sys.stderr)
+        print(
+            "\n改成占位符（/path/to/...）或让用户用 --init 生成自己的 environment.json；"
+            "环境文件本身不要提交。",
+            file=sys.stderr,
+        )
+        return 1
 
     if args.init:
         out = args.output or Path("environment.json")

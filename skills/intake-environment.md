@@ -125,6 +125,25 @@ Tell the user, in one short block:
 Then proceed with the main workflow, using the recorded environment. Re-run
 `--probe` whenever the user changes a path or a new tool is needed.
 
+## This is per-user, so nothing about it may be committed
+
+`environment.json`, `environment_card.json`, `environment_report.md` and the emitted
+`config.tools.json` describe **one machine**. They are generated locally, are in
+`.gitignore`, and must never be filled in with your own paths and shared — the next
+user has different ones.
+
+What ships with the plugin is only the questionnaire and the empty skeleton (`--init`,
+every field `null`). If you are extending the plugin and are tempted to "just fill it in
+so the example works", use `/path/to/...` placeholders instead, then verify:
+
+```bash
+python3 scripts/intake_environment.py --audit-paths .
+```
+
+That audit fails on a real home directory (`/Users/<name>/`, `/home/<name>/`) or a private
+IP address, and it runs in the test suite, so a demo config cannot quietly acquire one
+person's paths again. Generic `/home/you/...` or `/path/to/...` placeholders are allowed.
+
 ## Guardrails
 
 - Never claim a tool ran when it did not appear in `environment_card.json` as `ready`.

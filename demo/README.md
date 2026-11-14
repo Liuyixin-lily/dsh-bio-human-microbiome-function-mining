@@ -14,10 +14,10 @@ the demonstration server:
 The server paths used by this demo are:
 
 ```text
-server: 172.16.100.7
-root:   /home/liuyixin/database/HSMD/plugin_demo
-target: /home/liuyixin/database/HSMD/plugin_demo/inputs/SMPD3_HUMAN.faa
-target: /home/liuyixin/database/HSMD/plugin_demo/inputs/SMPD3_HUMAN_5UVG.pdb
+server: <demo-host>
+root:   /path/to/HSMD/plugin_demo
+target: /path/to/HSMD/plugin_demo/inputs/SMPD3_HUMAN.faa
+target: /path/to/HSMD/plugin_demo/inputs/SMPD3_HUMAN_5UVG.pdb
 ```
 
 All candidate PDB structures are linked into `inputs/candidate_structures/`.
@@ -39,20 +39,20 @@ you only need a quick end-to-end check.
 To run the demo:
 
 ```bash
-ssh liuyixin@172.16.100.7
-cd /home/liuyixin/database/HSMD/plugin_demo
+ssh <user>@<demo-host>
+cd /path/to/HSMD/plugin_demo
 python3 human_microbiome_function_mining/scripts/example_test.py
 python3 human_microbiome_function_mining/scripts/run_diamond.py \
   --query inputs/SMPD3_HUMAN.faa \
   --db inputs/candidate_proteome.faa \
-  --executable /home/liuyixin/miniconda3/envs/meta/bin/diamond \
-  --cdhit /home/liuyixin/miniconda3/envs/meta/bin/cd-hit \
+  --executable /path/to/envs/meta/bin/diamond \
+  --cdhit /path/to/envs/meta/bin/cd-hit \
   --cluster-identity 1.0 \
   --outdir outputs/sequence_screening
 python3 human_microbiome_function_mining/scripts/run_usalign.py \
   --target inputs/SMPD3_HUMAN_5UVG.pdb \
   --candidate-dir inputs/candidate_structures \
-  --executable /data/Xianjinyuan/nihaoran/enzyme_site/USalign/USalign \
+  --executable /path/to/USalign \
   --outdir outputs/alignments/run_full_085
 python3 human_microbiome_function_mining/scripts/run_deer.py \
   --project human_microbiome_function_mining/projects/nsmase2_hsmd3_demo.project.json \
@@ -145,15 +145,15 @@ symlinks are under `inputs/candidate_structures/`), but none of its candidate
 structures reach `tm_score_mean >= 0.5`. That is why the DEER fallback was
 triggered. On the demo server, DEER was configured with `deer.script_path` and
 `deer.auto_run_local` using the local checkpoint under
-`/home/liuyixin/00.database/deer/ckpt`; it wrote
+`/path/to/deer/ckpt`; it wrote
 `outputs/alignments/deer/Staphylococcus_xylosus/similarity.csv` and then
 `score_candidates.py` merged the parsed DEER evidence with the US-align hits:
 
 ```bash
 python3 human_microbiome_function_mining/scripts/run_deer.py \
   --project human_microbiome_function_mining/projects/nsmase2_hsmd3_demo.project.json \
-  --usalign-dir /home/liuyixin/database/HSMD/plugin_demo/outputs/alignments/run_full_085 \
-  --outdir /home/liuyixin/database/HSMD/plugin_demo/outputs/alignments/deer
+  --usalign-dir /path/to/HSMD/plugin_demo/outputs/alignments/run_full_085 \
+  --outdir /path/to/HSMD/plugin_demo/outputs/alignments/deer
 ```
 
 If a terminal cannot access DEER, non-auto-run mode prints `REQUIRED_COMMAND`
@@ -193,7 +193,7 @@ candidates from `Staphylococcus xylosus`. In this demo run we used a mixed
 route:
 
 1. The 4 US-align candidates were validated with a local FedKEA install on the
-   demo server at `/home/liuyixin/00.database/FEDKEA` and written under
+   demo server at `/path/to/FEDKEA` and written under
    `outputs/fedkea/local_result/`.
 2. The 7 `Staphylococcus xylosus` DEER candidates were submitted manually to
    the FedKEA web version, and the returned result table was pasted back into
