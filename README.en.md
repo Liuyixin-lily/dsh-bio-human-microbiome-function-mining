@@ -527,10 +527,12 @@ metabolic genes and provide a verifiable experimental design."
 | DIAMOND hits | 7, all pointing at **WP_002468583.1** |
 | Best alignment | 52.2% identity / 89.2% coverage / E=7.5e-107 |
 | The candidate's own annotation | `MULTISPECIES: sphingomyelin phosphodiesterase` (agrees with the target) |
+| Templates hit | all 7 come from **bacterial** phospholipase C templates (*Bacillus cereus*, *Leptospira interrogans*, *Listeria ivanovii*); **no host sphingomyelinase template matched** |
 | Verdict | `SEQUENCE_ANNOTATION_CONFIRMED`, structure skipped |
 
-**Why it matters**: **no host sphingomyelinase template matched at all** - the bacterial SMase fold
-differs from the host enzyme. A template hit and a real function are two different claims.
+**Why it matters**: **the host templates missed and the bacterial ones hit.** Under one EC the host and
+bacterial folds differ, so using the host enzyme as the template to find a bacterial gene finds
+nothing; finding a bacterial gene needs a microbial template.
 
 ### Example 2: from an enzyme / EC, several genomes
 

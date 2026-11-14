@@ -610,9 +610,10 @@ User:
 | DIAMOND 命中 | 7 条，全部指向 **WP_002468583.1** |
 | 最佳比对 | 52.2% identity / 89.2% coverage / E=7.5e-107 |
 | 候选自身注释 | `MULTISPECIES: sphingomyelin phosphodiesterase`（与目标同向） |
+| 命中模板 | 7 条全部来自**细菌**磷脂酶 C 模板（*Bacillus cereus*、*Leptospira interrogans*、*Listeria ivanovii*）；**宿主鞘磷脂酶模板 0 条** |
 | 判定 | `SEQUENCE_ANNOTATION_CONFIRMED`，结构流程跳过 |
 
-**看点**：宿主鞘磷脂酶模板**一条都没命中**——细菌 SMase 折叠与宿主不同。命中模板与确有该功能是两件事。
+**看点**：**宿主模板没命中，细菌模板命中**。同一个 EC 下宿主与细菌的折叠不同，用宿主酶当模板去找细菌基因会一无所获；找细菌基因要用微生物模板。
 
 ### Example 2：从已知酶 / EC 出发，多基因组
 
