@@ -119,6 +119,7 @@ ENZYME_OUT_FIELDS = [
     "novelty_score",
     "score_basis",
     "scoring_policy",
+    "score_sources",
     "notes",
 ]
 TAXA_OUT_FIELDS = [
@@ -141,6 +142,7 @@ TAXA_OUT_FIELDS = [
     "key_evidence_dois",
     "score_basis",
     "scoring_policy",
+    "score_sources",
     "rationale",
 ]
 
@@ -293,6 +295,183 @@ def taxa_policy_string(taxa_w: dict[str, float], threshold: float) -> str:
 
 
 # ---------------------------------------------------------------------------
+# auto-scoring: derive what the plugin actually has data for, never invent the rest
+# ---------------------------------------------------------------------------
+
+RUBRICS = {
+    "biochemical_clarity_score": (
+        "EC 置信度 full=2 / family=1 / none=0；反应式非空 +1；底物且产物非空 +1；折叠提示非空 +1"
+    ),
+    "microbial_plausibility_score": (
+        "库中已知微生物代表数：0 个=1，1 个=3，≥2 个=4（没有代表不代表不可能，故不给 0）"
+    ),
+    "novelty_score": "dark_matter=true → 5；无已知微生物代表 → 4；已有代表 → 2",
+    "sequence_structure_score": (
+        "参考酶集合中该 target 的记录：有结构文件=5；有 UniProt/登录号=3；无记录=0"
+    ),
+    "genome_availability_score": (
+        "genome-search 命中的装配数：0=1，1–3=2，4–9=3，10–19=4，≥20=5"
+    ),
+    "site_presence_score": (
+        "该菌命中装配中直接来源匹配的比例：≥50%=5，>0=4，0=1（需 genome-search 输出含 classification 列）"
+    ),
+}
+
+# Which flag makes a currently-missing score derivable, so the failure message can
+# say what to run instead of just "fill this in".
+DERIVABLE_FROM = {
+    "biochemical_clarity_score": "--library <library/<domain>.json>",
+    "microbial_plausibility_score": "--library <library/<domain>.json>",
+    "novelty_score": "--library <library/<domain>.json>",
+    "sequence_structure_score": "--reference-enzymes <reference_enzyme_set.tsv>",
+    "genome_availability_score": "--genomes <genome_source_search output.tsv>",
+    "site_presence_score": "--genomes <genome_source_search output.tsv>",
+}
+
+MANUAL_ONLY = {
+    "site_evidence_score": "该酶在这个部位是否真的重要：需要文献/领域判断，插件无数据源",
+    "disease_relevance_score": "该酶与目标疾病/表型的关联强度：需要文献/领域判断",
+    "assay_feasibility_score": "体外测活是否容易：涉及底物可得性、是否需要膜环境等，插件无法判断",
+    "metabolic_plausibility_score": "该菌是否具备承担该代谢的合理通路：需要通路分析或领域判断",
+    "disease_site_relevance_score": "该菌与目标疾病/部位的关联强度：需要文献/领域判断",
+    "experimental_accessibility_score": "该菌是否易培养/可遗传操作：需要菌株知识与生物安全判断",
+}
+
+
+class AutoScorer:
+    """Derive the scores that are actually computable from plugin artifacts.
+
+    Anything not derivable stays `manual`, and the caller is told exactly which
+    cells are still needed. This class never guesses a score to fill a gap.
+    """
+
+    def __init__(
+        self,
+        library_path: Path | None,
+        reference_path: Path | None,
+        genomes_path: Path | None,
+    ) -> None:
+        self.enzyme_facts: dict[str, dict[str, Any]] = {}
+        self.reference_rows: dict[str, list[dict[str, str]]] = {}
+        self.taxa_stats: dict[str, dict[str, Any]] = {}
+        self.sources_loaded: list[str] = []
+
+        if library_path is not None:
+            payload = json.loads(library_path.read_text(encoding="utf-8"))
+            for process in (payload.get("domain") or {}).get("processes") or []:
+                for enzyme in process.get("enzymes") or []:
+                    self.enzyme_facts[enzyme.get("id", "")] = enzyme
+            self.sources_loaded.append(f"library={library_path.name}")
+
+        if reference_path is not None and reference_path.is_file():
+            for row in read_tsv(reference_path):
+                self.reference_rows.setdefault(row.get("target_id", ""), []).append(row)
+            self.sources_loaded.append(f"reference_enzymes={reference_path.name}")
+
+        if genomes_path is not None and genomes_path.is_file():
+            for row in read_tsv(genomes_path):
+                name = (row.get("input") or row.get("organism") or "").strip()
+                if not name:
+                    continue
+                stats = self.taxa_stats.setdefault(name, {"n": 0, "direct": 0})
+                stats["n"] += 1
+                classification = (row.get("classification") or "").lower()
+                if "direct" in classification:
+                    stats["direct"] += 1
+            self.sources_loaded.append(f"genomes={genomes_path.name}")
+
+    # -- enzymes ---------------------------------------------------------
+    def enzyme_scores(self, target_id: str, row: dict[str, str]) -> dict[str, tuple[float, str]]:
+        facts = self.enzyme_facts.get(target_id)
+        out: dict[str, tuple[float, str]] = {}
+        if facts is not None:
+            confidence = facts.get("ec_confidence", "none")
+            clarity = {"full": 2.0, "family": 1.0}.get(confidence, 0.0)
+            if facts.get("reaction_zh"):
+                clarity += 1
+            if facts.get("substrate_zh") and facts.get("product_zh"):
+                clarity += 1
+            if facts.get("fold_hint"):
+                clarity += 1
+            out["biochemical_clarity_score"] = (min(clarity, SCORE_MAX), "auto:library")
+
+            examples = len(facts.get("known_microbial_examples") or [])
+            plausibility = 1.0 if examples == 0 else (3.0 if examples == 1 else 4.0)
+            out["microbial_plausibility_score"] = (plausibility, "auto:library")
+
+            if facts.get("dark_matter"):
+                novelty = 5.0
+            elif examples == 0:
+                novelty = 4.0
+            else:
+                novelty = 2.0
+            out["novelty_score"] = (novelty, "auto:library")
+
+        refs = self.reference_rows.get(target_id) or []
+        if refs:
+            if any(r.get("structure_file") for r in refs):
+                out["sequence_structure_score"] = (5.0, "auto:reference_enzymes")
+            elif any((r.get("uniprot") or r.get("reference_id")) for r in refs):
+                out["sequence_structure_score"] = (3.0, "auto:reference_enzymes")
+            else:
+                out["sequence_structure_score"] = (1.0, "auto:reference_enzymes")
+        return out
+
+    # -- taxa ------------------------------------------------------------
+    def taxa_scores(self, genus: str, species: str) -> dict[str, tuple[float, str]]:
+        out: dict[str, tuple[float, str]] = {}
+        candidates = [f"{genus} {species}".strip(), species.strip(), genus.strip()]
+        stats = None
+        for key in candidates:
+            if key and key in self.taxa_stats:
+                stats = self.taxa_stats[key]
+                break
+        if stats is None:
+            return out
+        n = stats["n"]
+        if n >= 20:
+            availability = 5.0
+        elif n >= 10:
+            availability = 4.0
+        elif n >= 4:
+            availability = 3.0
+        elif n >= 1:
+            availability = 2.0
+        else:
+            availability = 1.0
+        out["genome_availability_score"] = (availability, "auto:genome_search")
+        if stats["direct"]:
+            ratio = stats["direct"] / n
+            out["site_presence_score"] = (5.0 if ratio >= 0.5 else 4.0, "auto:genome_search")
+        else:
+            out["site_presence_score"] = (1.0, "auto:genome_search")
+        return out
+
+
+def resolve_score(
+    row: dict[str, str],
+    key: str,
+    site: str | None,
+    auto: dict[str, tuple[float, str]],
+    sources: dict[str, str],
+    problems: list[str],
+    where: str,
+) -> float:
+    """Manual value wins; otherwise an auto-derived value; otherwise a gap."""
+    raw = cell(row, key, site)
+    if raw != "":
+        sources[key] = "manual"
+        return score_of(row, key, site, problems, where)
+    if key in auto:
+        value, source = auto[key]
+        sources[key] = source
+        return value
+    sources[key] = "missing"
+    problems.append(f"{where}: '{key}' has no value and cannot be derived")
+    return 0.0
+
+
+# ---------------------------------------------------------------------------
 # ranking
 # ---------------------------------------------------------------------------
 
@@ -305,19 +484,20 @@ def rank_enzymes(
     discovery_w: float,
     site: str | None,
     problems: list[str],
+    auto_scorer: AutoScorer | None = None,
 ) -> list[dict[str, Any]]:
     policy = policy_string(enzyme_c, discovery_c, known_w, discovery_w)
     ranked: list[dict[str, Any]] = []
     for index, row in enumerate(rows, 1):
         target_id = row.get("target_id", "") or f"row{index}"
         where = f"enzyme[{target_id}]"
-        known = sum(
-            weight * score_of(row, key, site, problems, where) for key, weight in enzyme_c.items()
-        )
-        discovery = sum(
-            weight * score_of(row, key, site, problems, where)
-            for key, weight in discovery_c.items()
-        )
+        auto = auto_scorer.enzyme_scores(target_id, row) if auto_scorer else {}
+        sources: dict[str, str] = {}
+        values: dict[str, float] = {}
+        for key in list(enzyme_c) + list(discovery_c):
+            values[key] = resolve_score(row, key, site, auto, sources, problems, where)
+        known = sum(weight * values[key] for key, weight in enzyme_c.items())
+        discovery = sum(weight * values[key] for key, weight in discovery_c.items())
         ranked.append(
             {
                 "target_id": target_id,
@@ -331,8 +511,9 @@ def rank_enzymes(
                 "priority_score": f"{known_w * known + discovery_w * discovery:.3f}",
                 "score_basis": SCORE_BASIS,
                 "scoring_policy": policy,
+                "score_sources": ";".join(f"{k}={v}" for k, v in sorted(sources.items())),
                 "notes": cell(row, "notes", site),
-                **{key: f"{score_of(row, key, site, [], where):.3f}" for key in ENZYME_OUT_FIELDS if key in enzyme_c or key in discovery_c},
+                **{key: f"{values[key]:.3f}" for key in values},
             }
         )
     ranked.sort(key=lambda r: (-float(r["priority_score"]), str(r["target_id"])))
@@ -348,15 +529,21 @@ def rank_taxa(
     site: str | None,
     problems: list[str],
     warnings: list[str],
+    auto_scorer: AutoScorer | None = None,
 ) -> list[dict[str, Any]]:
     policy = taxa_policy_string(taxa_w, threshold)
     ranked: list[dict[str, Any]] = []
     for index, row in enumerate(rows, 1):
         taxon_id = row.get("taxon_id", "") or f"row{index}"
         where = f"taxa[{taxon_id}]"
-        total = sum(
-            weight * score_of(row, key, site, problems, where) for key, weight in taxa_w.items()
-        )
+        genus = cell(row, "genus", site)
+        species = cell(row, "species", site)
+        auto = auto_scorer.taxa_scores(genus, species) if auto_scorer else {}
+        sources: dict[str, str] = {}
+        values: dict[str, float] = {}
+        for key in taxa_w:
+            values[key] = resolve_score(row, key, site, auto, sources, problems, where)
+        total = sum(weight * values[key] for key, weight in taxa_w.items())
         pmids = cell(row, "key_evidence_pmids", site)
         dois = cell(row, "key_evidence_dois", site)
         for pmid in _split_refs(pmids):
@@ -373,8 +560,8 @@ def rank_taxa(
         ranked.append(
             {
                 "taxon_id": taxon_id,
-                "genus": cell(row, "genus", site),
-                "species": cell(row, "species", site),
+                "genus": genus,
+                "species": species,
                 "display_name": cell(row, "display_name", site),
                 "domain": cell(row, "domain", site),
                 "core_tier": cell(row, "core_tier", site),
@@ -385,8 +572,9 @@ def rank_taxa(
                 "key_evidence_dois": dois,
                 "score_basis": SCORE_BASIS,
                 "scoring_policy": policy,
+                "score_sources": ";".join(f"{k}={v}" for k, v in sorted(sources.items())),
                 "rationale": cell(row, "rationale", site),
-                **{key: f"{score_of(row, key, site, [], where):.3f}" for key in TAXA_OUT_FIELDS if key in taxa_w},
+                **{key: f"{values[key]:.3f}" for key in values},
             }
         )
     ranked.sort(key=lambda r: (-float(r["priority_score"]), str(r["taxon_id"])))
@@ -529,6 +717,49 @@ def render_report(
                 "先看下面 warnings，再调低阈值或重设权重。"
             )
         lines.append("")
+    # score provenance: what was derived, what the user had to judge
+    auto_used: dict[str, set[str]] = {}
+    manual_used: set[str] = set()
+    missing_used: set[str] = set()
+    for row in list(enzyme_rows) + list(taxa_rows):
+        for part in str(row.get("score_sources", "")).split(";"):
+            if "=" not in part:
+                continue
+            key, source = part.split("=", 1)
+            if source.startswith("auto:"):
+                auto_used.setdefault(key, set()).add(source.split(":", 1)[1])
+            elif source == "manual":
+                manual_used.add(key)
+            elif source == "missing":
+                missing_used.add(key)
+    if auto_used:
+        lines.append("## 自动推导的分数（可复算）")
+        lines.append("")
+        lines.append("| 分项 | 依据 | 数据源 |")
+        lines.append("| --- | --- | --- |")
+        for key in sorted(auto_used):
+            lines.append(
+                f"| {key} | {RUBRICS.get(key, '规则见脚本')} | {', '.join(sorted(auto_used[key]))} |"
+            )
+        lines.append("")
+    if manual_used:
+        lines.append("## 必须由你判断的分数（插件无数据源）")
+        lines.append("")
+        for key in sorted(manual_used):
+            lines.append(f"- `{key}`：{MANUAL_ONLY.get(key, '需要外部判断')}")
+        lines.append("")
+    if missing_used:
+        lines.append("## 缺失且未推导的分数（按 0 计入）")
+        lines.append("")
+        for key in sorted(missing_used):
+            lines.append(f"- `{key}`：既没有给值，也无法从现有产物推导")
+        lines.append("")
+        lines.append(
+            "这些项按 0 参与加权，会系统性压低相关候选的排名——不要把 `--allow-missing-scores` "
+            "产出的排名当作结论。"
+        )
+        lines.append("")
+
     lines.append("## 边界")
     lines.append("")
     lines.append("- 分项分数由人给，不同人打分可能不一样；换一套分数排名就会变。")
@@ -572,6 +803,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True, help="Output directory.")
     parser.add_argument("--site", default=None, help="Body site id used for legacy column aliases (skin, gut, oral ...).")
     parser.add_argument("--min-taxa-score", type=float, default=None, help="Override the taxa selection threshold.")
+    parser.add_argument(
+        "--auto-score",
+        action="store_true",
+        help="Derive the scores that are computable from plugin artifacts; leave the rest as gaps instead of guessing.",
+    )
+    parser.add_argument("--library", type=Path, default=None, help="library/<domain>.json providing per-enzyme facts for --auto-score.")
+    parser.add_argument("--reference-enzymes", type=Path, default=None, help="reference_enzyme_set.tsv for sequence_structure_score.")
+    parser.add_argument("--genomes", type=Path, default=None, help="genome_source_search *.tsv for taxa genome/site scores.")
+    parser.add_argument(
+        "--allow-missing-scores",
+        action="store_true",
+        help="Rank even when some scores could be neither given nor derived (they count as 0).",
+    )
     return parser.parse_args(argv)
 
 
@@ -624,21 +868,70 @@ def main(argv: list[str] | None = None) -> int:
     enzyme_rows: list[dict[str, Any]] = []
     taxa_rows: list[dict[str, Any]] = []
 
+    auto_scorer = None
+    if args.auto_score:
+        auto_scorer = AutoScorer(args.library, args.reference_enzymes, args.genomes)
+
     if args.enzymes is not None:
         if not args.enzymes.is_file():
             print(f"error: enzyme registry not found: {args.enzymes}", file=sys.stderr)
             return 2
         enzyme_rows = rank_enzymes(
-            read_tsv(args.enzymes), enzyme_c, discovery_c, known_w, discovery_w, args.site, problems
+            read_tsv(args.enzymes),
+            enzyme_c,
+            discovery_c,
+            known_w,
+            discovery_w,
+            args.site,
+            problems,
+            auto_scorer,
         )
-        write_tsv(args.output / "enzyme_priority_ranking.tsv", enzyme_rows, ENZYME_OUT_FIELDS)
-        print(f"[enzyme] ranked {len(enzyme_rows)} row(s) -> {args.output / 'enzyme_priority_ranking.tsv'}")
 
     if args.taxa is not None:
         if not args.taxa.is_file():
             print(f"error: taxa registry not found: {args.taxa}", file=sys.stderr)
             return 2
-        taxa_rows = rank_taxa(read_tsv(args.taxa), taxa_w, threshold, args.site, problems, warnings)
+        taxa_rows = rank_taxa(
+            read_tsv(args.taxa), taxa_w, threshold, args.site, problems, warnings, auto_scorer
+        )
+
+    missing = [p for p in problems if "cannot be derived" in p]
+    if missing and not args.allow_missing_scores:
+        print(
+            f"{len(missing)} score cell(s) are neither given nor derivable; nothing written.",
+            file=sys.stderr,
+        )
+        for item in missing[:20]:
+            print(f"- {item}", file=sys.stderr)
+        if len(missing) > 20:
+            print(f"- ... {len(missing) - 20} more", file=sys.stderr)
+        breakable = {item.split("'")[1] for item in missing if "'" in item}
+        hints = {key: DERIVABLE_FROM[key] for key in breakable if key in DERIVABLE_FROM}
+        if hints:
+            print("\nThese become derivable if you pass the matching source:", file=sys.stderr)
+            for key, flag in sorted(hints.items()):
+                print(f"  - {key}: {flag}", file=sys.stderr)
+        print(
+            "\nOtherwise fill them in the registry, or accept zeros with --allow-missing-scores "
+            "(the gap is then recorded in score_sources and flagged in the report).",
+            file=sys.stderr,
+        )
+        print("Scores that cannot be derived and must be judged by you:", file=sys.stderr)
+        for key, explanation in MANUAL_ONLY.items():
+            print(f"  - {key}: {explanation}", file=sys.stderr)
+        return 1
+
+    if not enzyme_rows and not taxa_rows:
+        print(
+            "nothing to rank: pass --enzymes and/or --taxa, or --seed-from-library to start from the library.",
+            file=sys.stderr,
+        )
+        return 2
+
+    if enzyme_rows:
+        write_tsv(args.output / "enzyme_priority_ranking.tsv", enzyme_rows, ENZYME_OUT_FIELDS)
+        print(f"[enzyme] ranked {len(enzyme_rows)} row(s) -> {args.output / 'enzyme_priority_ranking.tsv'}")
+    if taxa_rows:
         write_tsv(args.output / "taxa_priority_ranking.tsv", taxa_rows, TAXA_OUT_FIELDS)
         selected = [row for row in taxa_rows if row["selection_status"] == "selected"]
         write_tsv(args.output / "selected_taxa.tsv", selected, TAXA_OUT_FIELDS)
@@ -647,13 +940,6 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8",
         )
         print(f"[taxa] ranked {len(taxa_rows)} row(s); {len(selected)} selected -> {args.output}")
-
-    if not enzyme_rows and not taxa_rows:
-        print(
-            "nothing to rank: pass --enzymes and/or --taxa, or --seed-from-library to start from the library.",
-            file=sys.stderr,
-        )
-        return 2
 
     report = render_report(
         enzyme_rows, taxa_rows, threshold, args.site, None, problems, warnings

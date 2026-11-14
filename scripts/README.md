@@ -27,7 +27,11 @@ Available scripts:
   `score_candidates.py` is the post-screening ranker and is a different table.
   `--seed-from-library` writes registry skeletons from `library/<domain>.json`
   with the score columns empty, and the script refuses to report a shortlist when
-  the configured threshold is unreachable. Registries written for the original
+  the configured threshold is unreachable. `--auto-score` derives the six scores
+  that are computable from artifacts already in the pipeline (library entry,
+  reference enzyme set, genome-search table) and records the rubric per cell in
+  `score_sources`; the remaining scores have no data source and are left to the
+  user, with the missing cells named and the flag that would derive each one. Registries written for the original
   skin-only `select-candidate` skill are accepted as-is.
 - `build_cro_work_order.py`: writes a vendor-facing contract-research work order
   from the target card, the candidate table, the hypotheses table and a candidate

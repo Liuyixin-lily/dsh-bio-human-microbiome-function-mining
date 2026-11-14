@@ -161,6 +161,32 @@ python3 skills/genome-search/scripts/genome_source_search.py taxa \
     --out-xlsx work/genome_search/skin.xlsx --out-tsv work/genome_search/skin.tsv
 ```
 
+The scoring weights are the "standard"; the component scores are inputs. Most of
+them are **computable from artifacts the plugin already has**, so do not ask the
+user to hand-type all twelve:
+
+```bash
+python3 scripts/score_target_priorities.py \
+    --enzymes outputs/task/priorities/enzyme_registry.seed.tsv \
+    --library library/skin.json \
+    --reference-enzymes outputs/reference/reference_enzyme_set.tsv \
+    --genomes work/genome_search/skin.tsv \
+    --auto-score --site skin --output outputs/task/priorities
+```
+
+With `--auto-score`, `biochemical_clarity_score`, `microbial_plausibility_score` and
+`novelty_score` come from the library entry, `sequence_structure_score` from the
+reference enzyme set, and `genome_availability_score` / `site_presence_score` from the
+genome-search table. Every derived cell records its rubric in `score_sources`
+(`auto:library`, `auto:reference_enzymes`, `auto:genome_search`).
+
+What is left for the user is the small set that genuinely has no data source —
+site evidence, disease relevance, assay feasibility, metabolic plausibility, strain
+accessibility. Those require literature or domain judgement, and `literature-evidence`
+can supply part of them. The script refuses to rank while a required cell is neither
+given nor derivable, and it names the missing cells plus the flag that would make
+each one derivable.
+
 Rules for this ranking, because it is easy to over-read:
 
 - **Every component score is human judgement**, not a measurement. It says "do

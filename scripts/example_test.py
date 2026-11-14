@@ -1014,6 +1014,166 @@ def main() -> int:
                 capture_output=True,
             )
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        ranker = SCRIPTS / "score_target_priorities.py"
+        library = ROOT / "library" / "skin.json"
+
+        # --- auto-scoring: derive what is computable, never guess the rest ---
+        seed_dir = tmp / "seed"
+        subprocess.run(
+            [sys.executable, str(ranker), "--seed-from-library", str(library), "--output", str(seed_dir)],
+            check=True,
+            capture_output=True,
+        )
+        seed = seed_dir / "enzyme_registry.seed.tsv"
+        with seed.open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        fields = list(rows[0].keys())
+        # a human provides only the three judgement-dependent scores
+        for row in rows:
+            row.update(
+                {
+                    "site_evidence_score": "4",
+                    "disease_relevance_score": "3",
+                    "assay_feasibility_score": "3",
+                }
+            )
+        with seed.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+
+        out = tmp / "ranked"
+        subprocess.run(
+            [
+                sys.executable, str(ranker),
+                "--enzymes", str(seed),
+                "--library", str(library),
+                "--auto-score",
+                "--allow-missing-scores",
+                "--site", "skin",
+                "--output", str(out),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        with (out / "enzyme_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            ranked = list(csv.DictReader(handle, delimiter="\t"))
+        sources = dict(
+            part.split("=", 1) for part in ranked[0]["score_sources"].split(";") if "=" in part
+        )
+        # derivable -> auto with a named rubric
+        assert sources["biochemical_clarity_score"] == "auto:library"
+        assert sources["microbial_plausibility_score"] == "auto:library"
+        assert sources["novelty_score"] == "auto:library"
+        # supplied by the human -> manual
+        assert sources["site_evidence_score"] == "manual"
+        # no reference enzyme set given -> this stays a visible gap, not a guess
+        assert sources["sequence_structure_score"] == "missing"
+        # the report must say which rubric produced which number
+        report = (out / "ranking_report.md").read_text(encoding="utf-8")
+        assert "自动推导的分数" in report
+        assert "必须由你判断的分数" in report
+        assert "EC 置信度 full=2" in report
+
+        # --- strict mode: an underivable score stops the run and names the cell ---
+        bare = tmp / "bare.tsv"
+        bare.write_text(
+            "target_id\tname\tsite_process\tsite_evidence_score\tdisease_relevance_score\t"
+            "biochemical_clarity_score\tsequence_structure_score\t"
+            "microbial_plausibility_score\tassay_feasibility_score\tnovelty_score\n"
+            "E1\tenz\tproc\t5\t5\t\t\t\t\t\n",
+            encoding="utf-8",
+        )
+        strict = subprocess.run(
+            [
+                sys.executable, str(ranker),
+                "--enzymes", str(bare),
+                "--auto-score",
+                "--output", str(tmp / "strict"),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert strict.returncode == 1
+        assert "cannot be derived" in strict.stderr
+        # the failure must say which flag would make the score derivable
+        assert "--reference-enzymes" in strict.stderr
+        # it must explain which scores need human judgement, not just fail
+        assert "需要文献" in strict.stderr or "插件无数据源" in strict.stderr
+        assert not (tmp / "strict" / "enzyme_priority_ranking.tsv").exists()
+
+        # --- permissive mode records the gap instead of hiding it ---
+        subprocess.run(
+            [
+                sys.executable, str(ranker),
+                "--enzymes", str(bare),
+                "--auto-score",
+                "--allow-missing-scores",
+                "--output", str(tmp / "permissive"),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        with (tmp / "permissive" / "enzyme_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            permissive = list(csv.DictReader(handle, delimiter="\t"))[0]
+        assert "biochemical_clarity_score=missing" in permissive["score_sources"]
+        assert "按 0 计入" in (tmp / "permissive" / "ranking_report.md").read_text(encoding="utf-8")
+
+        # --- taxa scores can be derived from a real genome-search table ---
+        genomes = tmp / "genomes.tsv"
+        genomes.write_text(
+            "input\tassembly_accession\torganism\tisolation_source\tclassification\n"
+            + "".join(
+                f"Cutibacterium acnes\tGCF_{i:09d}\tCutibacterium acnes\tskin swab\tdirect source match\n"
+                for i in range(1, 13)
+            )
+            + "Escherichia coli\tGCF_999999999\tEscherichia coli\tstool\tindirect\n",
+            encoding="utf-8",
+        )
+        taxa_reg = tmp / "taxa.tsv"
+        taxa_reg.write_text(
+            "taxon_id\tgenus\tspecies\tdisplay_name\tdomain\tcore_tier\t"
+            "site_presence_score\tmetabolic_plausibility_score\tgenome_availability_score\t"
+            "disease_site_relevance_score\texperimental_accessibility_score\t"
+            "recommended_strain_count\tkey_evidence_pmids\tkey_evidence_dois\trationale\n"
+            "T1\tCutibacterium\tacnes\tC. acnes\tBacteria\tcore\t\t3\t\t3\t4\t8\t\t\t dominant\n"
+            "T2\tEscherichia\tcoli\tE. coli\tBacteria\tenteric\t\t2\t\t1\t5\t3\t\t\t not skin\n",
+            encoding="utf-8",
+        )
+        taxa_out = tmp / "taxa_out"
+        subprocess.run(
+            [
+                sys.executable, str(ranker),
+                "--taxa", str(taxa_reg),
+                "--genomes", str(genomes),
+                "--auto-score",
+                "--site", "skin",
+                "--output", str(taxa_out),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        with (taxa_out / "taxa_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            taxa = list(csv.DictReader(handle, delimiter="\t"))
+        top = taxa[0]
+        assert top["genus"] == "Cutibacterium"
+        assert "genome_availability_score=auto:genome_search" in top["score_sources"]
+        assert "site_presence_score=auto:genome_search" in top["score_sources"]
+        # 12 assemblies -> bucket 4; the score must come from the count, not from the sheet
+        assert top["genome_availability_score"] == "4.000"
+        subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "validate_schema.py"),
+                "--schema", str(ROOT / "schemas" / "taxa_priority_ranking.schema.tsv"),
+                "--tsv", str(taxa_out / "taxa_priority_ranking.tsv"),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
     print("example test passed")
     return 0
 

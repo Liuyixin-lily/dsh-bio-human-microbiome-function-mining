@@ -5,8 +5,6 @@ taxon_id
 genus
 species
 display_name
-domain
-core_tier
 priority_score
 selection_status
 site_presence_score
@@ -14,14 +12,17 @@ metabolic_plausibility_score
 genome_availability_score
 disease_site_relevance_score
 experimental_accessibility_score
-recommended_strain_count
-key_evidence_pmids
-key_evidence_dois
 score_basis
 scoring_policy
+score_sources
 
 # Optional but recommended
 
+domain
+core_tier
+recommended_strain_count
+key_evidence_pmids
+key_evidence_dois
 rationale
 
 # Notes

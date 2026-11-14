@@ -130,9 +130,10 @@ python3 scripts/score_target_priorities.py \
 
 这套打分模型整合自本地 `select-candidate` skill 并做了通用化，同时补上它缺的三件事：
 
-1. **主观性可见**：每一行都带 `score_basis = manual_expert_judgement` 与 `scoring_policy`（精确权重），任何排名都能被重算和质疑。
-2. **阈值可达性校验**：原 skill 的示例配置把 `taxa_min_priority_score` 设成 948，而 0–5 分量表下的理论上限约 10.6——结果静默选出 0 个菌。现在这种情况直接报错并说明原因。
-3. **兼容旧格式**：`skin_process` / `skin_evidence_score` / `skin_presence_score` 作为别名读取，原 `select-candidate` 的注册表可直接用。
+1. **权重与分数分开，能自动算的不用手填**：权重是"标准"，分项分数是输入。`--auto-score` 会从已有产物推导 **6 项**——`biochemical_clarity` / `microbial_plausibility` / `novelty`（来自库条目）、`sequence_structure`（来自参考酶集合）、`genome_availability` / `site_presence`（来自 genome-search 结果），并在每行的 `score_sources` 里记明依据（`auto:library` 等）。剩下的 6 项（部位证据、疾病相关性、测活可行性、代谢合理性、菌株可操作性等）没有数据源，必须由人判断——`literature-evidence` 能补上其中一部分。任一必填分项既没给也无法推导时，脚本拒绝排序并逐格告诉缺哪个、用哪个 flag 可以补上；仍要排序就用 `--allow-missing-scores`，缺失项会记成 `missing` 并在报告里标红。
+2. **主观性可见**：每一行都带 `score_basis = manual_expert_judgement` 与 `scoring_policy`（精确权重），任何排名都能被重算和质疑。
+3. **阈值可达性校验**：原 skill 的示例配置把 `taxa_min_priority_score` 设成 948，而 0–5 分量表下的理论上限约 10.6——结果静默选出 0 个菌。现在这种情况直接报错并说明原因。
+4. **兼容旧格式**：`skin_process` / `skin_evidence_score` / `skin_presence_score` 作为别名读取，原 `select-candidate` 的注册表可直接用。
 
 排序只回答「先做谁」，不是功能证据。
 

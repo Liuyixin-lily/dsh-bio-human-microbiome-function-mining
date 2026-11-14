@@ -2,10 +2,7 @@
 
 rank
 target_id
-gene
 name
-uniprot
-ec
 site_process
 known_score
 discovery_score
@@ -19,9 +16,13 @@ assay_feasibility_score
 novelty_score
 score_basis
 scoring_policy
+score_sources
 
 # Optional but recommended
 
+gene
+uniprot
+ec
 notes
 
 # Notes
@@ -37,4 +38,10 @@ notes
   recomputed. Change the weights and the ranking changes; that is expected.
 - Legacy `skin_*` column names from the original select-candidate skill are
   accepted on input, but this output always uses the site-agnostic names.
+- `gene`, `uniprot` and `ec` are optional on purpose: a dark-matter target may
+  have no gene symbol, no characterized accession and no EC number, and an
+  empty cell there is information, not a defect.
 - A ranking is not evidence. Never write a functional conclusion from it.
+- `score_sources` records, per component, whether the value was `manual`, derived
+  by a named rubric (`auto:library`, `auto:reference_enzymes`, `auto:genome_search`),
+  or `missing` (counted as 0). It is the audit trail for the scores themselves.

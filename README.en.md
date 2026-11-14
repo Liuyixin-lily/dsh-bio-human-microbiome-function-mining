@@ -132,9 +132,10 @@ It writes `enzyme_priority_ranking.tsv`, `taxa_priority_ranking.tsv`, `selected_
 
 The scoring model was folded in from the local `select-candidate` skill, generalised from skin to any body site, and fixed in three places:
 
-1. **Subjectivity is visible**: every row carries `score_basis = manual_expert_judgement` and the exact `scoring_policy`, so a ranking can be recomputed and challenged.
-2. **Threshold reachability is validated**: the upstream example config set `taxa_min_priority_score` to 948 against a theoretical maximum of about 10.6 on the 0-5 scale, which silently selected zero taxa. That is now a hard error with an explanation.
-3. **Legacy format still works**: `skin_process` / `skin_evidence_score` / `skin_presence_score` are read as aliases, so registries written for `select-candidate` run unchanged.
+1. **Weights and scores are separate, and computable scores are not typed by hand**: the weights are the standard; the component scores are inputs. `--auto-score` derives the six that follow from artifacts already in the pipeline — `biochemical_clarity`, `microbial_plausibility`, `novelty` (from the library entry), `sequence_structure` (from the reference enzyme set), `genome_availability` and `site_presence` (from the genome-search table) — and records the rubric per cell in `score_sources` (`auto:library`, ...). The other six (site evidence, disease relevance, assay feasibility, metabolic plausibility, strain accessibility) have no data source and need human judgement; `literature-evidence` covers part of it. The script refuses to rank while a required cell is neither given nor derivable, naming each missing cell and the flag that would derive it; `--allow-missing-scores` ranks anyway and records the gap as `missing`.
+2. **Subjectivity is visible**: every row carries `score_basis = manual_expert_judgement` and the exact `scoring_policy`, so a ranking can be recomputed and challenged.
+3. **Threshold reachability is validated**: the upstream example config set `taxa_min_priority_score` to 948 against a theoretical maximum of about 10.6 on the 0-5 scale, which silently selected zero taxa. That is now a hard error with an explanation.
+4. **Legacy format still works**: `skin_process` / `skin_evidence_score` / `skin_presence_score` are read as aliases, so registries written for `select-candidate` run unchanged.
 
 A ranking answers "do this first", never "this has the function".
 
