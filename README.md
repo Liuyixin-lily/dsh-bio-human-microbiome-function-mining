@@ -562,15 +562,16 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples / 使用示例
 
-以下示例按三种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
+以下示例按四种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
 
 | # | 输入类型 | 触发点 | 举例 | 起手式 |
 | --- | --- | --- | --- | --- |
 | 1 | 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC | sphingomyelin → ceramide + phosphocholine | `reaction` |
 | 2 | 已知酶名/EC | 有酶功能或功能类别注释 | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
 | 3 | 已知参考序列 | 有模板蛋白 FASTA 或 UniProt accession | DDC / P20711 | `sequence` |
+| 4 | 已知菌 + 酶家族 | 只说得出"在某个菌里找某类酶" | S. epidermidis 的醇脱氢酶 | 入口 B（`B→A`） |
 
-每个示例都给出“用户可以直接发送的一句话 prompt”和“Agent 按插件 skill 实际会走的分析链”。实际运行时，把工具和数据路径替换成你自己的即可。
+每个示例都给出“用户可以直接发送的一句话 prompt”、“Agent 按插件 skill 实际会走的分析链”，以及**一次真实运行的结果**——这样你能直接看到输出长什么样。实际运行时，把工具和数据路径替换成你自己的即可。
 
 ### Example 1: 从代谢反应出发，预测人体微生物是否编码相关基因
 
@@ -597,6 +598,13 @@ Agent:
 - 证据链和置信度
 - 可执行的实验验证方案
 ```
+
+结果（真实运行：*S. epidermidis* GCF_038181645.1，2,372 个蛋白）：
+
+- **序列通道**：DIAMOND 命中 7 条，全部指向 **WP_002468583.1**，最佳 52.2% identity / 89.2% coverage，E=7.5e-107
+- 该蛋白自带注释 `MULTISPECIES: sphingomyelin phosphodiesterase`，与新算出的活性同向 → **SEQUENCE_ANNOTATION_CONFIRMED**，按快速通道**跳过结构分析**
+- **宿主鞘磷脂酶模板一条都没命中**——细菌 SMase 折叠与宿主不同。这说明"命中模板"和"确有该功能"是两件事
+- 交付集在 `outputs/task/`（最终候选表、摘要、实验假设、说明）
 
 ### Example 2: 从已知酶出发，预测人体微生物是否编码相关的代谢基因
 
@@ -626,6 +634,14 @@ Agent:
 - 后续实验建议
 ```
 
+结果（真实运行：EC 3.1.4.12，三个皮肤基因组）：
+
+- **序列通道：三个基因组都没有命中**（把 coverage 阈值放开也一样）
+- **结构通道**：US-align 全量跑 1,625 / 1,744 / 2,795 个结构文件，分别得到 **2 / 3 / 1** 个 TM≥0.5（双向）候选
+- FedKEA 把其中 2 个升级为 `USALIGN_TARGET_EC`：*S. pyogenes* `WP_023610742.1`（TM 0.7088）、*S. thermophilus* `..._bin.19_00773`（TM 0.6988）
+- 其余为 `USALIGN_OTHER_EC`：TM 达标，但 FedKEA 给的是别的 EC
+- DEER 未被使用
+
 ### Example 3: 从已知序列出发，预测人体微生物是否编码类似的代谢基因
 
 ```text
@@ -650,6 +666,40 @@ Agent:
 - 候选的序列/结构/FedKEA 证据链
 - 验证 DDC/褪黑素合成的实验路径
 ```
+
+结果（真实运行：DDC / P20711，*B. adolescentis* GCF_000010425.1）：
+
+- **序列通道：0 条命中**
+- **结构通道**：18 个候选，TM 0.60–0.71（双向），最佳模板 3RBF
+- FedKEA 对 18 个候选全部给出**其他 EC**（4.1.2.48、2.1.2.1、2.6.1.x、4.4.1.13、2.8.1.7）→ 全部 `USALIGN_OTHER_EC`
+- 交付时**不写"无候选"**：这些是"结构相似、但预测 EC 不同"的候选，附带目标 EC 与预测 EC 并排验证的实验方案
+
+### Example 4: 只给菌和酶家族，先出候选排序表，再交棒筛选
+
+```text
+User:
+"对 Staphylococcus epidermidis 进行醇脱氢酶的挖掘。"
+
+Agent:
+- 路由判为入口 B→A：句中只有酶**家族名**和菌名，没有 EC / 反应式 / 序列，所以是关注点而不是目标
+- 先收敛：一个家族名对应多个 EC（底物与辅因子不同），请你定一个（本案例选 EC 1.1.1.1）
+- 收敛后交棒入口 A：建档 → 取 reviewed 模板 → CD-HIT（单基因组 100%）→ DIAMOND（identity≥20、cov≥0.7、E≤1e-5）
+- 命中后并入候选自身注释（来自基因组 GenBank），同向即 `SEQUENCE_ANNOTATION_CONFIRMED`，跳过结构
+- 交付集写入 `outputs/task/`，并跑 `check_deliverables.py` 自查
+```
+
+结果（真实运行：*S. epidermidis* GCF_038181645.1，2,372 个蛋白）：
+
+| 排序 | 候选蛋白 | 比对模板 | identity | coverage | E | 注释 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | WP_002438761.1 | sp\|P39451\|ADHP_ECOLI | 68.5% | 99.7% | 2.1e-161 | alcohol dehydrogenase **AdhP** |
+| 2 | WP_002456130.1 | sp\|P0A9Q7\|ADHE_ECOLI | 49.3% | 95.8% | 8.9e-274 | bifunctional AdhE |
+| 3 | WP_002470719.1 | sp\|P9WQB9\|ADHD_MYCTU | 39.9% | 97.8% | 9.9e-76 | zinc-dependent ADH 家族 |
+| 4 | WP_002456033.1 | sp\|Q0KDL6\|ADH_CUPNH | 34.9% | 96.2% | 9.5e-62 | zinc-dependent ADH 家族 |
+
+- 26 个 reviewed 模板，24 条模板-候选对齐，4 个蛋白通过快速通道
+- 另一个 25.4% identity 的 2,3-丁二醇脱氢酶**没有**被确认——它的注释是另一个活性
+- **注意**：模板集若包含同种条目（*S. epidermidis* 自己的 reviewed ADH），最高命中会变成 100%，那是**同种自比对**，不是跨物种证据；看到 100% 先核对模板物种
 
 ---
 

@@ -495,9 +495,11 @@ research scenarios:
 | 1 | Known metabolic reaction | Substrate/product is known, but no template sequence or EC. | sphingomyelin -> ceramide + phosphocholine | `reaction` |
 | 2 | Known enzyme name / EC | Functional annotation is known. | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
 | 3 | Known reference sequence | A FASTA or UniProt accession is available. | DDC / P20711 | `sequence` |
+| 4 | Known microbe + enzyme family | Only "this enzyme class in this species" is known. | alcohol dehydrogenase in S. epidermidis | entry B (`B→A`) |
 
-Each example contains a prompt you can send directly and the workflow the Agent
-will run with the bundled skills. Replace tool and data paths with your own.
+Each example contains a prompt you can send directly, the workflow the Agent
+will run with the bundled skills, and the result of a real run so you can see what
+the output actually looks like. Replace tool and data paths with your own.
 
 ### Example 1: predict whether human microbiome microbes encode a target reaction from a product/substrate reaction
 
@@ -526,6 +528,16 @@ The response clearly reports:
 - actionable experimental verification plan
 ```
 
+Result (real run: *S. epidermidis* GCF_038181645.1, 2,372 proteins):
+
+- Sequence route: 7 DIAMOND hits, all pointing at **WP_002468583.1**, best 52.2% identity /
+  89.2% coverage, E=7.5e-107.
+- That protein's own annotation is `MULTISPECIES: sphingomyelin phosphodiesterase`, which agrees with
+  the inferred activity, so it is `SEQUENCE_ANNOTATION_CONFIRMED` and structure screening is skipped.
+- **No host sphingomyelinase template matched at all** — the bacterial SMase fold differs from the
+  host enzyme. A template hit and a confirmed function are not the same thing.
+- The delivery set lands in `outputs/task/`.
+
 ### Example 2: predict whether human microbiome microbes encode related metabolic genes from a known enzyme
 
 ```text
@@ -547,12 +559,22 @@ Agent:
 - Use `literature-evidence` to attach verifiable PMID/DOI evidence
 - Score with `score_candidates.py` and output per-species candidate tables, representative candidates, and experimental design
 
-The response clearly reports:
+
 - whether each species has candidates
 - key evidence for positive/negative results
 - whether DEER fallback was used and why
 - recommended downstream experiments
 ```
+
+Result (real run: EC 3.1.4.12, three skin genomes):
+
+- Sequence route: **no hits in any of the three genomes**, even with the coverage filter relaxed.
+- Structure route: US-align across 1,625 / 1,744 / 2,795 structure files yields **2 / 3 / 1**
+  candidates at TM>=0.5 in both directions.
+- FedKEA promotes two to `USALIGN_TARGET_EC`: *S. pyogenes* `WP_023610742.1` (TM 0.7088) and
+  *S. thermophilus* `..._bin.19_00773` (TM 0.6988).
+- The rest are `USALIGN_OTHER_EC`: TM threshold met, but FedKEA assigns a different EC.
+- DEER was not used.
 
 ### Example 3: predict whether human microbiome microbes encode similar metabolic genes from a known sequence
 
@@ -572,12 +594,21 @@ Agent:
 - Cross-check with FedKEA, existing annotations, Pfam/InterPro, etc.
 - Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (TM-score-first by default; `--rank-by priority` restores priority-tier ordering)
 
-The response clearly reports:
+
 - whether DDC-like candidates are detected
 - representative candidate accession/locus_tag
 - sequence/structure/FedKEA evidence chain
 - an experimental path for validating DDC and melatonin synthesis
 ```
+
+Result (real run: DDC / P20711, *B. adolescentis* GCF_000010425.1):
+
+- Sequence route: **0 hits**.
+- Structure route: 18 candidates, TM 0.60-0.71 in both directions, best template 3RBF.
+- FedKEA assigns **other ECs** to all 18 (4.1.2.48, 2.1.2.1, 2.6.1.x, 4.4.1.13, 2.8.1.7), so every
+  row is `USALIGN_OTHER_EC`.
+- The delivery does **not** say "no candidate": these are structurally similar proteins whose
+  predicted EC differs, delivered with a side-by-side assay for the target EC and the predicted EC.
 
 ---
 
@@ -631,3 +662,37 @@ Raw tool output paths, tool names, versions, thresholds, and source annotations 
 - [references/tool_fallback.md](references/tool_fallback.md): tool-running and fallback policy.
 - [references/literature_evidence.md](references/literature_evidence.md): verified literature evidence chain guide.
 - [references/acceptance_criteria.md](references/acceptance_criteria.md): task completion checklist.
+
+### Example 4: given only a microbe and an enzyme family, rank the candidates first and then hand off to screening
+
+```text
+User:
+"Mine alcohol dehydrogenase in Staphylococcus epidermidis."
+
+Agent:
+- Routes to entry B->A: the sentence names an enzyme **family** and a species, but no EC, reaction or
+  sequence, so it is a focus point rather than a target.
+- Converge first: one family name maps to several ECs (different substrates and cofactors), so the
+  user picks one (EC 1.1.1.1 in this case).
+- Then hand off to entry A: build the card, fetch reviewed templates, CD-HIT (single genome 100%),
+  DIAMOND (identity>=20, coverage>=0.7, E<=1e-5).
+- Join each hit's own annotation from the genome's GenBank; if it agrees with the target activity the
+  row is `SEQUENCE_ANNOTATION_CONFIRMED` and structure screening is skipped.
+- Deliverables go to `outputs/task/` and the run ends with `check_deliverables.py`.
+```
+
+Result (real run: *S. epidermidis* GCF_038181645.1, 2,372 proteins):
+
+| Rank | Candidate | Template | Identity | Coverage | E | Annotation |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | WP_002438761.1 | sp\|P39451\|ADHP_ECOLI | 68.5% | 99.7% | 2.1e-161 | alcohol dehydrogenase **AdhP** |
+| 2 | WP_002456130.1 | sp\|P0A9Q7\|ADHE_ECOLI | 49.3% | 95.8% | 8.9e-274 | bifunctional AdhE |
+| 3 | WP_002470719.1 | sp\|P9WQB9\|ADHD_MYCTU | 39.9% | 97.8% | 9.9e-76 | zinc-dependent ADH family |
+| 4 | WP_002456033.1 | sp\|Q0KDL6\|ADH_CUPNH | 34.9% | 96.2% | 9.5e-62 | zinc-dependent ADH family |
+
+- 26 reviewed templates, 24 template-candidate alignments, 4 proteins pass the fast path.
+- A 2,3-butanediol dehydrogenase at 25.4% identity is **not** confirmed: its annotation is a
+  different activity.
+- **Caveat**: if the template set contains a same-species entry (*S. epidermidis*'s own reviewed
+  ADH), the best hit becomes 100% - that is a self-match, not cross-species evidence. Check the
+  template organism before reading 100% as a discovery.
