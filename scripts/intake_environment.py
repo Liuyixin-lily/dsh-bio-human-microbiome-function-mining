@@ -142,6 +142,42 @@ DECISIONS: dict[str, dict[str, Any]] = {
         ],
         "fields": ("dir", "kind"),
     },
+    # The remaining judgment points. Each one changes what the answer means, so none of them
+    # may be decided by the plugin on the user's behalf.
+    "structure_source": {
+        "question": "需要预测结构时，接受哪种来源？",
+        "options": [
+            ("pdb_then_afdb", "实验结构优先，其次 AlphaFold DB（pLDDT>=60）", "默认，证据强度递减"),
+            ("afdb_only", "只用 AlphaFold DB", "有 AFDB 模型即可，不找实验结构"),
+            ("homology_ok", "允许同源建模", "有同源模板但无实验/预测结构时"),
+            ("de_novo", "允许 de novo 预测", "完全没有模板，证据最弱，必须在报告里标注"),
+        ],
+        "fields": (),
+    },
+    "deer_fallback": {
+        "question": "US-align 合格候选不足时，是否启用 DEER？",
+        "options": [
+            ("skip", "不启用（默认）", "只保留 US-align 结果"),
+            ("run", "启用", "需要用 --allow-fallback 显式放行，DEER 是 fallback 而非主筛"),
+        ],
+        "fields": (),
+    },
+    "ranking_policy": {
+        "question": "最终排序以什么为主键？",
+        "options": [
+            ("tm_first", "结构相似度（TM）优先（默认）", "趋同/兼职酶不会被 EC 不一致压下去"),
+            ("priority_first", "优先级层级优先", "需要严格按 tier 排序时"),
+        ],
+        "fields": (),
+    },
+    "delivery_rules": {
+        "question": "交付表收哪些 tier？",
+        "options": [
+            ("strict", "只收已确认（快速通道 / USALIGN_TARGET_EC）", "交付表可能为空，需读说明文件"),
+            ("include_other_ec", "同时收 USALIGN_OTHER_EC", "结构相似但 FedKEA 预测其他 EC，作为待验证候选"),
+        ],
+        "fields": (),
+    },
 }
 
 DECISION_REQUIRED = {
@@ -244,10 +280,8 @@ QUESTIONNAIRE_TEMPLATE = """\
 在跑任何流程之前，请先回答下面 6 组问题。不知道的直接说“不知道”——我不会替你猜，
 也不会假设某个软件已经装好。（回答后我会写进 environment.json 并逐项验证。）
 
-0. 两个必须先选的数据问题
-{data_choices}
-
-{structure_choices}
+0. 必须先做的判断（插件不会替你选）
+{all_choices}
 
 1. 在哪里跑？
    - 本机，还是远程服务器（host / 用户名）？
@@ -282,8 +316,7 @@ QUESTIONNAIRE_TEMPLATE = """\
 另外请明确一句：**你允许我在本机直接执行脚本，还是所有命令都由你手动运行？**
 """
 QUESTIONNAIRE = QUESTIONNAIRE_TEMPLATE.format(
-    data_choices=decision_question_text("candidate_data"),
-    structure_choices=decision_question_text("candidate_structures"),
+    all_choices="\n\n".join(decision_question_text(name) for name in DECISIONS)
 )
 
 
@@ -1026,12 +1059,11 @@ def main(argv: list[str] | None = None) -> int:
         for group in profile["groups"]:
             print(GROUP_TEXT[group])
             print()
-        # never skipped, whatever the scope: the two data decisions come first
-        print("先回答两个选择题（数据从哪来）：")
-        print(decision_question_text("candidate_data", 1))
-        print()
-        print(decision_question_text("candidate_structures", 2))
-        print()
+        # never skipped, whatever the scope: the judgment points come first
+        print("先回答这些判断题（插件不会替你选）：")
+        for number, name in enumerate(DECISIONS, 1):
+            print(decision_question_text(name, number))
+            print()
         # never skipped, whatever the scope: this is the one answer that gates execution
         print(PERMISSION_QUESTION)
         print()

@@ -199,6 +199,10 @@ python3 scripts/browse_target_library.py --validate
 
 ---
 
+## Judgment points / 判断题
+
+插件不替你做的判断，全部选项化并记录在 `environment.json` 的 `decisions`：候选数据来源、是否有候选结构、结构来源偏好、是否启用 DEER、排序主键、交付表收哪些 tier。`--probe` 逐项校验，未选（`needs_decision`）不等于同意。完整清单与"为什么必须问"见 `references/decision_points.md`。
+
 ## Evidence gate / 证据门槛
 
 排序器默认会在证据很少时照样给名次。两种门槛可以拦住这种行为：

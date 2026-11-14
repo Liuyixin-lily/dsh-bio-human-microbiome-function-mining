@@ -2118,19 +2118,22 @@ def main() -> int:
         card_only = ask("--task", "card")
         assert "本次任务范围：只建目标卡片" in card_only
         assert "不需要任何外部软件" in card_only
-        for absent in ("Bakta", "DEER", "US-align", "DIAMOND", "GMPS"):
+        # the *environment* questions are scoped out; the judgment points are not, and the DEER
+        # decision is one of them, so check the tool-path blocks rather than bare names
+        for absent in ("DIAMOND、CD-HIT", "US-align（必需）", "Bakta 全库", "GMPS 结构数据"):
             assert absent not in card_only, absent
         assert "不需要问：序列筛选工具、结构工具、全部外部软件、数据库、网络与资源约束" in card_only
 
         screening = ask("--task", "screening")
-        assert "DIAMOND" in screening and "CD-HIT" in screening
-        assert "Bakta" not in screening and "DEER" not in screening
+        assert "DIAMOND、CD-HIT" in screening
+        assert "Bakta 全库" not in screening
+        assert "US-align（必需）" not in screening
         assert "不需要问：结构工具、全部外部软件、数据库" in screening
 
         structure = ask("--task", "structure")
-        assert "US-align" in structure
-        assert "DEER" in structure          # mentioned as the conditional fallback
-        assert "Bakta" not in structure
+        assert "US-align（必需）" in structure
+        assert "DEER（只在 US-align 候选不足时才用）" in structure
+        assert "Bakta 全库" not in structure
 
         full = ask()
         assert "Bakta" in full and "DEER" in full
@@ -2142,6 +2145,11 @@ def main() -> int:
             assert "有没有候选菌的蛋白结构文件" in text
             assert "[predict]" in text and "[skip]" in text
             assert "kind=experimental|predicted" in text
+            # the other judgment points must not be decided silently either
+            for point in ("接受哪种来源", "是否启用 DEER", "最终排序以什么为主键", "交付表收哪些 tier"):
+                assert point in text, point
+            for option in ("[pdb_then_afdb]", "[run]", "[tm_first]", "[include_other_ec]"):
+                assert option in text, option
         assert "--task card / screening / structure / full" in full
 
         # the execution rule never relaxes, whatever the scope
@@ -2785,7 +2793,10 @@ def main() -> int:
         subprocess.run([sys.executable, str(intake), "--init", "--output", str(env_json)],
                        check=True, capture_output=True)
         skeleton = json.loads(env_json.read_text(encoding="utf-8"))
-        assert set(skeleton["decisions"]) == {"candidate_data", "candidate_structures"}
+        assert set(skeleton["decisions"]) == {
+            "candidate_data", "candidate_structures", "structure_source",
+            "deer_fallback", "ranking_policy", "delivery_rules",
+        }
         for name, value in skeleton["decisions"].items():
             assert value["choice"] is None, name
 

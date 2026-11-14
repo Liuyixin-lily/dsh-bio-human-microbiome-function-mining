@@ -6,6 +6,10 @@ plugin maps to the existing workspace.
 Intended files:
 
 - `workflow.md`: the target workflow steps and expected intermediate files.
+- `decision_points.md`: **every judgment the plugin must not make for the user** — the six
+  recorded decisions (`candidate_data`, `candidate_structures`, `structure_source`,
+  `deer_fallback`, `ranking_policy`, `delivery_rules`) plus the ones with their own entry point
+  (target choice, missing-score tolerance, threshold relaxation, literature verification, BSL).
 - `data_intake.md`: **the two questions that must be asked before any screening** — where the
   candidate proteome/genome is, and whether candidate structure files exist — with the code
   gates that enforce them (`--require-candidate-data`, `--require-candidate-structures`, and the

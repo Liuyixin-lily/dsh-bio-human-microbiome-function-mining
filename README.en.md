@@ -208,6 +208,14 @@ One deliberate behaviour: **a hit in a different body site does not count as cov
 
 ---
 
+## Judgment points
+
+Every decision the plugin must not make for the user is modelled as a choice recorded in
+`environment.json` under `decisions`: where candidate data comes from, whether structures exist,
+which structure source is acceptable, whether DEER may run, the ranking key, and which tiers the
+delivery table includes. `--probe` validates each one; `needs_decision` is never consent. The full
+list and why each must be asked are in `references/decision_points.md`.
+
 ## Evidence gates
 
 The ranker will happily produce an order from very little evidence. Two gates stop that:
