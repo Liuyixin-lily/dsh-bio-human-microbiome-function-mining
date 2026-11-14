@@ -735,3 +735,11 @@ Result after the handoff (real run: *S. epidermidis* GCF_038181645.1, 2,372 prot
   different activity.
 - **Caveat**: a same-species template (*S. epidermidis*'s own reviewed ADH) makes the best hit 100%,
   which is a self-match, not cross-species evidence.
+
+## Reproducing these examples / 复现这些示例
+
+- Example 4 has two stages: the first needs only the library and the curated literature (no alignment)
+  and produces the recommendation tables; the second (the alcohol dehydrogenase run) needs a proteome
+  and the alignment tools. Reproducing only the tables is a legitimate stopping point.
+- The other examples need the candidate proteome and, for structure work, the candidate structure
+  files — the Agent asks for those paths before running anything heavy.
