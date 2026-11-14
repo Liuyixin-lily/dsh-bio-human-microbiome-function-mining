@@ -199,6 +199,19 @@ python3 scripts/browse_target_library.py --validate
 
 ---
 
+## Entry B in one command / 入口 B 一条命令
+
+只给关注点，剩下按固定路线走完：
+
+```bash
+python3 scripts/run_entry_b.py --topic "皮肤外源性物质代谢" --site skin \
+    --output-dir outputs/task/entry_b
+```
+
+它会：查库菜单 → 命中就用库里的域作种子；没命中就跑文献发现（中文题目先按固定词表转成英文检索词，
+转不出来就问你，不猜）→ `score_target_priorities --auto-score` → 输出
+`recommended_enzymes.tsv` / `recommended_taxa.tsv`，并打印成表格供你挑选。
+
 ## Candidate lists / 候选清单
 
 入口 B 的产出是两张清单，而不是一个结论：

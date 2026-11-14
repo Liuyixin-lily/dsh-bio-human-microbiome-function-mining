@@ -3425,6 +3425,42 @@ def main() -> int:
         assert rows[0]["evidence_status"] == "literature_verified"
         assert rows[0]["evidence_refs"] == "PMID:33385118"
 
+    # entry B end to end: the term map is fixed vocabulary, not translation
+    entry_b_spec = importlib.util.spec_from_file_location("run_entry_b", SCRIPTS / "run_entry_b.py")
+    entry_b = importlib.util.module_from_spec(entry_b_spec)
+    assert entry_b_spec.loader is not None
+    entry_b_spec.loader.exec_module(entry_b)
+
+    # order follows the term map, so assert on membership rather than an exact string
+    mapped = entry_b.english_terms("皮肤外源性物质代谢").split()
+    assert "skin" in mapped and "xenobiotic" in mapped and "metabolism" in mapped
+    assert "antibiotic" in entry_b.english_terms("皮肤菌群降解抗生素")
+    # a topic with no mapped term yields nothing, so the script must ask instead of inventing one
+    assert entry_b.english_terms("完全无关的说法") == ""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # dry-run with an explicit domain touches no network and no literature
+        dry = subprocess.run(
+            [sys.executable, str(SCRIPTS / "run_entry_b.py"),
+             "--topic", "皮肤外源性物质代谢", "--site", "skin",
+             "--domain", "skin_xenobiotic", "--dry-run", "--output-dir", str(tmp)],
+            capture_output=True, text=True,
+        )
+        assert dry.returncode == 0, dry.stderr
+        assert "plan:" in dry.stdout
+        assert "skin_xenobiotic" in dry.stdout
+
+        # no English term and no discovery hit -> ask the user, exit 2, write nothing
+        asked = subprocess.run(
+            [sys.executable, str(SCRIPTS / "run_entry_b.py"),
+             "--topic", "完全无关的说法", "--site", "skin",
+             "--output-dir", str(tmp / "asked")],
+            capture_output=True, text=True,
+        )
+        assert asked.returncode in (1, 2), asked.stdout
+        assert "ASK THE USER" in asked.stderr or "no enzyme registry" in asked.stderr
+
     print("example test passed")
     return 0
 

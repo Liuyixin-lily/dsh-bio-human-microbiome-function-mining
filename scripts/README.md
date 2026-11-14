@@ -72,6 +72,12 @@ Available scripts:
   reference actually supports (including "this is only a prediction" or "the evidence is from
   another body site"), stored verbatim in `provenance_note_zh`. `curated_prior` may also carry
   refs, so retrieval stays visible while the gate still quarantines the entry.
+- `run_entry_b.py`: entry B in one command. Only a focus phrase is required: it searches the
+  library menu, seeds registries from the matching domain when covered, runs literature discovery
+  when not (a CJK topic is mapped through a fixed domain-term table to an English query; if nothing
+  maps it asks the user instead of guessing), scores with `--auto-score`, and prints the
+  recommended enzyme and taxa tables the user chooses from. An empty taxa recommendation is
+  explained (abundance alone is one component, not a recommendation).
 - `discover_enzyme_candidates.py`: produces a candidate enzyme registry from literature the plugin
   retrieves itself — no external or local ranking table needed. Runs the literature route with PMID
   resolution, then scans titles/abstracts for enzyme family names from a fixed lexicon and for
