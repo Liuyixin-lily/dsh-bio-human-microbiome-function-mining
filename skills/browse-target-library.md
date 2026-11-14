@@ -180,12 +180,35 @@ reference enzyme set, and `genome_availability_score` / `site_presence_score` fr
 genome-search table. Every derived cell records its rubric in `score_sources`
 (`auto:library`, `auto:reference_enzymes`, `auto:genome_search`).
 
-What is left for the user is the small set that genuinely has no data source —
-site evidence, disease relevance, assay feasibility, metabolic plausibility, strain
-accessibility. Those require literature or domain judgement, and `literature-evidence`
-can supply part of them. The script refuses to rank while a required cell is neither
-given nor derivable, and it names the missing cells plus the flag that would make
-each one derivable.
+Two more scores come from a real literature table, so run `literature-evidence`
+first when the ranking matters:
+
+```bash
+python3 scripts/score_target_priorities.py \
+    --enzymes outputs/task/priorities/enzyme_registry.seed.tsv \
+    --library library/skin.json \
+    --literature outputs/task/literature_evidence.tsv \
+    --disease "atopic dermatitis" \
+    --auto-score --site skin --output outputs/task/priorities
+```
+
+- `site_evidence_score`: counts **verified** functional records
+  (`verified=yes` and `evidence_type` in `direct_functional_evidence` /
+  `related_assay`): 1 → 3, 2 → 4, ≥3 → 5. Only reviews → 2. Unverified records and
+  `no_evidence` rows score nothing at all — they are not evidence.
+- `disease_relevance_score`: requires `--disease`. Counts verified records whose
+  title/finding/search string names that phenotype: ≥2 → 4, 1 → 3, and 1 when the
+  search produced usable records but none link to it (`auto:literature:no_match`).
+  This is **co-occurrence, not causality** — say so when presenting it.
+
+If a target has no usable verified record, both cells stay gaps rather than becoming
+0: absence of evidence is not evidence of absence. The report prints exactly which
+references were counted, with their evidence types and verified flags.
+
+What is left for the user is then genuinely narrow: assay feasibility, metabolic
+plausibility, strain accessibility. The script refuses to rank while a required cell
+is neither given nor derivable, and it names the missing cells plus the flag that
+would make each one derivable.
 
 Rules for this ranking, because it is easy to over-read:
 

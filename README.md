@@ -130,7 +130,9 @@ python3 scripts/score_target_priorities.py \
 
 这套打分模型整合自本地 `select-candidate` skill 并做了通用化，同时补上它缺的三件事：
 
-1. **权重与分数分开，能自动算的不用手填**：权重是"标准"，分项分数是输入。`--auto-score` 会从已有产物推导 **6 项**——`biochemical_clarity` / `microbial_plausibility` / `novelty`（来自库条目）、`sequence_structure`（来自参考酶集合）、`genome_availability` / `site_presence`（来自 genome-search 结果），并在每行的 `score_sources` 里记明依据（`auto:library` 等）。剩下的 6 项（部位证据、疾病相关性、测活可行性、代谢合理性、菌株可操作性等）没有数据源，必须由人判断——`literature-evidence` 能补上其中一部分。任一必填分项既没给也无法推导时，脚本拒绝排序并逐格告诉缺哪个、用哪个 flag 可以补上；仍要排序就用 `--allow-missing-scores`，缺失项会记成 `missing` 并在报告里标红。
+1. **权重与分数分开，能自动算的不用手填**：权重是"标准"，分项分数是输入。`--auto-score` 会从已有产物推导 **6 项**——`biochemical_clarity` / `microbial_plausibility` / `novelty`（来自库条目）、`sequence_structure`（来自参考酶集合）、`genome_availability` / `site_presence`（来自 genome-search 结果），并在每行的 `score_sources` 里记明依据（`auto:library` 等）。其中 `site_evidence` 与 `disease_relevance` 两项可以来自**真实文献表**：先跑 `literature-evidence`，再用 `--literature outputs/task/literature_evidence.tsv [--disease "<表型>"]`。规则是只算 `verified=yes` 的功能性记录（`direct_functional_evidence` / `related_assay`）：1 条=3、2 条=4、≥3 条=5，只有 review 时=2；`no_evidence` 与未核实记录**不抬高分数**，也**不会变成 0**——没有证据不等于不重要，那两格会留成缺口。报告里会列出具体计入了哪些 reference、证据类型和是否已核实。`disease_relevance` 统计的是共现，不是因果。
+
+剩下真正需要人判断的只剩 3 项：测活可行性、代谢合理性、菌株可操作性。任一必填分项既没给也无法推导时，脚本拒绝排序并逐格告诉缺哪个、用哪个 flag 可以补上；仍要排序就用 `--allow-missing-scores`，缺失项会记成 `missing` 并在报告里标红。
 2. **主观性可见**：每一行都带 `score_basis = manual_expert_judgement` 与 `scoring_policy`（精确权重），任何排名都能被重算和质疑。
 3. **阈值可达性校验**：原 skill 的示例配置把 `taxa_min_priority_score` 设成 948，而 0–5 分量表下的理论上限约 10.6——结果静默选出 0 个菌。现在这种情况直接报错并说明原因。
 4. **兼容旧格式**：`skin_process` / `skin_evidence_score` / `skin_presence_score` 作为别名读取，原 `select-candidate` 的注册表可直接用。

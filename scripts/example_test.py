@@ -1174,6 +1174,97 @@ def main() -> int:
             capture_output=True,
         )
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        ranker = SCRIPTS / "score_target_priorities.py"
+        library = ROOT / "library" / "skin.json"
+
+        # a literature table with every evidence shape the ranker must distinguish
+        lit = tmp / "literature_evidence.tsv"
+        lit.write_text(
+            "candidate_id\tprotein_accession\torganism_or_strain\tevidence_type\t"
+            "reference_type\treference_id\ttitle\tfirst_author\tjournal\tyear\t"
+            "finding\tverified\tsource_search\tnotes\n"
+            "skin_sphingomyelin_phosphodiesterase\tWP_1\tS. aureus\tdirect_functional_evidence\t"
+            "PMID\t11111111\tsphingomyelinase activity\tA\tJ\t2019\tcleaves sphingomyelin\t"
+            "yes\tsphingomyelinase skin\tok\n"
+            "skin_sphingomyelin_phosphodiesterase\tWP_2\tS. aureus\trelated_assay\tPMID\t"
+            "22222222\tsphingomyelinase and atopic dermatitis\tB\tAllergy\t2020\t"
+            "linked to atopic dermatitis\tyes\tsphingomyelinase\tok\n"
+            "skin_ceramidase\tWP_3\tS. aureus\treview\tPMID\t33333333\tceramidase review\t"
+            "C\tRev\t2018\toverview\tyes\tceramidase\tok\n"
+            "skin_urease\tWP_4\tS. epidermidis\tdirect_functional_evidence\tPMID\t44444444\t"
+            "urease claim\tD\tPreprint\t2022\tclaimed\tno\turease\tunverified\n"
+            "skin_l_lactate_dehydrogenase\tWP_5\tS. epidermidis\tno_evidence\tmanual\t\t"
+            "no literature\t\t\t\tnothing\tyes\tLDH\tsearched\n",
+            encoding="utf-8",
+        )
+
+        seed_dir = tmp / "seed"
+        subprocess.run(
+            [sys.executable, str(ranker), "--seed-from-library", str(library), "--output", str(seed_dir)],
+            check=True,
+            capture_output=True,
+        )
+        seed = seed_dir / "enzyme_registry.seed.tsv"
+        with seed.open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        fields = list(rows[0].keys())
+        for row in rows:
+            # leave site_evidence / disease_relevance empty so literature must fill them
+            row["site_evidence_score"] = ""
+            row["disease_relevance_score"] = ""
+            row["assay_feasibility_score"] = "3"  # still a human judgement
+        with seed.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t", lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(rows)
+
+        out = tmp / "lit_ranked"
+        subprocess.run(
+            [
+                sys.executable, str(ranker),
+                "--enzymes", str(seed),
+                "--library", str(library),
+                "--literature", str(lit),
+                "--disease", "atopic dermatitis",
+                "--auto-score",
+                "--allow-missing-scores",
+                "--site", "skin",
+                "--output", str(out),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        with (out / "enzyme_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            ranked = {row["target_id"]: row for row in csv.DictReader(handle, delimiter="\t")}
+
+        def source(row: dict[str, str], key: str) -> str:
+            return dict(p.split("=", 1) for p in row["score_sources"].split(";") if "=" in p)[key]
+
+        # 2 verified functional records -> 4; one of them names the phenotype -> 3
+        smase = ranked["skin_sphingomyelin_phosphodiesterase"]
+        assert source(smase, "site_evidence_score") == "auto:literature"
+        assert smase["site_evidence_score"] == "4.000"
+        assert smase["disease_relevance_score"] == "3.000"
+
+        # only a review -> 2, and no record links it to the phenotype -> explicit no-match
+        ceramidase = ranked["skin_ceramidase"]
+        assert ceramidase["site_evidence_score"] == "2.000"
+        assert source(ceramidase, "disease_relevance_score") == "auto:literature:no_match"
+
+        # an unverified record and an explicit no_evidence record must NOT become a 0:
+        # absence of evidence is not evidence of absence
+        assert source(ranked["skin_urease"], "site_evidence_score") == "missing"
+        assert source(ranked["skin_urease"], "disease_relevance_score") == "missing"
+        assert source(ranked["skin_l_lactate_dehydrogenase"], "site_evidence_score") == "missing"
+
+        report = (out / "ranking_report.md").read_text(encoding="utf-8")
+        assert "文献依据" in report
+        assert "11111111(direct_functional_evidence,verified)" in report
+        assert "44444444(direct_functional_evidence,unverified)" in report
+        assert "共现证据" in report
+
     print("example test passed")
     return 0
 

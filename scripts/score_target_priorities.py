@@ -315,6 +315,15 @@ RUBRICS = {
     "site_presence_score": (
         "该菌命中装配中直接来源匹配的比例：≥50%=5，>0=4，0=1（需 genome-search 输出含 classification 列）"
     ),
+    "site_evidence_score": (
+        "literature_evidence.tsv 中该酶 verified=yes 的功能性记录数"
+        "（direct_functional_evidence/related_assay）：1 条=3，2 条=4，≥3 条=5；"
+        "只有 review 时 1 条=2；无 verified 记录则不推导"
+    ),
+    "disease_relevance_score": (
+        "需配合 --disease <表型>：verified 记录中标题/发现/检索词命中该表型的条数，"
+        "≥2 条=4，1 条=3；已检索但 0 条命中=1（并标注为“检索过、无证据”）"
+    ),
 }
 
 # Which flag makes a currently-missing score derivable, so the failure message can
@@ -326,11 +335,13 @@ DERIVABLE_FROM = {
     "sequence_structure_score": "--reference-enzymes <reference_enzyme_set.tsv>",
     "genome_availability_score": "--genomes <genome_source_search output.tsv>",
     "site_presence_score": "--genomes <genome_source_search output.tsv>",
+    "site_evidence_score": "--literature <literature_evidence.tsv> (verified functional records)",
+    "disease_relevance_score": "--literature <literature_evidence.tsv> --disease \"<phenotype>\"",
 }
 
 MANUAL_ONLY = {
-    "site_evidence_score": "该酶在这个部位是否真的重要：需要文献/领域判断，插件无数据源",
-    "disease_relevance_score": "该酶与目标疾病/表型的关联强度：需要文献/领域判断",
+    "site_evidence_score": "该酶在这个部位是否真的重要：未提供文献表或文献里没有除 review 之外的已验证记录时，只能由你判断",
+    "disease_relevance_score": "该酶与目标疾病/表型的关联强度：未提供 --disease 或文献表时，只能由你判断",
     "assay_feasibility_score": "体外测活是否容易：涉及底物可得性、是否需要膜环境等，插件无法判断",
     "metabolic_plausibility_score": "该菌是否具备承担该代谢的合理通路：需要通路分析或领域判断",
     "disease_site_relevance_score": "该菌与目标疾病/部位的关联强度：需要文献/领域判断",
@@ -350,11 +361,19 @@ class AutoScorer:
         library_path: Path | None,
         reference_path: Path | None,
         genomes_path: Path | None,
+        literature_path: Path | None = None,
+        disease: str | None = None,
     ) -> None:
         self.enzyme_facts: dict[str, dict[str, Any]] = {}
         self.reference_rows: dict[str, list[dict[str, str]]] = {}
         self.taxa_stats: dict[str, dict[str, Any]] = {}
         self.sources_loaded: list[str] = []
+        self.disease = (disease or "").strip()
+        self.literature_rows: list[dict[str, str]] = []
+        self.literature_used: dict[str, list[str]] = {}
+        if literature_path is not None and literature_path.is_file():
+            self.literature_rows = read_tsv(literature_path)
+            self.sources_loaded.append(f"literature={literature_path.name}")
 
         if library_path is not None:
             payload = json.loads(library_path.read_text(encoding="utf-8"))
@@ -407,6 +426,8 @@ class AutoScorer:
                 novelty = 2.0
             out["novelty_score"] = (novelty, "auto:library")
 
+        out.update(self._literature_scores(target_id, facts))
+
         refs = self.reference_rows.get(target_id) or []
         if refs:
             if any(r.get("structure_file") for r in refs):
@@ -415,6 +436,114 @@ class AutoScorer:
                 out["sequence_structure_score"] = (3.0, "auto:reference_enzymes")
             else:
                 out["sequence_structure_score"] = (1.0, "auto:reference_enzymes")
+        return out
+
+    # -- literature ------------------------------------------------------
+    def _literature_for(self, target_id: str, facts: dict[str, Any] | None) -> list[dict[str, str]]:
+        """Rows that are plausibly about this target.
+
+        Three routes, in decreasing strength: candidate_id equality,
+        reference-enzyme accession match, and the enzyme name appearing in the
+        title/finding text. Text matching is the weakest and requires a name of
+        at least four characters so short symbols cannot match everything.
+        """
+        if not self.literature_rows:
+            return []
+        accessions: set[str] = set()
+        for row in self.reference_rows.get(target_id) or []:
+            for key in ("reference_id", "uniprot"):
+                value = (row.get(key) or "").strip()
+                if value:
+                    accessions.add(value.split(".")[0])
+        name = ""
+        if facts is not None:
+            name = (facts.get("enzyme_name_en") or "").strip()
+        matched: list[dict[str, str]] = []
+        for row in self.literature_rows:
+            candidate = (row.get("candidate_id") or "").strip()
+            accession = (row.get("protein_accession") or "").strip()
+            if candidate and candidate == target_id:
+                matched.append(row)
+                continue
+            if accession and accession.split(".")[0] in accessions:
+                matched.append(row)
+                continue
+            if len(name) >= 4:
+                haystack = f"{row.get('title', '')} {row.get('finding', '')}".lower()
+                if name.lower() in haystack:
+                    matched.append(row)
+        return matched
+
+    def _literature_scores(
+        self, target_id: str, facts: dict[str, Any] | None
+    ) -> dict[str, tuple[float, str]]:
+        rows = self._literature_for(target_id, facts)
+        out: dict[str, tuple[float, str]] = {}
+        if not rows:
+            return out
+
+        def verified(row: dict[str, str]) -> bool:
+            return (row.get("verified") or "").strip().lower() in {"yes", "true", "1", "y"}
+
+        strong = [
+            row
+            for row in rows
+            if verified(row)
+            and (row.get("evidence_type") or "").strip()
+            in {"direct_functional_evidence", "related_assay"}
+        ]
+        reviews = [
+            row
+            for row in rows
+            if verified(row) and (row.get("evidence_type") or "").strip() == "review"
+        ]
+        if len(strong) >= 3:
+            out["site_evidence_score"] = (5.0, "auto:literature")
+        elif len(strong) == 2:
+            out["site_evidence_score"] = (4.0, "auto:literature")
+        elif len(strong) == 1:
+            out["site_evidence_score"] = (3.0, "auto:literature")
+        elif reviews:
+            out["site_evidence_score"] = (2.0, "auto:literature")
+        # Unverified rows and explicit no_evidence rows establish nothing, so the
+        # score stays a gap rather than becoming a low number.
+
+        if self.disease:
+            term = self.disease.lower()
+            hits = [
+                row
+                for row in rows
+                if verified(row)
+                and term
+                in f"{row.get('title', '')} {row.get('finding', '')} {row.get('source_search', '')}".lower()
+                and (row.get("evidence_type") or "").strip() != "no_evidence"
+            ]
+            usable = [
+                row
+                for row in rows
+                if verified(row)
+                and (row.get("evidence_type") or "").strip() not in {"", "no_evidence"}
+            ]
+            if len(hits) >= 2:
+                out["disease_relevance_score"] = (4.0, "auto:literature")
+            elif len(hits) == 1:
+                out["disease_relevance_score"] = (3.0, "auto:literature")
+            elif usable:
+                # The search produced usable records, none of which tie this target
+                # to the phenotype. That is a real (if weak) negative signal.
+                out["disease_relevance_score"] = (1.0, "auto:literature:no_match")
+            # With no usable verified record at all, "no link to the disease" cannot
+            # be concluded — the cell stays a gap instead of becoming a 1.
+
+        refs = []
+        for row in rows[:5]:
+            ref_id = (row.get("reference_id") or "").strip()
+            kind = (row.get("evidence_type") or "").strip()
+            flag = "verified" if verified(row) else "unverified"
+            if ref_id:
+                refs.append(f"{ref_id}({kind or '?'},{flag})")
+        if refs:
+            self.literature_used[target_id] = refs
         return out
 
     # -- taxa ------------------------------------------------------------
@@ -646,6 +775,8 @@ def render_report(
     seeded_from: Path | None,
     problems: list[str],
     warnings: list[str],
+    literature_used: dict[str, list[str]] | None = None,
+    disease: str | None = None,
 ) -> str:
     lines = ["# Candidate prioritisation before screening", ""]
     lines.append(
@@ -760,6 +891,30 @@ def render_report(
         )
         lines.append("")
 
+    if literature_used:
+        lines.append("## 文献依据（用于 site_evidence / disease_relevance）")
+        lines.append("")
+        if disease:
+            lines.append(f"表型检索词：`{disease}`。命中指该词出现在标题、发现或检索式里。")
+            lines.append("")
+        lines.append("| target | 参与计数的 references（最多 5 条） |")
+        lines.append("| --- | --- |")
+        for target_id in sorted(literature_used):
+            lines.append(f"| {target_id} | {', '.join(literature_used[target_id])} |")
+        lines.append("")
+        lines.append(
+            "计分规则：只算 `verified=yes` 的记录。`direct_functional_evidence` / "
+            "`related_assay` 才算功能性证据；只有 `review` 时给到 2 分；"
+            "`no_evidence` 或未核实记录不抬高分数——它们连“有证据”都不算。"
+        )
+        lines.append("")
+        if disease:
+            lines.append(
+                "**注意**：`disease_relevance_score` 统计的是文献里同时提到该酶与该表型的记录数，"
+                "属于共现证据，不等于因果或机制关联。需要机制判断时请看具体文献结论。"
+            )
+            lines.append("")
+
     lines.append("## 边界")
     lines.append("")
     lines.append("- 分项分数由人给，不同人打分可能不一样；换一套分数排名就会变。")
@@ -811,6 +966,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--library", type=Path, default=None, help="library/<domain>.json providing per-enzyme facts for --auto-score.")
     parser.add_argument("--reference-enzymes", type=Path, default=None, help="reference_enzyme_set.tsv for sequence_structure_score.")
     parser.add_argument("--genomes", type=Path, default=None, help="genome_source_search *.tsv for taxa genome/site scores.")
+    parser.add_argument(
+        "--literature",
+        type=Path,
+        default=None,
+        help="literature_evidence.tsv; lets site_evidence_score and disease_relevance_score be derived from verified records.",
+    )
+    parser.add_argument(
+        "--disease",
+        default=None,
+        help="Phenotype/disease term used to derive disease_relevance_score from the literature table.",
+    )
     parser.add_argument(
         "--allow-missing-scores",
         action="store_true",
@@ -870,7 +1036,9 @@ def main(argv: list[str] | None = None) -> int:
 
     auto_scorer = None
     if args.auto_score:
-        auto_scorer = AutoScorer(args.library, args.reference_enzymes, args.genomes)
+        auto_scorer = AutoScorer(
+            args.library, args.reference_enzymes, args.genomes, args.literature, args.disease
+        )
 
     if args.enzymes is not None:
         if not args.enzymes.is_file():
@@ -942,7 +1110,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[taxa] ranked {len(taxa_rows)} row(s); {len(selected)} selected -> {args.output}")
 
     report = render_report(
-        enzyme_rows, taxa_rows, threshold, args.site, None, problems, warnings
+        enzyme_rows,
+        taxa_rows,
+        threshold,
+        args.site,
+        None,
+        problems,
+        warnings,
+        auto_scorer.literature_used if auto_scorer else None,
+        args.disease,
     )
     (args.output / "ranking_report.md").write_text(report, encoding="utf-8")
     print(f"wrote {args.output / 'ranking_report.md'}")

@@ -30,8 +30,11 @@ Available scripts:
   the configured threshold is unreachable. `--auto-score` derives the six scores
   that are computable from artifacts already in the pipeline (library entry,
   reference enzyme set, genome-search table) and records the rubric per cell in
-  `score_sources`; the remaining scores have no data source and are left to the
-  user, with the missing cells named and the flag that would derive each one. Registries written for the original
+  `score_sources`; `--literature literature_evidence.tsv` adds `site_evidence_score`
+  and `disease_relevance_score` from verified records only, counting nothing for
+  unverified or `no_evidence` rows; the few remaining scores have no data source and
+  are left to the user, with the missing cells named and the flag that would derive
+  each one. Registries written for the original
   skin-only `select-candidate` skill are accepted as-is.
 - `build_cro_work_order.py`: writes a vendor-facing contract-research work order
   from the target card, the candidate table, the hypotheses table and a candidate
