@@ -679,8 +679,6 @@ Agent:
   of guessing.
 - `build_candidate_shortlist.py` merges the library, the literature discovery and the site taxa list
   into two recommendation tables (evidence tier first, score within the tier).
-- You pick a row, then `run_entry_b.py --select <target_id> --ec <EC> --proteome ...` hands off to
-  entry A for screening.
 ```
 
 Recommendation tables (real run, skin + xenobiotic metabolism):
@@ -697,14 +695,8 @@ Recommendation tables (real run, skin + xenobiotic metabolism):
 | 2 | *Staphylococcus epidermidis* | 5.000 | 4.000 |
 | 3 | *Staphylococcus aureus* | 5.000 | 3.000 |
 
-Both handoff branches are real results:
-
-- **A candidate with an EC** (beta-glucuronidase, EC 3.2.1.31) screened against *S. epidermidis*:
-  11 reviewed templates, **0 alignments** above identity 20 / coverage 0.7 / E 1e-5. A zero-hit
-  screen is a result: the delivery records what was screened, at which thresholds, and what to try
-  next (structure channel, or a deliberately loosened threshold that is stated as such).
-- **A candidate without an EC** (azoreductase): the handoff **stops and asks for an EC**. One family
-  name maps to several ECs; the plugin does not choose for you.
+Pick one row and `run_entry_b.py --select <target_id> --ec <EC> --proteome ...` hands it off to
+entry A. The follow-up below is one real handoff:
 
 #### After the handoff: turning the process into one screenable target
 

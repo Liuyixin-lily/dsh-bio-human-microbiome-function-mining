@@ -702,7 +702,6 @@ Agent:
 - 查库：`skin_xenobiotic` 有 6 个外源代谢类别，但全是 starter（无逐条证据）→ 命中也要说明这一点
 - 库覆盖不全 → `discover_enzyme_candidates.py` 用文献补：中文题目按固定词表转成英文检索词，转不出来就问用户
 - `build_candidate_shortlist.py` 合并库、文献发现、位点菌名单 → 出两张推荐表（证据优先，档内按分数）
-- 你从表里挑一条 → `run_entry_b.py --select <target_id> --ec <EC> --proteome ...` 交棒入口 A 筛选
 ```
 
 排序表（真实运行，皮肤 + 外源代谢主题）：
@@ -719,10 +718,7 @@ Agent:
 | 2 | *Staphylococcus epidermidis* | 5.000 | 4.000 |
 | 3 | *Staphylococcus aureus* | 5.000 | 3.000 |
 
-交棒时两条分支都是真实结果：
-
-- **选了有 EC 的候选**（β-葡萄糖醛酸苷酶，EC 3.2.1.31）→ 对 *S. epidermidis* 筛选：11 个 reviewed 模板、0 条命中（identity≥20 / cov≥0.7 / E≤1e-5）。**0 命中也是结论**，交付里写明筛了什么、阈值多少、下一步该做什么（换结构通道 / 有意识地放宽阈值并说明）
-- **选了没有 EC 的候选**（azoreductase）→ 插件**停下来要 EC**：一个家族名对应多个 EC，插件不替你定
+你从表里挑一条，就用 `run_entry_b.py --select <target_id> --ec <EC> --proteome ...` 交棒给入口 A。下面的追问就是一次真实的交棒：
 
 #### 交棒之后：把"关注的过程"落成一条可筛的目标
 
