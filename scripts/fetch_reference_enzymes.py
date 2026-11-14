@@ -165,10 +165,19 @@ def fetch_uniprot_references(
     must be able to tell a human template from a bacterial one.
     """
     url = uniprot_query_url(ec, organism_id, reviewed_only, size, extra_clause)
-    try:
-        fasta = http_get(url).decode("utf-8", errors="replace")
-    except Exception as exc:
-        print(f"UniProt request failed ({group}): {exc}", file=sys.stderr)
+    fasta = ""
+    last_error: Exception | None = None
+    for attempt in (1, 2):
+        try:
+            fasta = http_get(url).decode("utf-8", errors="replace")
+            last_error = None
+            break
+        except Exception as exc:      # transient SSL/timeout must not silently degrade the set
+            last_error = exc
+            if attempt == 1:
+                time.sleep(3)
+    if last_error is not None:
+        print(f"UniProt request failed ({group}, after retry): {last_error}", file=sys.stderr)
         return [], ""
     rows: list[dict[str, str]] = []
     for record in parse_fasta(fasta):
@@ -552,6 +561,12 @@ def main(argv: list[str] | None = None) -> int:
             organism=organism,
             retmax=retmax,
         )
+        for row in ncbi_rows:
+            # Never let a fallback row pass as a curated template: say where it came from
+            # and that its evidence level is unknown.
+            row.setdefault("evidence", "")
+            row["evidence"] = row["evidence"] or "not stated (NCBI Protein)"
+            row["template_group"] = row.get("template_group") or "unknown"
         rows.extend(ncbi_rows)
         fasta = ncbi_fasta
         prov.append({
