@@ -2560,6 +2560,58 @@ def main() -> int:
         assert "structure-prediction" in blocked.stderr
         assert json.loads(checkpoint_path.read_text(encoding="utf-8"))["status"] == "blocked"
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # The structural branch must ask, not silently skip, and not silently predict.
+        project = tmp / "project.json"
+        project.write_text(json.dumps({
+            "project_name": "proteome_only",
+            "target_function_card": {"target_id": "DDC", "ec": "4.1.1.28"},
+            "inputs": {"candidate_proteome_fasta": str(tmp / "proteome.faa")},
+        }), encoding="utf-8")
+        (tmp / "proteome.faa").write_text(">p1\nMKV\n", encoding="utf-8")
+        # without the flag the question is still surfaced, just not fatal
+        lenient = subprocess.run(
+            [sys.executable, str(SCRIPTS / "preflight_inputs.py"), "--project", str(project)],
+            capture_output=True, text=True,
+        )
+        assert "pending question" in lenient.stderr
+        assert "候选菌的蛋白结构文件在哪" not in lenient.stderr   # the wording belongs to the gate
+        strict = subprocess.run(
+            [sys.executable, str(SCRIPTS / "preflight_inputs.py"), "--project", str(project),
+             "--require-candidate-structures"],
+            capture_output=True, text=True,
+        )
+        assert strict.returncode == 1
+        assert "ASK THE USER" in strict.stderr
+        assert "候选菌的蛋白结构文件在哪" in strict.stderr
+        assert "structure-prediction" in strict.stderr
+
+        # A structural hit without FedKEA is provisional, and the script must say what FedKEA
+        # would change rather than letting "unvalidated" read as "no candidate".
+        structural = tmp / "structural.tsv"
+        structural.write_text(
+            "candidate_id\ttemplate_id\ttm_score_1\ttm_score_2\ttm_score_mean\tstructure_support\n"
+            "WP_1\t2DDR\t0.70\t0.72\t0.71\t1\n",
+            encoding="utf-8",
+        )
+        combined = tmp / "combined.tsv"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "merge_candidates.py"),
+             "--structural", str(structural), "--output", str(combined)],
+            check=True, capture_output=True,
+        )
+        scored = subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_candidates.py"),
+             "--input", str(combined), "--output", str(tmp / "scored.tsv")],
+            capture_output=True, text=True,
+        )
+        assert "USALIGN_UNVALIDATED" in scored.stderr
+        assert "FedKEA is supplementary evidence" in scored.stderr
+        assert "SignalP adds secretion evidence but never changes the tier" in scored.stderr
+        assert "provisional" in scored.stderr
+
     print("example test passed")
     return 0
 

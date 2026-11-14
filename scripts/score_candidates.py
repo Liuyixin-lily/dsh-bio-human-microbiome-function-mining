@@ -446,6 +446,31 @@ def main(argv: list[str] | None = None) -> int:
     scored = score_rows(
         rows, args.tm_threshold, target_ecs, target_names, policy, args.no_sort, args.rank_by
     )
+    # FedKEA and SignalP are supplementary: without FedKEA a structural hit stays
+    # USALIGN_UNVALIDATED, and the tier cannot say whether it is the target enzyme or just a
+    # shared fold. Say that out loud instead of letting "unvalidated" read as "no candidate".
+    unvalidated = [row for row in scored if row.get("priority_tier") == "USALIGN_UNVALIDATED"]
+    if unvalidated:
+        print(
+            f"note: {len(unvalidated)} structurally supported candidate(s) are USALIGN_UNVALIDATED. "
+            "FedKEA is supplementary evidence and is what separates USALIGN_TARGET_EC from "
+            "USALIGN_OTHER_EC; SignalP adds secretion evidence but never changes the tier.",
+            file=sys.stderr,
+        )
+    structural_without_fedkea = [
+        row
+        for row in scored
+        if str(row.get("priority_tier", "")).startswith("USALIGN_")
+        and not (row.get("fedkea_final_result") or row.get("fedkea_is_enzyme"))
+    ]
+    if structural_without_fedkea:
+        print(
+            f"note: {len(structural_without_fedkea)} of those rows carry no FedKEA result at all, "
+            "so their tier is provisional. Run FedKEA (six or fewer candidates: the web "
+            "interface is enough) before reporting them as target-EC candidates.",
+            file=sys.stderr,
+        )
+
     output = args.output or args.input
     write_tsv(output, fields, scored)
     print(f"wrote {output} ({len(scored)} rows; policy={policy}; rank_by={args.rank_by})")

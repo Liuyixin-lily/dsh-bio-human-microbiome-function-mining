@@ -157,6 +157,12 @@ def main(argv: list[str] | None = None) -> int:
              "screening so a missing path becomes a question for the user, not a reason to fetch one.",
     )
     parser.add_argument(
+        "--require-candidate-structures",
+        action="store_true",
+        help="Fatal when no candidate structure directory is configured. Use it when the run is "
+             "expected to reach the structural branch, so the agent asks instead of skipping it.",
+    )
+    parser.add_argument(
         "--require-genome-complete",
         action="store_true",
         help="Treat optional .faa/.ffn/.fna/.gbff entries as fatal when missing or empty.",
@@ -325,6 +331,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    has_candidate_structures = any(
+        kind == "structure_dir" and (value or "").strip() for _genome, kind, value in genome_rows
+    )
     has_candidate_sequences = bool(inputs.get("candidate_proteome_fasta")) or bool(genome_rows)
     has_any_candidate = (
         has_candidate_sequences
@@ -347,6 +356,30 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    if args.require_candidate_structures and not has_candidate_structures:
+        print(
+            "No candidate structure directory is configured, so the structural branch cannot run.",
+            file=sys.stderr,
+        )
+        print("ASK THE USER, for example:", file=sys.stderr)
+        print(
+            '  "候选菌的蛋白结构文件在哪？如果还没有，是否先跑 structure-prediction'
+            '（PDB > AlphaFold DB pLDDT>=60 > 同源建模 > de novo）？"',
+            file=sys.stderr,
+        )
+        print(
+            "Do not silently skip the branch and do not silently predict: both change what the "
+            "result means.",
+            file=sys.stderr,
+        )
+        return 1
+    if not has_candidate_structures:
+        # not fatal by default, but the question must be visible before any structure work
+        print(
+            "[pending question] candidate structure directory not configured: ask the user whether "
+            "structures exist before running or skipping US-align",
+            file=sys.stderr,
+        )
     if not has_any_candidate:
         print(
             "No candidate proteome or candidate genome files are configured.",
