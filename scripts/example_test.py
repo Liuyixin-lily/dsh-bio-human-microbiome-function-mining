@@ -3440,6 +3440,93 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
+
+        # evidence tables merged across queries drop repeated (candidate, reference) pairs
+        first = tmp / "e1.tsv"
+        second = tmp / "e2.tsv"
+        header = "candidate_id\tprotein_accession\torganism_or_strain\tevidence_type\treference_type\treference_id\ttitle\tfirst_author\tjournal\tyear\tfinding\tverified\tsource_search\tnotes\n"
+        first.write_text(header + "a\ta\t\t\tPMID\t111\t\t\t\t\t\tyes\tq1\t\n", encoding="utf-8")
+        second.write_text(
+            header
+            + "a\ta\t\t\tPMID\t111\t\t\t\t\t\tyes\tq1\t\n"
+            + "a\ta\t\t\tPMID\t222\t\t\t\t\t\tyes\tq2\t\n",
+            encoding="utf-8",
+        )
+        merged = entry_b.merge_evidence([first, second], tmp / "merged.tsv")
+        lines = merged.read_text(encoding="utf-8").strip().split("\n")
+        assert len(lines) == 3, lines  # header + 111 + 222, not the duplicate 111
+        assert "\t111\t" in merged.read_text(encoding="utf-8")
+
+        # a domain that does not exist is a clean error, not a traceback
+        bad = subprocess.run(
+            [sys.executable, str(SCRIPTS / "run_entry_b.py"), "--topic", "x", "--site", "skin",
+             "--domain", "nope", "--output-dir", str(tmp / "bad")],
+            capture_output=True, text=True,
+        )
+        assert bad.returncode == 2
+        assert "no library domain 'nope'" in bad.stderr
+        assert "Traceback" not in bad.stderr
+        assert "skin_xenobiotic" in bad.stderr  # the message lists what does exist
+
+        # a site without a bundled taxa list says so instead of pointing at a missing file
+        gut = subprocess.run(
+            [sys.executable, str(SCRIPTS / "run_entry_b.py"), "--topic", "肠道菌群降解药物",
+             "--site", "gut", "--domain", "skin_xenobiotic", "--skip-discovery",
+             "--output-dir", str(tmp / "gut")],
+            capture_output=True, text=True,
+        )
+        assert gut.returncode == 0, gut.stderr
+        assert "没有可用的菌名单" in gut.stdout
+        assert not (tmp / "gut" / "candidates" / "candidate_taxa.tsv").exists()
+
+        # two libraries must both contribute auto-derived components
+        lib_a = tmp / "a.json"
+        lib_b = tmp / "b.json"
+        for path, enzyme_id in ((lib_a, "first_enzyme"), (lib_b, "second_enzyme")):
+            path.write_text(json.dumps({"library_version": "0.1.0", "domain": {
+                "id": path.stem, "name_zh": "皮肤", "name_en": "Skin",
+                "content_status": "starter", "role": "user_defined",
+                "keywords_zh": ["x"], "keywords_en": ["x"],
+                "niche_summary_zh": "t", "selection_hint_zh": "t", "focus_taxa": [],
+                "processes": [{"id": "p", "name_zh": "p", "name_en": "p",
+                               "keywords_zh": ["x"], "keywords_en": ["x"],
+                               "why_it_matters_zh": "t", "host_context_zh": "h",
+                               "microbe_effect_zh": "m", "key_taxa": ["x"],
+                               "enzymes": [{"id": enzyme_id, "enzyme_name_zh": "酶",
+                                            "enzyme_name_en": enzyme_id, "ec": "3.2.1.31",
+                                            "ec_confidence": "full", "reaction_zh": "r",
+                                            "substrate_zh": "s", "product_zh": "p",
+                                            "entry_point": "reaction", "dark_matter": False,
+                                            "priority": "high",
+                                            "evidence_status": "literature_verified",
+                                            "evidence_refs": ["PMID:33385118"],
+                                            "provenance_source": "literature",
+                                            "provenance_note_zh": "n",
+                                            "validation_note_zh": "a"}]}]},
+            }), encoding="utf-8")
+        two = tmp / "two.tsv"
+        two.write_text(
+            "target_id\tgene\tname\tuniprot\tec\tsite_process\n"
+            "first_enzyme\t\tfirst_enzyme\t\t3.2.1.31\tp\n"
+            "second_enzyme\t\tsecond_enzyme\t\t3.2.1.31\tp\n",
+            encoding="utf-8",
+        )
+        ranked = tmp / "two_ranked"
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_target_priorities.py"),
+             "--enzymes", str(two), "--library", str(lib_a), "--library", str(lib_b),
+             "--auto-score", "--allow-missing-scores", "--site", "skin",
+             "--output", str(ranked)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        with (ranked / "enzyme_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            both = {r["target_id"]: r for r in csv.DictReader(handle, delimiter="\t")}
+        # passing only the last library used to zero the other domain's components
+        for target in ("first_enzyme", "second_enzyme"):
+            assert both[target]["biochemical_clarity_score"] != "", target
+            assert both[target]["biochemical_clarity_score"] != "0.000", target
+
         # dry-run with an explicit domain touches no network and no literature
         dry = subprocess.run(
             [sys.executable, str(SCRIPTS / "run_entry_b.py"),

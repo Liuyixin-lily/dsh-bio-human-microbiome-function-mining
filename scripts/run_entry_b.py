@@ -132,6 +132,34 @@ def seed_from_library(domains: list[str], outdir: Path) -> Path | None:
     return combined
 
 
+def merge_evidence(paths: list[Path], target: Path) -> Path:
+    """Concatenate evidence tables, dropping repeated (candidate_id, reference_id) pairs.
+
+    Two discovery queries often retrieve the same paper for the same enzyme. Keeping both would
+    double-count the reference, so the pair is the key.
+    """
+    header: list[str] = []
+    rows: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for path in paths:
+        lines = path.read_text(encoding="utf-8").strip().split("\n")
+        if not header:
+            header = lines[0].split("\t")
+        id_col, ref_col = header.index("candidate_id"), header.index("reference_id")
+        for line in lines[1:]:
+            cells = line.split("\t")
+            if len(cells) <= max(id_col, ref_col):
+                continue
+            key = (cells[id_col], cells[ref_col])
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(line)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("\n".join(["\t".join(header)] + rows) + "\n", encoding="utf-8")
+    return target
+
+
 def print_table(path: Path, columns: tuple[str, ...], title: str) -> None:
     if not path.is_file():
         print(f"=== {title}：没有达到推荐门槛的条目 ===")
@@ -184,6 +212,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  library hit: {hit.get('kind')} {hit.get('domain')} / {what}")
 
     domains: list[str] = list(args.domain)
+    available = sorted(p.stem for p in (ROOT / "library").glob("*.json"))
+    for domain_id in domains:
+        if domain_id not in available:
+            print(
+                f"error: no library domain {domain_id!r}; available: {', '.join(available) or '—'}",
+                file=sys.stderr,
+            )
+            return 2
     if not domains:
         for hit in hits:
             if hit.get("kind") in ("process", "enzyme") and hit.get("domain") not in domains:
@@ -203,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     evidence: Path | None = None
     need_discovery = not args.skip_discovery and (entry not in ("B",) or not seeded)
     if need_discovery:
-        terms = list(args.extra_terms)
+        terms = list(dict.fromkeys(args.extra_terms))
         if not terms:
             mapped = english_terms(args.topic)
             terms = [mapped] if mapped else []
@@ -236,16 +272,7 @@ def main(argv: list[str] | None = None) -> int:
             ev_paths.append(ev)
         if found:
             registries.extend(found)
-            merged = outdir / "discovery" / "literature_evidence.merged.tsv"
-            header: list[str] = []
-            rows: list[str] = []
-            for path in ev_paths:
-                lines = path.read_text(encoding="utf-8").strip().split("\n")
-                if not header:
-                    header = lines[0].split("\t")
-                rows.extend(lines[1:])
-            merged.parent.mkdir(parents=True, exist_ok=True)
-            merged.write_text("\n".join(["\t".join(header)] + rows) + "\n", encoding="utf-8")
+            merged = merge_evidence(ev_paths, outdir / "discovery" / "literature_evidence.merged.tsv")
             evidence = merged
             print(f"literature evidence: {merged}")
 
@@ -283,11 +310,17 @@ def main(argv: list[str] | None = None) -> int:
     recommended_taxa = outdir / "candidates" / "recommended_taxa.tsv"
     if not recommended_taxa.is_file() or not recommended_taxa.read_text(encoding="utf-8").strip().split("\n")[1:]:
         print()
-        print("候选菌：没有菌达到 2 项证据的门槛。")
-        print("  - 位点丰度只算 1 项，单靠它排出来的不是推荐；按丰度的完整排序在")
-        print(f"    {outdir / 'candidates' / 'candidate_taxa.tsv'}")
-        print("  - 要让菌进入推荐，需要其中任一项：库里的关注菌、genome-search 的基因组可得性，")
-        print("    或该主题的文献证据。")
+        full_taxa = outdir / "candidates" / "candidate_taxa.tsv"
+        print("候选菌：没有菌进入推荐。")
+        if full_taxa.is_file():
+            print("  - 位点丰度只算 1 项，单靠它排出来的不是推荐；按丰度的完整排序在")
+            print(f"    {full_taxa}")
+            print("  - 要让菌进入推荐，需要其中任一项：库里的关注菌、genome-search 的基因组可得性，")
+            print("    或该主题的文献证据。")
+        else:
+            print(f"  - 这个部位没有可用的菌名单（{taxa_note or '未提供'}），所以没有菌表可排。")
+            print("  - 提供菌名单后可加入排序：python3 scripts/import_taxon_list.py --list <名单.tsv> "
+                  f"--site {args.site} --output-dir {outdir / 'taxa'}")
     print()
     print(f"完整表：{outdir / 'candidates'}")
     return 0

@@ -359,7 +359,7 @@ class AutoScorer:
 
     def __init__(
         self,
-        library_path: Path | None,
+        library_path: Path | list[Path] | None,
         reference_path: Path | None,
         genomes_path: Path | None,
         literature_path: Path | None = None,
@@ -379,8 +379,15 @@ class AutoScorer:
             self.literature_rows = read_tsv(literature_path)
             self.sources_loaded.append(f"literature={literature_path.name}")
 
-        if library_path is not None:
-            payload = json.loads(library_path.read_text(encoding="utf-8"))
+        library_paths: list[Path] = []
+        if isinstance(library_path, (list, tuple)):
+            library_paths = [p for p in library_path if p is not None]
+        elif library_path is not None:
+            library_paths = [library_path]
+        for path in library_paths:
+            if not path.is_file():
+                raise SystemExit(f"error: library not found: {path}")
+            payload = json.loads(path.read_text(encoding="utf-8"))
             for process in (payload.get("domain") or {}).get("processes") or []:
                 for enzyme in process.get("enzymes") or []:
                     self.enzyme_facts[enzyme.get("id", "")] = enzyme
@@ -389,7 +396,7 @@ class AutoScorer:
                 attention = str(taxon.get("attention") or "").strip().lower()
                 if name:
                     self.taxa_focus[name] = attention
-            self.sources_loaded.append(f"library={library_path.name}")
+            self.sources_loaded.append(f"library={path.name}")
 
         if reference_path is not None and reference_path.is_file():
             for row in read_tsv(reference_path):
@@ -1138,7 +1145,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="N",
         help="Withhold rows with fewer than N DATA-DERIVED components (auto:* only, not judgement).",
     )
-    parser.add_argument("--library", type=Path, default=None, help="library/<domain>.json providing per-enzyme facts for --auto-score.")
+    parser.add_argument(
+        "--library",
+        type=Path,
+        action="append",
+        default=None,
+        help="library/<domain>.json providing per-enzyme facts for --auto-score. Repeatable: "
+             "passing only the last of several libraries silently zeroed every other domain's "
+             "auto-derived components.",
+    )
     parser.add_argument("--reference-enzymes", type=Path, default=None, help="reference_enzyme_set.tsv for sequence_structure_score.")
     parser.add_argument("--genomes", type=Path, default=None, help="genome_source_search *.tsv for taxa genome/site scores.")
     parser.add_argument(
