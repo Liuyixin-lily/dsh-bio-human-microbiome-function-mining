@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -44,13 +45,29 @@ def parse_tmscores(lines: list[str]) -> dict[str, str]:
     return scores
 
 
+# AlphaFold DB files are named WP_12345.1_AF-A0A123-model_v6.pdb, so the file stem is not
+# the protein accession. FedKEA, UniProt and the annotation table all key on the accession,
+# and joining by the file stem silently left every AF2 candidate without its FedKEA result.
+ACCESSION_PREFIX_RE = re.compile(
+    r"^(?P<acc>(?:WP|NP|YP|XP)_\d+\.\d+|[A-Z0-9]{6,10})(?:_AF-|_model_v|$)"
+)
+
+
+def stable_structure_id(stem: str) -> str:
+    """Return the protein accession when the filename carries one, else the stem."""
+    match = ACCESSION_PREFIX_RE.match(stem)
+    if match and match.group("acc") and match.group("acc") != stem:
+        return match.group("acc")
+    return stem
+
+
 def chain_metadata(value: str) -> tuple[str, str]:
     """Return a stable structure id and source path from a PDBchain cell."""
     source = value.split(":", 1)[0]
     name = Path(source).name
     if "." in name:
         name = name.rsplit(".", 1)[0]
-    return name, source
+    return stable_structure_id(name), source
 
 
 def rows_from_compact_table(text: str, args: argparse.Namespace) -> list[dict[str, Any]]:

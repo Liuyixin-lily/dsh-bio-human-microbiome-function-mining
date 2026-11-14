@@ -2612,6 +2612,43 @@ def main() -> int:
         assert "SignalP adds secretion evidence but never changes the tier" in scored.stderr
         assert "provisional" in scored.stderr
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # AlphaFold DB file names carry the accession plus a suffix. Keying candidates by the
+        # file stem left every AF2 model without its FedKEA/annotation join.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "parse_usalign_under_test", str(SCRIPTS / "parse_usalign.py"))
+        parse_usalign = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(parse_usalign)
+        cases = {
+            "WP_011742975.1_AF-A1A0S5-model_v6": "WP_011742975.1",
+            "WP_003808927.1": "WP_003808927.1",
+            "1111525849483863_bin.19_00773": "1111525849483863_bin.19_00773",
+            "WP_326008604.1": "WP_326008604.1",
+        }
+        for raw, expected in cases.items():
+            assert parse_usalign.stable_structure_id(raw) == expected, raw
+
+        # and the parsed table must key the candidate by accession, keeping the file as evidence
+        compact = tmp / "compact.txt"
+        compact.write_text(
+            "#PDBchain1\tPDBchain2\tTM1\tTM2\tRMSD\tID1\tID2\tIDali\tL1\tL2\tLali\n"
+            "tpl.pdb:A\tWP_011742975.1_AF-A1A0S5-model_v6.pdb:A\t0.62\t0.79\t3.0\t0.1\t0.2\t0.3\t288\t320\t312\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "parse_usalign.py"),
+             "--input", str(compact), "--out-hits", str(tmp / "h.tsv"),
+             "--out-candidates", str(tmp / "c.tsv"), "--threshold", "0.5"],
+            check=True, capture_output=True,
+        )
+        with (tmp / "c.tsv").open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        assert rows[0]["candidate_id"] == "WP_011742975.1"
+        assert "AF-A1A0S5" in rows[0]["prediction_pdb"]
+
     print("example test passed")
     return 0
 
