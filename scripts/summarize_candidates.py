@@ -516,6 +516,52 @@ def main(argv: list[str] | None = None) -> int:
     write_tsv(hypotheses_path, HYPOTHESIS_FIELDS, hypothesis_rows)
     print(f"wrote {summary_path} ({len(summary_rows)} rows)")
     print(f"wrote {final_path} ({len(final_rows)} rows)")
+
+    # An empty final table must never read as "nothing was found". When candidates exist but
+    # none is in the delivery rule set, write the reason next to the table and say what widens it.
+    if not final_rows and summary_rows:
+        tiers: dict[str, int] = {}
+        for row in summary_rows:
+            tier = row.get("priority_tier") or row.get("evidence_base") or "unknown"
+            tiers[tier] = tiers.get(tier, 0) + 1
+        note_path = args.outdir / "final_target_candidates_note.md"
+        lines = [
+            "# Why final_target_candidates.tsv is empty",
+            "",
+            f"{len(summary_rows)} candidate(s) were scored, but none matches the delivery rule set: "
+            f"`{','.join(sorted(final_rules))}`.",
+            "",
+            "Tiers present:",
+            "",
+        ]
+        lines += [f"- `{tier}`: {count}" for tier, count in sorted(tiers.items(), key=lambda kv: -kv[1])]
+        lines += [
+            "",
+            "This is NOT the same as 'no candidate'. `USALIGN_OTHER_EC` means the protein is "
+            "structurally similar to the target while FedKEA predicts a different EC: a shared "
+            "fold can carry convergent or moonlighting activity and FedKEA is only a prediction, "
+            "so such rows are candidates for experimental testing rather than exclusions.",
+            "",
+            "To deliver them, widen the rule set:",
+            "",
+            "```bash",
+            "python3 scripts/summarize_candidates.py --scored outputs/task/scored_candidates.tsv \\",
+            "    --project project.json --outdir outputs/task \\",
+            "    --final-rules USALIGN_TARGET_EC,SEQUENCE_ANNOTATION_CONFIRMED,USALIGN_OTHER_EC",
+            "```",
+            "",
+            "Their `testable_prediction` names both the target reaction and the FedKEA-predicted "
+            "reaction, so the side-by-side assay settles it.",
+            "",
+        ]
+        note_path.write_text("\n".join(lines), encoding="utf-8")
+        print(f"wrote {note_path} (final table empty by rule set, {len(summary_rows)} candidates exist)")
+        print(
+            f"note: final_target_candidates.tsv is empty because no candidate matches "
+            f"{','.join(sorted(final_rules))}; {len(summary_rows)} candidate(s) exist under other "
+            "tiers. See final_target_candidates_note.md and consider --final-rules.",
+            file=sys.stderr,
+        )
     return 0
 
 

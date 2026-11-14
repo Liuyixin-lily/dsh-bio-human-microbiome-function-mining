@@ -2704,6 +2704,70 @@ def main() -> int:
         assert "side-by-side assay" in prediction
         assert "4.1.1.28" in prediction and "2.6.1.9" in prediction
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # An empty final table must explain itself: "no row matched the delivery rules" is not
+        # "no candidate", and the note has to say what widens the rule set.
+        structural = tmp / "structural.tsv"
+        structural.write_text(
+            "candidate_id\ttemplate_id\ttm_score_1\ttm_score_2\ttm_score_mean\tstructure_support\n"
+            "WP_1\t3RBF\t0.66\t0.70\t0.68\t1\n",
+            encoding="utf-8",
+        )
+        fedkea = tmp / "fedkea.tsv"
+        fedkea.write_text(
+            "protein_accession\tfedkea_is_enzyme\tfedkea_final_result\tfedkea_ec_confidence\n"
+            "WP_1\tTrue\t2.6.1.9\tHigh\n",
+            encoding="utf-8",
+        )
+        project = tmp / "project.json"
+        project.write_text(json.dumps({
+            "target_function_card": {"target_id": "DDC", "ec": "4.1.1.28"},
+        }), encoding="utf-8")
+        combined = tmp / "combined.tsv"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "merge_candidates.py"),
+             "--structural", str(structural), "--fedkea", str(fedkea),
+             "--project", str(project), "--output", str(combined)],
+            check=True, capture_output=True,
+        )
+        scored_path = tmp / "scored.tsv"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_candidates.py"),
+             "--input", str(combined), "--output", str(scored_path),
+             "--project", str(project)],
+            check=True, capture_output=True,
+        )
+
+        out = tmp / "out"
+        run = subprocess.run(
+            [sys.executable, str(SCRIPTS / "summarize_candidates.py"),
+             "--scored", str(scored_path), "--project", str(project), "--outdir", str(out)],
+            capture_output=True, text=True,
+        )
+        assert run.returncode == 0, run.stderr
+        note = out / "final_target_candidates_note.md"
+        assert note.is_file(), "an empty final table must come with an explanation"
+        text = note.read_text(encoding="utf-8")
+        assert "This is NOT the same as 'no candidate'" in text
+        assert "--final-rules" in text
+        assert "USALIGN_OTHER_EC" in text
+        assert "is empty because no candidate matches" in run.stderr
+
+        # and widening the rule set must actually deliver the row
+        widened = subprocess.run(
+            [sys.executable, str(SCRIPTS / "summarize_candidates.py"),
+             "--scored", str(scored_path), "--project", str(project),
+             "--outdir", str(tmp / "out2"),
+             "--final-rules", "USALIGN_TARGET_EC,SEQUENCE_ANNOTATION_CONFIRMED,USALIGN_OTHER_EC"],
+            capture_output=True, text=True,
+        )
+        assert widened.returncode == 0, widened.stderr
+        with (tmp / "out2" / "final_target_candidates.tsv").open("r", encoding="utf-8") as handle:
+            delivered = list(csv.DictReader(handle, delimiter="\t"))
+        assert [row["protein_accession"] for row in delivered] == ["WP_1"]
+
     print("example test passed")
     return 0
 
