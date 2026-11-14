@@ -199,6 +199,27 @@ python3 scripts/browse_target_library.py --validate
 
 ---
 
+## 交付集 / the delivery set
+
+一次跑完的运行，`outputs/task/` 必须有这四样（另有 scored 表）：
+
+| 文件 | 说明 |
+| --- | --- |
+| `final_target_candidates.tsv` | 最终候选；为空时**必须**有下面的说明 |
+| `final_target_candidates_note.md` | 最终表为空时解释原因（"空"≠"没有"） |
+| `high_confidence_candidate_summary.tsv` | 每个候选的证据摘要 |
+| `experimental_hypotheses.tsv` | 可验证的实验假设 |
+| `scored_candidates.tsv`（或 `scored.tsv`） | 打分表 |
+
+跑完自查：
+
+```bash
+python3 scripts/check_deliverables.py --project-dir <项目目录>
+```
+
+它逐项报 ok / EMPTY / MISS，并对缺的项给出生成命令；四个示例里曾有三个卡在不同阶段，
+正是因为没人检查这一步。
+
 ## B → A：选完候选后交棒 / after the ranking, hand off to entry A
 
 入口 B 出排序表，你选一条，然后用同一个命令交棒给入口 A（建档 → 取模板 → 筛选 → 评分 → 汇总）：

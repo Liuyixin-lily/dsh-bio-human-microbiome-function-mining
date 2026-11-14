@@ -3677,6 +3677,42 @@ def main() -> int:
         assert best["representative_id"] == "sp|Q5HRD6|ADH_STAEQ"
         assert str(best["pident"]).startswith("100")
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        check = SCRIPTS / "check_deliverables.py"
+        task = tmp / "outputs" / "task"
+        task.mkdir(parents=True)
+
+        # an empty project is reported as incomplete with a fix per gap
+        empty = subprocess.run([sys.executable, str(check), "--project-dir", str(tmp)],
+                               capture_output=True, text=True)
+        assert empty.returncode == 1
+        assert "final_target_candidates.tsv" in empty.stdout
+        assert "fix:" in empty.stdout
+
+        # a complete set passes
+        (task / "scored_candidates.tsv").write_text("candidate_id\nWP_1\n", encoding="utf-8")
+        (task / "final_target_candidates.tsv").write_text("final_rank\n1\n", encoding="utf-8")
+        (task / "high_confidence_candidate_summary.tsv").write_text("x\n1\n", encoding="utf-8")
+        (task / "experimental_hypotheses.tsv").write_text("x\n1\n", encoding="utf-8")
+        ok = subprocess.run([sys.executable, str(check), "--project-dir", str(tmp)],
+                            capture_output=True, text=True)
+        assert ok.returncode == 0, ok.stdout
+        assert "complete" in ok.stdout
+
+        # an empty final table without its note is a problem; with the note it is explained but the
+        # run is still not complete, because zero candidates delivered means the rule set was not met
+        (task / "final_target_candidates.tsv").write_text("final_rank\n", encoding="utf-8")
+        unexplained = subprocess.run([sys.executable, str(check), "--project-dir", str(tmp)],
+                                     capture_output=True, text=True)
+        assert unexplained.returncode == 1
+        assert "reads as 'nothing was found'" in unexplained.stdout
+        (task / "final_target_candidates_note.md").write_text("why empty", encoding="utf-8")
+        explained = subprocess.run([sys.executable, str(check), "--project-dir", str(tmp)],
+                                   capture_output=True, text=True)
+        assert explained.returncode == 1
+        assert "explains the empty table" in explained.stdout
+
     print("example test passed")
     return 0
 

@@ -276,12 +276,18 @@ def run_entry_a(args, outdir: Path, ref_fasta: Path | None) -> int:
          "--output", str(scored)],
         "score",
     )
-    final = outdir / "final"
+    final = outdir / "outputs" / "task"
     run(
         [sys.executable, str(SCRIPT_DIR / "summarize_candidates.py"),
          "--scored", str(scored), "--project", str(project), "--outdir", str(final)],
         "summarize",
     )
+    check = run(
+        [sys.executable, str(SCRIPT_DIR / "check_deliverables.py"), "--project-dir", str(outdir)],
+        "deliverables check",
+        check=False,
+    )
+    print(check.stdout.strip().splitlines()[-1] if check.stdout.strip() else "")
     table = final / "final_target_candidates.tsv"
     if table.is_file():
         lines = table.read_text(encoding="utf-8").strip().split("\n")
