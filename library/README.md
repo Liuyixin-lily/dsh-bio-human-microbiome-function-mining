@@ -6,6 +6,19 @@
 | `skin.json` | `skin` | `curated` / `shipped_example` | 1 个过程（角质层鞘磷脂水解）、1 个酶 EC 3.1.4.12、4 条 PMID |
 | `skin_xenobiotic.json` | `skin_xenobiotic` | `starter` / `user_defined` | 6 个外源物质代谢类别、6 个酶，**均无逐条证据** |
 
+### 逐条核对结果（v0.2.0，按 SkinBug 全文核过一遍）
+
+| 过程 | 酶 | 证据状态 | 来源实际说了什么 |
+| --- | --- | --- | --- |
+| 偶氮染料还原 | azoreductase (Azo1) | **literature_verified** | SkinBug 原文：皮肤菌群需氧/厌氧菌以 azoreductase 还原 methyl red 等偶氮染料（转述 Stingley 2010）；菌属 Staphylococcus/Corynebacterium/Micrococcus/Dermacoccus/Kocuria |
+| 防腐剂（对羟基苯甲酸酯） | 4-羟基苯甲酸 1-羟化酶 / 单加氧酶 | curated_prior | SkinBug 对 methylparaben 给的是这两个酶，且注明来自参考数据库——**预测，不是酶活**；原文没有酯酶，"酯水解"这个说法不成立 |
+| 多环芳烃 | 萘 1,2-双加氧酶（环境菌） | curated_prior | **更正**：SkinBug 把苯并[a]芘的氧化归因于**宿主** P450，不是菌源酶 |
+| 药物去结合 | β-葡萄糖醛酸苷酶 | curated_prior | 皮肤无证据；SkinBug 全文无 glucuronidase。引用的是**肠道**综述 |
+| 环氧化物水解 | epoxide hydrolase | curated_prior | 皮肤无证据；19340413 是**哺乳动物**酶学 |
+| 香料/萜类 | 醇脱氢酶 / P450 | curated_prior | SkinBug 的 cinnamyl alcohol 行，属预测，未指明菌株 |
+
+所以 `--require-evidence` 下**只有偶氮还原酶这一条**会留下，其余 5 条被隔离——这是核对后的真实状态，不是缺陷。
+
 `skin_xenobiotic` 是"皮肤外源物质代谢"这个模糊问题被路由到 escalate 之后，用检索到的文献
 （SkinBug, PMID 33385118；外源代谢综述 26972811 / 31186074 / 36099474）搭出来的 starter 域。
 它把"外源物质代谢"拆成可筛选的六类（防腐剂水解、偶氮染料还原、多环芳烃氧化、药物去结合、
@@ -33,6 +46,22 @@ python3 scripts/record_query.py --promote <id> --domain skin_xenobiotic \
 ```
 
 `library/_staging/` 在 `.gitignore` 里：它是用户自己的查询史，不随插件分发。
+
+## 证据只能通过专门的步骤附上
+
+`build_library_domain.py --build` **拒绝** spec 里带 `evidence_refs`，生成的条目一律是
+`curated_prior` + 空 refs——生成器永远不可能产出"看起来已验证"的条目。升级只能靠：
+
+```bash
+python3 scripts/attach_library_evidence.py --library library/skin_xenobiotic.json \
+    --process skin_azo_dye_reduction --enzyme skin_azoreductase \
+    --refs PMID:33385118 --status literature_verified \
+    --claim "SkinBug 原文：皮肤菌群需氧/厌氧菌以 azoreductase 还原偶氮染料，转述 Stingley 2010"
+```
+
+`--claim` 是必填的，会原样写进 `provenance_note_zh`：**必须写清这篇文献到底支持什么**（包括"只是预测"或"来自别的部位"）。`curated_prior` 也允许带 refs——让检索结果可见，但闸门仍然隔离它。
+
+注意：重新 `--build` 会覆盖库文件、清掉已附的证据。spec 是骨架，证据是附在库上的。
 
 # Target library / 目标库
 

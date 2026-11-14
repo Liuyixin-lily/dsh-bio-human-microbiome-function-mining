@@ -1403,8 +1403,10 @@ def main() -> int:
         # a starter domain ships alongside but is quarantined in full; that is the gate working,
         # so the presence of a quarantine note is expected (the curated domain is untouched)
         assert "skin_xenobiotic" in gated
-        assert "0 processes, 0 enzyme targets" in gated
-        assert "已隔离 6 个条目" in gated
+        # one xenobiotic entry (azoreductase) is literature_verified after the SkinBug read; the
+        # other five stay quarantined, so the gate shows exactly 1 process and isolates 5
+        assert gated.count("1 process, 1 enzyme target") >= 2
+        assert "已隔离 5 个条目" in gated
 
         # The unverified reference content is entirely quarantined by the same gate.
         gated_legacy = subprocess.run(
@@ -3044,6 +3046,110 @@ def main() -> int:
         )
         assert "条查询记录" in listed.stdout
         assert "正式库不会读取" in listed.stdout
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        attach = SCRIPTS / "attach_library_evidence.py"
+
+        # start from a built domain: every entry is curated_prior with empty refs
+        # use the real starter spec: the builder enforces a large set of required fields, and
+        # hand-writing a throwaway spec here would only re-test that validation
+        spec = tmp / "spec.json"
+        lib = tmp / "lib.json"
+        spec.write_text(
+            (ROOT / "specs" / "skin_xenobiotic.spec.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        subprocess.run([sys.executable, str(SCRIPTS / "build_library_domain.py"), "--build",
+                        "--spec", str(spec), "--output", str(lib)],
+                       check=True, capture_output=True)
+
+        PROC, ENZ = "skin_azo_dye_reduction", "skin_azoreductase"
+
+        def entry() -> dict:
+            data = json.loads(lib.read_text(encoding="utf-8"))
+            for process in data["domain"]["processes"]:
+                if process["id"] == PROC:
+                    return process["enzymes"][0]
+            raise AssertionError("process missing")
+
+        # a malformed identifier is refused
+        bad = subprocess.run(
+            [sys.executable, str(attach), "--library", str(lib), "--process", PROC,
+             "--enzyme", ENZ, "--refs", "PMID:abc", "--claim", "x", "--status", "literature_verified"],
+            capture_output=True, text=True,
+        )
+        assert bad.returncode == 2 and "not PMID:/DOI:" in bad.stderr
+
+        # a bare number is not an identifier either
+        bare = subprocess.run(
+            [sys.executable, str(attach), "--library", str(lib), "--process", PROC,
+             "--enzyme", ENZ, "--refs", "33385118", "--claim", "x"],
+            capture_output=True, text=True,
+        )
+        assert bare.returncode == 2
+
+        # --claim is mandatory
+        no_claim = subprocess.run(
+            [sys.executable, str(attach), "--library", str(lib), "--process", PROC,
+             "--enzyme", ENZ, "--refs", "PMID:33385118", "--claim", "  "],
+            capture_output=True, text=True,
+        )
+        assert no_claim.returncode == 2 and "--claim" in no_claim.stderr
+
+        # unknown enzyme is refused with the available ids
+        unknown = subprocess.run(
+            [sys.executable, str(attach), "--library", str(lib), "--process", PROC,
+             "--enzyme", "nope", "--refs", "PMID:33385118", "--claim", "x"],
+            capture_output=True, text=True,
+        )
+        assert unknown.returncode == 2 and ENZ in unknown.stderr
+
+        # dry-run changes nothing
+        before = entry()
+        dry = subprocess.run(
+            [sys.executable, str(attach), "--library", str(lib), "--process", PROC,
+             "--enzyme", ENZ, "--refs", "PMID:33385118", "--claim", "x",
+             "--status", "literature_verified", "--dry-run"],
+            check=True, capture_output=True, text=True,
+        )
+        assert "--dry-run" in dry.stdout
+        assert entry() == before
+
+        # curated_prior MAY carry refs: retrieval visible, entry still quarantined
+        prior = subprocess.run(
+            [sys.executable, str(attach), "--library", str(lib), "--process", PROC,
+             "--enzyme", ENZ, "--refs", "PMID:33385118",
+             "--claim", "only a prediction in the cited paper", "--status", "curated_prior"],
+            check=True, capture_output=True, text=True,
+        )
+        assert entry()["evidence_status"] == "curated_prior"
+        assert entry()["evidence_refs"] == ["PMID:33385118"]
+        assert "only a prediction" in entry()["provenance_note_zh"]
+        assert "quarantined" in prior.stdout
+        gated = subprocess.run(
+            [sys.executable, str(SCRIPTS / "browse_target_library.py"), "--library-dir", str(tmp),
+             "--require-evidence", "--list-domains"],
+            capture_output=True, text=True,
+        )
+        assert "0 processes, 0 enzyme targets" in gated.stdout
+
+        # verification requires the claim to be stored and flips the entry into the gate
+        subprocess.run(
+            [sys.executable, str(attach), "--library", str(lib), "--process", PROC,
+             "--enzyme", ENZ, "--refs", "PMID:33385118",
+             "--claim", "the paper states skin bacteria reduce azo dyes with azoreductase",
+             "--status", "literature_verified"],
+            check=True, capture_output=True,
+        )
+        assert entry()["evidence_status"] == "literature_verified"
+        assert "azoreductase" in entry()["provenance_note_zh"]
+        gated2 = subprocess.run(
+            [sys.executable, str(SCRIPTS / "browse_target_library.py"), "--library-dir", str(tmp),
+             "--require-evidence", "--list-domains"],
+            capture_output=True, text=True,
+        )
+        assert "1 process, 1 enzyme target" in gated2.stdout
 
     print("example test passed")
     return 0

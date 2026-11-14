@@ -66,6 +66,12 @@ Available scripts:
   `--no-structures`) a template PDB per entry taken from UniProt's PDB cross-references,
   because US-align cannot run against a FASTA. `--dry-run` prints the planned queries;
   NCBI Protein is only a labelled fallback when UniProt returns nothing.
+- `attach_library_evidence.py`: the only path to `literature_verified`. `build_library_domain
+  --build` refuses identifiers in a spec and writes every entry as `curated_prior`, so promotion is
+  a separate explicit act: `--refs PMID:/DOI:` plus a required `--claim` that says what the
+  reference actually supports (including "this is only a prediction" or "the evidence is from
+  another body site"), stored verbatim in `provenance_note_zh`. `curated_prior` may also carry
+  refs, so retrieval stays visible while the gate still quarantines the entry.
 - `record_query.py`: records what the user asked into `library/_staging/queries.json` (dedup by
   query+site, `times_asked` increments, new enzyme names are merged). A query is not evidence, so
   entries stay `curated_prior` with empty `evidence_refs` and the library never reads them.

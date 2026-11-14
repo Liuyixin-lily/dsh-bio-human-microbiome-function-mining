@@ -1,5 +1,5 @@
 {
-  "library_version": "0.1.0",
+  "library_version": "0.2.0",
   "reviewed_on": "2026-11-15",
   "domain": {
     "id": "skin_xenobiotic",
@@ -49,7 +49,7 @@
       "xenobiotics"
     ],
     "niche_summary_zh": "皮肤是外源物暴露的第一界面（化妆品、药物、污染物）。该域把外源物质代谢拆成防腐剂水解、偶氮染料还原、多环芳烃氧化、药物去结合、环氧化物水解、香料氧化六类。",
-    "selection_hint_zh": "这是 starter 域：类别可用于发起筛选，但每个酶都还没有具体候选蛋白与逐条证据。要正式使用，先从某一类收敛到一个反应/EC，再走入口 A 建档。",
+    "selection_hint_zh": "这是 starter 域，且已按 SkinBug（PMID 33385118）全文逐条核对过一次：6 条里只有**偶氮染料还原（azoreductase）**有明确的皮肤菌群实验文献转述，其余 5 条要么是预测、要么只有宿主或肠道证据。因此 --require-evidence 下只有 1 条会留下。要正式使用，先从留下来的那条收敛到具体蛋白。",
     "focus_taxa": [
       {
         "taxon": "Cutibacterium acnes",
@@ -109,15 +109,17 @@
             "dark_matter": false,
             "priority": "medium",
             "evidence_status": "curated_prior",
-            "evidence_refs": [],
-            "id": "skin_paraben_esterase",
-            "enzyme_name_zh": "对羟基苯甲酸酯酯酶",
-            "enzyme_name_en": "paraben esterase",
-            "reaction_zh": "对羟基苯甲酸酯 + H2O -> 对羟基苯甲酸 + 醇",
+            "evidence_refs": [
+              "PMID:33385118"
+            ],
+            "id": "skin_methylparaben_hydroxylase",
+            "enzyme_name_zh": "4-羟基苯甲酸 1-羟化酶 / 单加氧酶",
+            "enzyme_name_en": "4-hydroxybenzoate 1-hydroxylase / monooxygenase",
+            "reaction_zh": "对羟基苯甲酸酯 ->（羟化/单加氧）-> 羟基化产物",
             "substrate_zh": "对羟基苯甲酸酯",
-            "product_zh": "对羟基苯甲酸 + 醇",
+            "product_zh": "羟基化产物",
             "provenance_source": "literature",
-            "provenance_note_zh": "SkinBug 把化妆品成分列为皮肤菌群可代谢的外源物；本条目只声明'该类别存在菌源酯酶活性'，未指定具体酶。",
+            "provenance_note_zh": "SkinBug 对 methylparaben 给出的酶是 4-hydroxybenzoate 1-hydroxylase 与 monooxygenases，并注明来自参考数据库；这是预测不是酶活测定，且原文没有酯酶，原过程名中的‘酯水解’不成立。",
             "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
           }
         ]
@@ -157,16 +159,18 @@
             "entry_point": "reaction",
             "dark_matter": false,
             "priority": "medium",
-            "evidence_status": "curated_prior",
-            "evidence_refs": [],
+            "evidence_status": "literature_verified",
+            "evidence_refs": [
+              "PMID:33385118"
+            ],
             "id": "skin_azoreductase",
-            "enzyme_name_zh": "偶氮还原酶",
-            "enzyme_name_en": "azoreductase",
-            "reaction_zh": "R-N=N-R' + 2H -> R-NH2 + R'-NH2",
-            "substrate_zh": "偶氮染料",
+            "enzyme_name_zh": "偶氮还原酶（Azo1，FMN 依赖 NADPH）",
+            "enzyme_name_en": "azoreductase (Azo1, FMN-dependent NADPH)",
+            "reaction_zh": "偶氮染料 + NAD(P)H -> 芳香胺（裂解偶氮键）",
+            "substrate_zh": "偶氮染料（如 methyl red）",
             "product_zh": "芳香胺",
             "provenance_source": "literature",
-            "provenance_note_zh": "肠菌偶氮还原酶已有明确研究；皮肤菌群中的对应活性证据较弱，标为待验证。",
+            "provenance_note_zh": "SkinBug 原文：皮肤菌群中需氧与厌氧细菌均以 azoreductase 还原 methyl red 等偶氮染料，并引 Stingley et al. 2010；菌属 Staphylococcus/Corynebacterium/Micrococcus/Dermacoccus/Kocuria/Bacillus。本条按综述转述标为已验证，原始实验文献尚未单独调取。",
             "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
           }
         ]
@@ -206,15 +210,17 @@
             "dark_matter": false,
             "priority": "medium",
             "evidence_status": "curated_prior",
-            "evidence_refs": [],
-            "id": "skin_pah_oxygenase",
-            "enzyme_name_zh": "多环芳烃加氧酶",
-            "enzyme_name_en": "PAH ring-hydroxylating oxygenase",
-            "reaction_zh": "PAH + O2 + 2H -> 羟基化 PAH",
-            "substrate_zh": "多环芳烃",
-            "product_zh": "羟基化产物",
+            "evidence_refs": [
+              "PMID:33385118"
+            ],
+            "id": "skin_pah_dioxygenase",
+            "enzyme_name_zh": "萘 1,2-双加氧酶（环境菌来源，皮肤归属未证实）",
+            "enzyme_name_en": "naphthalene 1,2-dioxygenase (environmental; skin attribution unverified)",
+            "reaction_zh": "萘 + O2 + NADH -> 顺-1,2-二羟基萘",
+            "substrate_zh": "萘 / 多环芳烃",
+            "product_zh": "二羟基化产物",
             "provenance_source": "literature",
-            "provenance_note_zh": "细菌降解 PAH 的酶学在环境微生物中成熟；皮肤菌群中的贡献尚无定论。",
+            "provenance_note_zh": "重要更正：SkinBug 把苯并[a]芘等多环芳烃的氧化归因于宿主 cytochrome P450，不是皮肤菌群；文中 naphthalene 1,2-dioxygenase 来自环境菌（Pseudomonas/Bacillus 等）。",
             "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
           }
         ]
@@ -254,15 +260,18 @@
             "dark_matter": false,
             "priority": "medium",
             "evidence_status": "curated_prior",
-            "evidence_refs": [],
+            "evidence_refs": [
+              "PMID:26972811",
+              "PMID:36099474"
+            ],
             "id": "skin_beta_glucuronidase",
             "enzyme_name_zh": "β-葡萄糖醛酸苷酶",
             "enzyme_name_en": "beta-glucuronidase",
-            "reaction_zh": "β-D-葡萄糖醛酸苷 + H2O -> 醇/酚 + D-葡萄糖醛酸",
+            "reaction_zh": "β-D-葡萄糖醛酸苷 + H2O -> 苷元 + D-葡萄糖醛酸",
             "substrate_zh": "β-葡萄糖醛酸苷",
             "product_zh": "苷元 + 葡萄糖醛酸",
             "provenance_source": "literature",
-            "provenance_note_zh": "EC 3.2.1.31 取自 IUBMB；菌源酶在药物去结合中的作用由 31186074 与 36099474 综述支持。",
+            "provenance_note_zh": "皮肤层面无证据：SkinBug 全文未出现 glucuronidase。引用的是肠道菌群药物代谢综述（26972811、36099474），用于皮肤属外推。",
             "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
           }
         ]
@@ -300,7 +309,9 @@
             "dark_matter": false,
             "priority": "medium",
             "evidence_status": "curated_prior",
-            "evidence_refs": [],
+            "evidence_refs": [
+              "PMID:19340413"
+            ],
             "id": "skin_epoxide_hydrolase",
             "enzyme_name_zh": "环氧化物水解酶",
             "enzyme_name_en": "epoxide hydrolase",
@@ -308,7 +319,7 @@
             "substrate_zh": "环氧化物",
             "product_zh": "邻二醇",
             "provenance_source": "literature",
-            "provenance_note_zh": "宿主酶学综述为 19340413；菌源同源酶的存在与贡献待验证。",
+            "provenance_note_zh": "无皮肤菌群证据：SkinBug 全文未出现 epoxide hydrolase；19340413 是哺乳动物环氧化物水解酶综述，属宿主酶学。",
             "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
           }
         ]
@@ -348,19 +359,22 @@
             "dark_matter": false,
             "priority": "medium",
             "evidence_status": "curated_prior",
-            "evidence_refs": [],
-            "id": "skin_terpene_oxidase",
-            "enzyme_name_zh": "萜类氧化酶",
-            "enzyme_name_en": "terpene oxidase",
-            "reaction_zh": "萜类醇 -> 萜类醛/酸",
-            "substrate_zh": "萜类醇",
-            "product_zh": "萜类醛/酸",
+            "evidence_refs": [
+              "PMID:33385118"
+            ],
+            "id": "skin_terpene_dehydrogenase",
+            "enzyme_name_zh": "醇脱氢酶 / 细胞色素 P450（香料醇氧化）",
+            "enzyme_name_en": "alcohol dehydrogenase / cytochrome P450",
+            "reaction_zh": "肉桂醇 -> 肉桂醛 -> 肉桂酸",
+            "substrate_zh": "肉桂醇（香料醇）",
+            "product_zh": "醛/酸",
             "provenance_source": "literature",
-            "provenance_note_zh": "SkinBug 把香料/化妆品成分纳入可代谢外源物；具体酶未点名。",
+            "provenance_note_zh": "SkinBug 的 cinnamyl alcohol 行列出 alcohol dehydrogenase 与 cytochrome P450，属预测结果，且未指明皮肤菌株。",
             "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
           }
         ]
       }
-    ]
+    ],
+    "library_version": "0.2.0"
   }
 }
