@@ -366,14 +366,20 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples
 
-The examples are organized by common input type and adapted from real, executable
-research scenarios:
+**Four examples, three entry points.** All are adapted from real, executable research
+scenarios:
 
-| Input type | Trigger | Example |
-| --- | --- | --- |
-| Known metabolic reaction | Substrate/product is known, but no template sequence or EC. | sphingomyelin -> ceramide + phosphocholine |
-| Known enzyme name / EC | Functional annotation is known. | neutral sphingomyelinase / EC 3.1.4.12 |
-| Known reference sequence | A FASTA or UniProt accession is available. | DDC / P20711 |
+| # | Input type | Trigger | Example | Entry point |
+| --- | --- | --- | --- | --- |
+| 1 | Known metabolic reaction | Substrate/product is known, but no template sequence or EC. | sphingomyelin -> ceramide + phosphocholine | `reaction` |
+| 2 | Known enzyme name / EC | Functional annotation is known. | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
+| 3 | Known reference sequence | A FASTA or UniProt accession is available. | DDC / P20711 | `sequence` |
+| 4 | Known reference sequence, very large family | As 3, but the target sits in a huge superfamily (here GNAT/PF00583). | AANAT / Q16613 | `sequence` + family census |
+
+Examples 3 and 4 both sit on the melatonin pathway, with opposite conclusions: the DDC
+case is *insufficient evidence, needs an enzyme assay*; the AANAT case needs an extra
+**family census**, because the sequence layer may show no significant hit, and "no
+orthodox homolog" is not "no such activity".
 
 Each example contains a prompt you can send directly and the workflow the Agent
 will run with the bundled skills. Replace tool and data paths with your own.

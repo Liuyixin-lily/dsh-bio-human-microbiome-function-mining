@@ -381,13 +381,16 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples / 使用示例
 
-以下示例按三种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
+**一共 4 个示例，对应 3 种起手式。** 均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
 
-| 输入类型 | 触发点 | 举例 |
-| --- | --- | --- |
-| 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC。 | sphingomyelin → ceramide + phosphocholine |
-| 已知酶名/EC | 有酶功能或功能类别注释。 | neutral sphingomyelinase / EC 3.1.4.12 |
-| 已知参考序列 | 有模板蛋白 FASTA 或 UniProt accession。 | DDC / P20711 |
+| # | 输入类型 | 触发点 | 举例 | 起手式 |
+| --- | --- | --- | --- | --- |
+| 1 | 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC | sphingomyelin → ceramide + phosphocholine | `reaction` |
+| 2 | 已知酶名/EC | 有酶功能或功能类别注释 | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
+| 3 | 已知参考序列 | 有模板蛋白 FASTA 或 UniProt accession | DDC / P20711 | `sequence` |
+| 4 | 已知参考序列（家族很大） | 同 3，但靶点属超大超家族（本例 GNAT/PF00583） | AANAT / Q16613 | `sequence` + 家族普查 |
+
+第 3、4 个都落在"褪黑素通路"上，但结论完全不同：DDC 那个是**证据不足、需要测酶活**；AANAT 那个要额外做**家族普查**，因为序列层可能没有显著命中，而"没有正统同源物"不等于"没有该活性"。
 
 每个示例都给出“用户可以直接发送的一句话 prompt”和“Agent 按插件 skill 实际会走的分析链”。实际运行时，把工具和数据路径替换成你自己的即可。
 
@@ -485,7 +488,7 @@ Agent:
 - 参考酶集合仅保留靶点参考：人类 human AANAT（reviewed EC 2.3.1.87），不设折叠对照
 - 先跑 `scripts/preflight_inputs.py --project project.json --require-target-sequence --require-target-structure`，核对候选基因组文件与候选结构目录
 - 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选；除默认阈值外，再补一次 `--sensitive`（宽 E 值）扫"远缘同源尾巴"，并把两次结果分开报告
-- 因为靶点属于 GNAT 超家族，先做家族普查：用 Pfam PF00583（`hmmsearch`）枚举候选基因组里的全部 GNAT 蛋白，并在同一次检索中带上阳性对照（仅人 AANAT）；这一层定义候选全集，而不是 DIAMOND 命中表
+- 因为靶点属于 GNAT 超家族，先做家族普查：用 Pfam PF00583（`hmmsearch`）枚举候选基因组里的全部 GNAT 蛋白，并在同一次检索中带上阳性对照（仅人 AANAT）；这一层定义候选全集，而不是 DIAMOND 命中表（注意：`hmmsearch` **未随插件打包**，按工具执行边界处理——本机可用就直接跑，否则把上面的命令交给你执行后再读回结果）
 - 序列层若无显著命中（本例正是如此），用 `screen-structure-candidates` 对全部候选结构做 US-align，只用靶点模板；靶点模板优先用实验结构（如 1CJW/1KUV），当预测模型与实验结构给出的排序不一致时以实验结构为准
 - 用 FedKEA 交叉核对（要带上正确环境、并提交 accession 干净的 FASTA 表头）；FedKEA 给出的是最可能的单一 EC（正统功能），不能用来排除兼职活性
 - 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认以 TM-score 为主键；`--rank-by priority` 可回到优先级规则排序）
