@@ -226,9 +226,17 @@ def merge_candidates(
                 part for part in [merged.get("provenance", ""), provenance_tag] if part
             )
 
+    # FedKEA may be run once for the whole project, so its table can list candidates that
+    # belong to a different sample. Feeding that table into a per-sample merge used to create
+    # a row for every foreign accession, which put other genomes' proteins into each sample's
+    # result. Enrich existing candidates only; the rows themselves are the candidate set only
+    # when no sequence/structural input exists.
+    fedkea_is_source = not by_accession
     for row in fedkea_rows:
         accession = row.get("protein_accession", "").strip()
         if not accession:
+            continue
+        if not fedkea_is_source and accession not in by_accession:
             continue
         merged = upsert(accession)
         for key, value in row.items():

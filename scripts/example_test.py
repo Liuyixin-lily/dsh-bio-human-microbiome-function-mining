@@ -2468,6 +2468,50 @@ def main() -> int:
         by_id = {h["candidate_id"]: h for h in hits}
         assert by_id["one_sided"]["structure_support"] == "0"
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # FedKEA is often run once for a whole project, so its table can list proteins from
+        # other samples. Merging that into one sample's table used to create a row for every
+        # foreign accession, putting other genomes' proteins into this sample's result.
+        structural = tmp / "structural.tsv"
+        structural.write_text(
+            "candidate_id\ttemplate_id\ttm_score_1\ttm_score_2\ttm_score_mean\t"
+            "structure_support\n"
+            "WP_MINE\t2DDR\t0.70\t0.72\t0.71\t1\n",
+            encoding="utf-8",
+        )
+        fedkea = tmp / "fedkea.tsv"
+        fedkea.write_text(
+            "protein_accession\tfedkea_is_enzyme\tfedkea_final_result\t"
+            "fedkea_ec_confidence\n"
+            "WP_MINE\tTrue\t3.1.4.12\tHigh\n"
+            "WP_FOREIGN\tTrue\t3.1.11.2\tHigh\n",
+            encoding="utf-8",
+        )
+        out = tmp / "combined.tsv"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "merge_candidates.py"),
+             "--structural", str(structural), "--fedkea", str(fedkea),
+             "--output", str(out)],
+            check=True, capture_output=True,
+        )
+        with out.open("r", encoding="utf-8") as handle:
+            merged = list(csv.DictReader(handle, delimiter="\t"))
+        assert [row["protein_accession"] for row in merged] == ["WP_MINE"], merged
+        assert merged[0]["fedkea_final_result"] == "3.1.4.12"
+
+        # with no other evidence the FedKEA rows ARE the candidate set, so they must survive
+        out2 = tmp / "combined2.tsv"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "merge_candidates.py"),
+             "--fedkea", str(fedkea), "--output", str(out2)],
+            check=True, capture_output=True,
+        )
+        with out2.open("r", encoding="utf-8") as handle:
+            merged2 = list(csv.DictReader(handle, delimiter="\t"))
+        assert {row["protein_accession"] for row in merged2} == {"WP_MINE", "WP_FOREIGN"}
+
     print("example test passed")
     return 0
 
