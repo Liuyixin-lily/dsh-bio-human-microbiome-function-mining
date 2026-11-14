@@ -126,7 +126,11 @@ Available scripts:
   values are filled from that metadata instead of remaining blank.
 - `score_candidates.py`: reads `--project` to obtain the target EC and enzyme name, because
   the `SEQUENCE_ANNOTATION_CONFIRMED` fast path can only be evaluated with a target to match
-  against; without it the tier silently degrades to `SEQUENCE_ONLY`.
+  against; without it the tier silently degrades to `SEQUENCE_ONLY`. It also states on stderr
+  that FedKEA is supplementary evidence (and is what separates `USALIGN_TARGET_EC` from
+  `USALIGN_OTHER_EC`), that SignalP adds secretion evidence without changing the tier, and that
+  a structural row carrying no FedKEA result has a provisional tier — so `USALIGN_UNVALIDATED`
+  is never read as "no candidate".
 - `score_candidates.py`: assigns deterministic `overall_score`, `overall_rank`,
   `priority_tier`, `priority_rule`, and `priority_order` to the combined table.
   Ranking is TM-score-first by default (`--rank-by structure`); `--rank-by
@@ -165,7 +169,10 @@ Input preflight:
   different route requirements. `--require-candidate-data` makes a missing candidate
   proteome/genome fatal and prints the question to send the user, because "no path
   configured" is an answer to ask for — not a reason to download a proteome and guess which
-  assembly they meant.
+  assembly they meant. `--require-candidate-structures` does the same for the structural branch:
+  with no candidate structure directory it is fatal and prints the question (does the user have
+  structures, or should structure-prediction run); without the flag the same question appears as
+  a non-fatal "[pending question]" line.
 
 Agent-runnable wrappers:
 
