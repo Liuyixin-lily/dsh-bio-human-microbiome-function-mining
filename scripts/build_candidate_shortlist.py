@@ -38,17 +38,23 @@ from typing import Any
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCORE_SCRIPT = SCRIPT_DIR / "score_target_priorities.py"
 
+# every component that feeds the score must be exported, or a reader cannot reproduce it
 ENZYME_FIELDS = [
-    "rank", "target_id", "gene", "name", "uniprot", "ec",
+    "rank", "target_id", "gene", "name", "uniprot", "ec", "site_process",
     "evidence_status", "evidence_refs", "evidence_note", "ranking_note",
-    "priority_score", "site_evidence_score", "biochemical_clarity_score",
-    "assay_feasibility_score", "selection_status", "score_sources",
+    "known_score", "discovery_score", "priority_score", "selection_status",
+    "site_evidence_score", "disease_relevance_score", "biochemical_clarity_score",
+    "sequence_structure_score", "microbial_plausibility_score",
+    "assay_feasibility_score", "novelty_score", "score_sources",
+    "score_basis", "scoring_policy",
 ]
 TAXA_FIELDS = [
     "rank", "taxon_id", "genus", "species", "display_name",
     "evidence_status", "evidence_refs", "ranking_note",
-    "priority_score", "site_presence_score", "metabolic_plausibility_score",
-    "metabolic_plausibility_score_source", "selection_status", "score_sources",
+    "priority_score", "selection_status",
+    "site_presence_score", "disease_site_relevance_score",
+    "experimental_accessibility_score", "genome_availability_score",
+    "metabolic_plausibility_score", "score_sources", "score_basis", "scoring_policy",
 ]
 
 
@@ -66,15 +72,35 @@ def write_tsv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> None
             writer.writerow({field: row.get(field, "") for field in fields})
 
 
-def merge_registries(paths: list[Path]) -> list[dict[str, str]]:
+def normalize_name(value: str) -> str:
+    """'azoreductase (Azo1, FMN-dependent NADPH)' and 'azoreductase' are the same candidate."""
+    text = (value or "").strip().lower()
+    text = text.split("(")[0]
+    text = text.replace("/", " ")
+    return " ".join(text.split())
+
+
+def merge_registries(paths: list[Path], name_key: str | None = None) -> list[dict[str, str]]:
     """Union of registries, first occurrence wins per target_id; later files only fill gaps."""
     merged: dict[str, dict[str, str]] = {}
+    by_name: dict[str, str] = {}
     order: list[str] = []
     for path in paths:
         for row in read_tsv(path):
             key = (row.get("target_id") or row.get("taxon_id") or "").strip()
             if not key:
                 continue
+            if name_key:
+                # the same enzyme can arrive under two ids (a library id and a literature-derived
+                # id); collapse on name+EC so the candidate list does not list it twice
+                identity = f"{normalize_name(row.get(name_key) or '')}|{(row.get('ec') or '').strip()}"
+                if identity in by_name:
+                    existing = merged[by_name[identity]]
+                    for field, value in row.items():
+                        if value and not existing.get(field):
+                            existing[field] = value
+                    continue
+                by_name[identity] = key
             if key not in merged:
                 merged[key] = dict(row)
                 order.append(key)
@@ -83,6 +109,33 @@ def merge_registries(paths: list[Path]) -> list[dict[str, str]]:
                 if value and not merged[key].get(field):
                     merged[key][field] = value
     return [merged[key] for key in order]
+
+
+def collapse_by_name(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """One row per enzyme name when the only difference is an EC one source did not record.
+
+    Two sources may know the same enzyme under different ids and one of them may omit the EC. That
+    is not two candidates; it is the same candidate with partial knowledge.
+    """
+    groups: dict[str, list[int]] = {}
+    for index, row in enumerate(rows):
+        groups.setdefault(normalize_name(row.get("name") or ""), []).append(index)
+    drop: set[int] = set()
+    for indexes in groups.values():
+        if len(indexes) < 2:
+            continue
+        with_ec = [i for i in indexes if (rows[i].get("ec") or "").strip()]
+        if len(with_ec) != 1:
+            continue
+        keeper = rows[with_ec[0]]
+        for index in indexes:
+            if index == with_ec[0]:
+                continue
+            for field, value in rows[index].items():
+                if value and not keeper.get(field):
+                    keeper[field] = value
+            drop.add(index)
+    return [row for index, row in enumerate(rows) if index not in drop]
 
 
 def library_facts(library_paths: list[Path]) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
@@ -95,11 +148,18 @@ def library_facts(library_paths: list[Path]) -> tuple[dict[str, dict[str, str]],
         domain = payload.get("domain") or {}
         for process in domain.get("processes") or []:
             for enzyme in process.get("enzymes") or []:
-                enzymes[enzyme.get("id", "")] = {
+                fact = {
                     "evidence_status": str(enzyme.get("evidence_status") or ""),
                     "evidence_refs": ", ".join(enzyme.get("evidence_refs") or []),
                     "evidence_note": str(enzyme.get("provenance_note_zh") or ""),
                 }
+                enzymes[enzyme.get("id", "")] = fact
+                # a literature-derived registry names the same enzyme differently; index by the
+                # normalised name so a merge cannot silently drop the verified status
+                for key_field in ("enzyme_name_en", "enzyme_name_zh"):
+                    name = normalize_name(enzyme.get(key_field) or "")
+                    if name:
+                        enzymes.setdefault(f"name:{name}", fact)
         for taxon in domain.get("focus_taxa") or []:
             name = str(taxon.get("taxon") or "").strip()
             if name:
@@ -139,13 +199,40 @@ def score(
         raise SystemExit("scoring failed")
 
 
-def annotate(rows: list[dict[str, str]], facts: dict[str, dict[str, str]], id_field: str) -> list[dict[str, Any]]:
+def literature_refs(path: Path | None) -> dict[str, list[str]]:
+    """candidate_id -> PMIDs from literature_evidence.tsv, for rows discovered from literature."""
+    refs: dict[str, list[str]] = {}
+    if path is None or not path.is_file():
+        return refs
+    for row in read_tsv(path):
+        if (row.get("verified") or "").strip().lower() not in ("yes", "true", "1"):
+            continue
+        ref = (row.get("reference_id") or "").strip()
+        key = (row.get("candidate_id") or row.get("protein_accession") or "").strip()
+        if key and ref:
+            refs.setdefault(key, []).append(ref)
+    return refs
+
+
+def annotate(rows: list[dict[str, str]], facts: dict[str, dict[str, str]], id_field: str,
+             lit_refs: dict[str, list[str]] | None = None) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for row in rows:
         key = (row.get(id_field) or "").strip()
-        fact = facts.get(key) or facts.get(str(row.get("name") or "").lower()) or {}
+        name = normalize_name(row.get("name") or "")
+        fact = (
+            facts.get(key)
+            or facts.get(f"name:{name}")
+            or facts.get(str(row.get("name") or "").lower())
+            or {}
+        )
         status = fact.get("evidence_status") or row.get("evidence_status") or ""
         refs = fact.get("evidence_refs") or ""
+        if not status and lit_refs and key in lit_refs:
+            # the enzyme name was found in retrieved abstracts: that is a literature-retrieved
+            # candidate, not a verified functional claim
+            status = "literature_retrieved（摘要提及）"
+            refs = ", ".join(lit_refs[key])
         if not status:
             # a registry the user supplied (e.g. an old select-candidate ranking) carries scores but
             # no references; that is "user_supplied", not "unknown"
@@ -282,7 +369,7 @@ def main(argv: list[str] | None = None) -> int:
 
     enzyme_registry = None
     if args.enzymes:
-        merged = merge_registries(args.enzymes)
+        merged = collapse_by_name(merge_registries(args.enzymes, name_key="name"))
         enzyme_registry = work / "enzymes.merged.tsv"
         fields = list(merged[0])
         write_tsv(enzyme_registry, merged, fields)
@@ -298,12 +385,13 @@ def main(argv: list[str] | None = None) -> int:
     score(enzyme_registry, taxa_registry, args.library, args.genomes, args.literature, args.site, outdir)
 
     facts_enzymes, facts_taxa = library_facts(args.library)
+    lit_refs = literature_refs(args.literature)
     enzyme_rows: list[dict[str, Any]] = []
     taxa_rows: list[dict[str, Any]] = []
 
     ranked_enzymes = outdir / "enzyme_priority_ranking.tsv"
     if ranked_enzymes.is_file():
-        enzyme_rows = annotate(read_tsv(ranked_enzymes), facts_enzymes, "target_id")
+        enzyme_rows = annotate(read_tsv(ranked_enzymes), facts_enzymes, "target_id", lit_refs)
         annotate_ranking_note(enzyme_rows, "its own registry")
         enzyme_rows.sort(key=lambda r: (evidence_rank(r), str(r.get("target_id"))))
         for i, row in enumerate(enzyme_rows, 1):

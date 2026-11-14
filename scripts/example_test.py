@@ -3307,6 +3307,20 @@ def main() -> int:
         assert "not comparable" in by_id["XEN-001"]["ranking_note"]
         # both sources survive the merge instead of one silently replacing the other
         assert len(rows) == 2
+        # every component that feeds the score is exported, so the number can be reproduced
+        for column in ("known_score", "discovery_score", "site_evidence_score",
+                       "disease_relevance_score", "biochemical_clarity_score",
+                       "sequence_structure_score", "microbial_plausibility_score",
+                       "assay_feasibility_score", "novelty_score"):
+            assert column in rows[0], column
+        coeffs_known = {"site_evidence_score": 0.30, "disease_relevance_score": 0.25,
+                        "biochemical_clarity_score": 0.25, "sequence_structure_score": 0.20}
+        coeffs_disc = {"microbial_plausibility_score": 0.40, "assay_feasibility_score": 0.30,
+                       "novelty_score": 0.30}
+        azo = by_id["azo"]
+        known = sum(w * float(azo.get(k) or 0) for k, w in coeffs_known.items())
+        disc = sum(w * float(azo.get(k) or 0) for k, w in coeffs_disc.items())
+        assert abs((0.5 * known + 0.5 * disc) - float(azo["priority_score"])) < 0.001
 
         with (out / "candidate_taxa.tsv").open("r", encoding="utf-8") as handle:
             taxa_rows = list(csv.DictReader(handle, delimiter="\t"))
@@ -3316,6 +3330,92 @@ def main() -> int:
         assert "## 1. Recommended" in note and "## 2. Candidate pool" in note
         assert "azoreductase" in note
         assert "--genomes" in note and "--literature" in note
+
+    # literature-derived discovery: only what the retrieved text actually says
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "discover_enzyme_candidates", SCRIPTS / "discover_enzyme_candidates.py"
+    )
+    discover = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(discover)
+
+    papers = [
+        {"pmid": "11111111", "title": "Azo dyes are reduced by skin bacteria",
+         "abstract": "Skin bacteria reduce azo dyes using their azoreductase. Activity was "
+                     "measured in Staphylococcus epidermidis."},
+        {"pmid": "22222222", "title": "Xenobiotic metabolism in the skin microbiome",
+         "abstract": "Carboxylesterase (EC 3.1.1.1) hydrolyses esters in skin bacteria."},
+        {"pmid": "33333333", "title": "Review of skin barrier lipids",
+         "abstract": "Ceramides dominate the stratum corneum; no drug metabolism is discussed."},
+    ]
+    found = discover.find_candidates(papers)
+    names = {name for name, _ec in found}
+    assert "azoreductase" in names
+    assert "carboxylesterase" in names
+    # an enzyme named in one paper and an EC in another must not be joined
+    assert found[("azoreductase", "")]["pmids"] == ["11111111"]
+    assert found[("carboxylesterase", "3.1.1.1")]["pmids"] == ["22222222"]
+    # a paper that mentions neither contributes nothing
+    assert all("33333333" not in entry["pmids"] for entry in found.values())
+    # the EC is recorded only because it appears in the same sentence
+    assert found[("carboxylesterase", "3.1.1.1")]["quote"].startswith("Carboxylesterase")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        registry = tmp / "reg.tsv"
+        evidence = tmp / "ev.tsv"
+        discover.write_registry(registry, list(found.values()), "skin", "xenobiotic metabolism")
+        discover.write_evidence(evidence, list(found.values()), "skin")
+        assert "azoreductase" in registry.read_text(encoding="utf-8")
+        rows = list(csv.DictReader(evidence.open("r", encoding="utf-8"), delimiter="\t"))
+        assert {r["reference_id"] for r in rows} == {"11111111", "22222222"}
+        assert all(r["verified"] == "yes" for r in rows)
+
+    # the same enzyme under two ids must not appear twice, and the verified one must win
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        first = tmp / "a.tsv"
+        second = tmp / "b.tsv"
+        first.write_text("target_id\tgene\tname\tuniprot\tec\tsite_process\n"
+                         "lit_azoreductase_noec\t\tazoreductase\t\t\tp\n", encoding="utf-8")
+        second.write_text("target_id\tgene\tname\tuniprot\tec\tsite_process\n"
+                          "skin_azoreductase\t\tazoreductase (Azo1) \t\t\tp\n", encoding="utf-8")
+        lib = tmp / "lib.json"
+        lib.write_text(json.dumps({"library_version": "0.1.0", "domain": {
+            "id": "skin_x", "name_zh": "皮肤", "name_en": "Skin",
+            "content_status": "starter", "role": "user_defined",
+            "keywords_zh": ["x"], "keywords_en": ["x"],
+            "niche_summary_zh": "t", "selection_hint_zh": "t", "focus_taxa": [],
+            "processes": [{"id": "p", "name_zh": "p", "name_en": "p",
+                           "keywords_zh": ["x"], "keywords_en": ["x"], "why_it_matters_zh": "t",
+                           "host_context_zh": "h", "microbe_effect_zh": "m", "key_taxa": ["x"],
+                           "enzymes": [{"id": "skin_azoreductase", "enzyme_name_zh": "偶氮还原酶",
+                                        "enzyme_name_en": "azoreductase (Azo1)", "ec": "",
+                                        "ec_confidence": "none", "reaction_zh": "r",
+                                        "substrate_zh": "s", "product_zh": "p",
+                                        "entry_point": "reaction", "dark_matter": False,
+                                        "priority": "high",
+                                        "evidence_status": "literature_verified",
+                                        "evidence_refs": ["PMID:33385118"],
+                                        "provenance_source": "literature",
+                                        "provenance_note_zh": "skin bacteria reduce azo dyes",
+                                        "validation_note_zh": "assay"}]}]},
+        }), encoding="utf-8")
+        out = tmp / "out"
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "build_candidate_shortlist.py"), "--site", "skin",
+             "--enzymes", str(first), "--enzymes", str(second), "--library", str(lib),
+             "--output-dir", str(out)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        rows = list(csv.DictReader((out / "candidate_enzymes.tsv").open("r", encoding="utf-8"),
+                                   delimiter="\t"))
+        assert len(rows) == 1, rows
+        assert rows[0]["evidence_status"] == "literature_verified"
+        assert rows[0]["evidence_refs"] == "PMID:33385118"
 
     print("example test passed")
     return 0

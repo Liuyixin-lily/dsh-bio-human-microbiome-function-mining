@@ -203,6 +203,17 @@ python3 scripts/browse_target_library.py --validate
 
 入口 B 的产出是两张清单，而不是一个结论：
 
+候选酶不必来自别人给的清单，插件可以自己从文献生成：
+
+```bash
+python3 scripts/discover_enzyme_candidates.py --site skin \
+    --terms "skin microbiome xenobiotic metabolism enzyme" --limit 25 \
+    --output outputs/task/discovery/enzyme_registry.tsv \
+    --evidence outputs/task/discovery/literature_evidence.tsv
+```
+
+它只记录检索到的摘要里**实际出现**的酶名；EC 只在与酶名同一句时记录；每个候选都带 PMID 和原文句子。
+
 ```bash
 python3 scripts/build_candidate_shortlist.py --site skin \
     --enzymes <你的酶表>.tsv --enzymes <库导出的注册表>.tsv \

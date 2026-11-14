@@ -72,6 +72,13 @@ Available scripts:
   reference actually supports (including "this is only a prediction" or "the evidence is from
   another body site"), stored verbatim in `provenance_note_zh`. `curated_prior` may also carry
   refs, so retrieval stays visible while the gate still quarantines the entry.
+- `discover_enzyme_candidates.py`: produces a candidate enzyme registry from literature the plugin
+  retrieves itself — no external or local ranking table needed. Runs the literature route with PMID
+  resolution, then scans titles/abstracts for enzyme family names from a fixed lexicon and for
+  `EC x.y.z.w` written in the same sentence. Writes `enzyme_registry.tsv` plus
+  `literature_evidence.tsv` (so `--literature` can derive `site_evidence_score`). It will not
+  invent an enzyme no retrieved sentence mentions, will not attach a PMID without recording the
+  sentence in `notes`, and will not guess an EC.
 - `build_candidate_shortlist.py`: the output layer of entry B. Merges any number of enzyme and
   taxa registries (including a legacy select-candidate `enzyme_ranking.tsv`), scores them with
   `score_target_priorities.py`, and writes `candidate_enzymes.tsv`, `candidate_taxa.tsv` and
