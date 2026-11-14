@@ -131,6 +131,50 @@ in one sentence, because it decides the whole downstream route:
 | `ec` | a complete EC number exists | build the card from the EC and fetch reference enzymes by EC |
 | `sequence` | no EC, or no characterized representative | start from a known sequence / structure, sequence + structure screening both matter |
 
+### 4b. If the user cannot choose between several candidates
+
+Sometimes the process is clear but there are many enzymes, or the user asks
+"should I look at *Cutibacterium* or *Staphylococcus* first?". The library gives a
+curated `priority` / `attention` hint, but not a defensible ordering across many
+candidates. For that, use the pre-screening ranker:
+
+```bash
+# start from the library so nobody retypes target ids and EC numbers
+python3 scripts/score_target_priorities.py \
+    --seed-from-library library/skin.json --output outputs/task/priorities
+
+# fill the 0-5 scores in the two seed tables, then rank
+python3 scripts/score_target_priorities.py \
+    --enzymes outputs/task/priorities/enzyme_registry.seed.tsv \
+    --taxa outputs/task/priorities/taxa_registry.seed.tsv \
+    --site skin --output outputs/task/priorities
+```
+
+Outputs: `enzyme_priority_ranking.tsv`, `taxa_priority_ranking.tsv`,
+`selected_taxa.tsv`, `selected_taxa.txt`, `ranking_report.md`.
+
+`selected_taxa.txt` feeds genome search directly:
+
+```bash
+python3 skills/genome-search/scripts/genome_source_search.py taxa \
+    --input outputs/task/priorities/selected_taxa.txt --source skin \
+    --out-xlsx work/genome_search/skin.xlsx --out-tsv work/genome_search/skin.tsv
+```
+
+Rules for this ranking, because it is easy to over-read:
+
+- **Every component score is human judgement**, not a measurement. It says "do
+  this first", never "this has the function". Say that out loud to the user.
+- The scoring weights and the exact policy are written into every row
+  (`scoring_policy`), so a ranking can be recomputed and challenged.
+- A shortlist is not an evidence table. It never replaces sequence, structure,
+  annotation or literature evidence.
+- If the script reports that the selection threshold is unreachable, that is a
+  config bug to fix — not a finding that nothing is worth doing.
+- Registries written for the original skin-only `select-candidate` skill are
+  accepted as-is: `skin_process` / `skin_evidence_score` / `skin_presence_score`
+  are read as aliases.
+
 ### 5. Materialize the selection
 
 After the user confirms one enzyme target:

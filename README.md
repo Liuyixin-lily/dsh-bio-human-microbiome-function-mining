@@ -110,6 +110,30 @@ python3 scripts/browse_target_library.py --validate
 
 选中后会写出 `target_function_card.json`（`input_source: library` + `library_id` / `library_version`）和 `target_selection.md`（为什么做这个过程、关键菌、推荐起手式、证据状态、可证伪的验证实验）。
 
+### 多个候选之间怎么排 / Ranking before screening
+
+库给的是策展的 `priority` / `attention`，够用来「先看谁」，但不足以在十几个候选之间给出可辩护的排序。这时用**筛选前**的优先级排序：
+
+```bash
+# 从库生成打分骨架（分数留空，不替你编）
+python3 scripts/score_target_priorities.py --seed-from-library library/skin.json --output outputs/task/priorities
+# 按 0–5 给分项打分后排序
+python3 scripts/score_target_priorities.py \
+  --enzymes outputs/task/priorities/enzyme_registry.seed.tsv \
+  --taxa outputs/task/priorities/taxa_registry.seed.tsv \
+  --site skin --output outputs/task/priorities
+```
+
+产出 `enzyme_priority_ranking.tsv`、`taxa_priority_ranking.tsv`、`selected_taxa.tsv`、`selected_taxa.txt`（可直接喂给 `genome_source_search.py taxa --input`）、`ranking_report.md`。
+
+这套打分模型整合自本地 `select-candidate` skill 并做了通用化，同时补上它缺的三件事：
+
+1. **主观性可见**：每一行都带 `score_basis = manual_expert_judgement` 与 `scoring_policy`（精确权重），任何排名都能被重算和质疑。
+2. **阈值可达性校验**：原 skill 的示例配置把 `taxa_min_priority_score` 设成 948，而 0–5 分量表下的理论上限约 10.6——结果静默选出 0 个菌。现在这种情况直接报错并说明原因。
+3. **兼容旧格式**：`skin_process` / `skin_evidence_score` / `skin_presence_score` 作为别名读取，原 `select-candidate` 的注册表可直接用。
+
+排序只回答「先做谁」，不是功能证据。
+
 ### 库覆盖不到的方向怎么办 / Beyond the shipped domains
 
 库只有 2 个部位、15 个过程，它是**内容**而不是**能力边界**。用户问牙周炎、阴道菌群、药物代谢时，插件不会哑掉，而是走三步升级：

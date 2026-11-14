@@ -21,6 +21,14 @@ Available scripts:
   file with the honesty rules enforced in code — no invented fields, forced
   `content_status: starter`, forced empty `evidence_refs`, required
   `provenance_source`, and library validation before anything is written.
+- `score_target_priorities.py`: the **pre**-screening prioritisation layer. Ranks
+  candidate enzyme targets and candidate taxa from human-assigned 0-5 scores
+  (weighted sums, configurable), so a user can decide what to screen at all.
+  `score_candidates.py` is the post-screening ranker and is a different table.
+  `--seed-from-library` writes registry skeletons from `library/<domain>.json`
+  with the score columns empty, and the script refuses to report a shortlist when
+  the configured threshold is unreachable. Registries written for the original
+  skin-only `select-candidate` skill are accepted as-is.
 - `build_cro_work_order.py`: writes a vendor-facing contract-research work order
   from the target card, the candidate table, the hypotheses table and a candidate
   FASTA — a quotable module table (`M1` gene synthesis ... `M10` data/biosafety),

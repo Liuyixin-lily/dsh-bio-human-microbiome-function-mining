@@ -1,0 +1,671 @@
+#!/usr/bin/env python3
+"""Rank candidate target enzymes and candidate taxa *before* screening.
+
+This is the pre-screening prioritisation layer. `score_candidates.py` ranks
+proteins that already passed sequence/structure screening; this script ranks the
+things you are deciding to screen at all:
+
+- which enzyme targets are worth building a project around;
+- which taxa are worth downloading genomes for.
+
+It absorbs the scoring model of the local `select-candidate` skill (weighted
+sums over human-assigned 0-5 scores) and generalises it from skin to any body
+site, while adding the checks that model was missing.
+
+What this script is honest about
+--------------------------------
+Every component score is **human expert judgement**, not a measurement. The output
+therefore carries two trace columns on every row: `score_basis`
+(`manual_expert_judgement`) and `scoring_policy` (the exact weights and mix used).
+A ranking says "do this first", never "this has the function".
+
+It also refuses to pretend a shortlist exists when it does not: if the configured
+threshold is unreachable given the weights and the 0-5 scale, that is an error
+rather than an empty `selected` table. (The upstream skill shipped an example
+config with `taxa_min_priority_score: 948` against a maximum achievable score of
+about 10.6, which silently selected nothing.)
+
+Inputs
+------
+Enzyme registry (TSV), one row per candidate enzyme target::
+
+    target_id  gene  name  uniprot  ec  site_process  notes
+    site_evidence_score  disease_relevance_score  biochemical_clarity_score
+    sequence_structure_score  microbial_plausibility_score
+    assay_feasibility_score  novelty_score
+
+Taxa registry (TSV), one row per candidate taxon::
+
+    taxon_id  genus  species  display_name  domain  core_tier
+    site_presence_score  metabolic_plausibility_score  genome_availability_score
+    disease_site_relevance_score  experimental_accessibility_score
+    recommended_strain_count  key_evidence_pmids  key_evidence_dois  rationale
+
+`skin_process` / `skin_evidence_score` / `skin_presence_score` are accepted as
+aliases, so registries written for the original skin-only skill keep working.
+
+Usage
+-----
+    # rank using the documented default weights
+    python3 scripts/score_target_priorities.py \\
+        --enzymes work/enzyme_registry.tsv \\
+        --taxa work/taxa_registry.tsv \\
+        --output outputs/task/priorities
+
+    # start from the curated library instead of a blank sheet (scores stay empty)
+    python3 scripts/score_target_priorities.py \\
+        --seed-from-library library/skin.json --output outputs/task/priorities
+
+    # then feed the selected taxa straight into genome search
+    python3 skills/genome-search/scripts/genome_source_search.py taxa \\
+        --input outputs/task/priorities/selected_taxa.txt --source skin \\
+        --out-xlsx work/genome_search/skin.xlsx --out-tsv work/genome_search/skin.tsv
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_LIBRARY_DIR = SCRIPT_DIR.parent / "library"
+
+SCORE_MAX = 5.0
+SCORE_BASIS = "manual_expert_judgement"
+
+DEFAULT_ENZYME_COEFFS = {
+    "site_evidence_score": 0.30,
+    "disease_relevance_score": 0.25,
+    "biochemical_clarity_score": 0.25,
+    "sequence_structure_score": 0.20,
+}
+DEFAULT_DISCOVERY_COEFFS = {
+    "microbial_plausibility_score": 0.40,
+    "assay_feasibility_score": 0.30,
+    "novelty_score": 0.30,
+}
+DEFAULT_ENZYME_MIX = (0.5, 0.5)  # (known, discovery)
+DEFAULT_TAXA_WEIGHTS = {
+    "site_presence_score": 0.30,
+    "disease_site_relevance_score": 0.25,
+    "experimental_accessibility_score": 0.20,
+    "genome_availability_score": 0.15,
+    "metabolic_plausibility_score": 0.10,
+}
+DEFAULT_TAXA_MIN_SCORE = 3.0
+
+ENZYME_OUT_FIELDS = [
+    "rank",
+    "target_id",
+    "gene",
+    "name",
+    "uniprot",
+    "ec",
+    "site_process",
+    "known_score",
+    "discovery_score",
+    "priority_score",
+    "site_evidence_score",
+    "disease_relevance_score",
+    "biochemical_clarity_score",
+    "sequence_structure_score",
+    "microbial_plausibility_score",
+    "assay_feasibility_score",
+    "novelty_score",
+    "score_basis",
+    "scoring_policy",
+    "notes",
+]
+TAXA_OUT_FIELDS = [
+    "rank",
+    "taxon_id",
+    "genus",
+    "species",
+    "display_name",
+    "domain",
+    "core_tier",
+    "priority_score",
+    "selection_status",
+    "site_presence_score",
+    "metabolic_plausibility_score",
+    "genome_availability_score",
+    "disease_site_relevance_score",
+    "experimental_accessibility_score",
+    "recommended_strain_count",
+    "key_evidence_pmids",
+    "key_evidence_dois",
+    "score_basis",
+    "scoring_policy",
+    "rationale",
+]
+
+PMID_RE = re.compile(r"^\d{1,9}$")
+DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
+
+
+# ---------------------------------------------------------------------------
+# io helpers
+# ---------------------------------------------------------------------------
+
+
+def read_tsv(path: Path) -> list[dict[str, str]]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
+
+
+def write_tsv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t", lineterminator="\n")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fields})
+
+
+def as_float(value: Any, default: float = 0.0) -> float:
+    if value in (None, ""):
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def cell(row: dict[str, str], canonical: str, site: str | None) -> str:
+    """Read a column by canonical name, honouring the legacy skin-only aliases."""
+    if canonical in row and row[canonical] not in (None, ""):
+        return row[canonical]
+    for alias in _aliases(canonical, site):
+        if alias in row and row[alias] not in (None, ""):
+            return row[alias]
+    return ""
+
+
+def _aliases(canonical: str, site: str | None) -> list[str]:
+    legacy = []
+    if canonical.startswith("site_"):
+        rest = canonical[len("site_") :]
+        legacy.append("skin_" + rest)
+        if site:
+            legacy.append(f"{site}_{rest}")
+    if canonical == "site_process":
+        legacy.extend(["skin_process", "process"])
+    return legacy
+
+
+def score_of(row: dict[str, str], canonical: str, site: str | None, problems: list[str], where: str) -> float:
+    raw = cell(row, canonical, site)
+    if raw == "":
+        problems.append(f"{where}: missing score '{canonical}' (treated as 0)")
+        return 0.0
+    value = as_float(raw, default=float("nan"))
+    if value != value:  # NaN
+        problems.append(f"{where}: score '{canonical}' is not a number: {raw!r} (treated as 0)")
+        return 0.0
+    if value < 0 or value > SCORE_MAX:
+        problems.append(f"{where}: score '{canonical}' = {value} is outside 0..{SCORE_MAX:g}")
+    return value
+
+
+# ---------------------------------------------------------------------------
+# config
+# ---------------------------------------------------------------------------
+
+
+def load_config(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return {}
+    if not path.is_file():
+        raise SystemExit(f"error: config not found: {path}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data.get("ranking", data)
+
+
+def validate_weights(
+    cfg: dict[str, Any],
+    errors: list[str],
+    warnings: list[str],
+) -> tuple[dict[str, float], dict[str, float], float, float, dict[str, float], float]:
+    enzyme_c = dict(DEFAULT_ENZYME_COEFFS)
+    enzyme_c.update({k: float(v) for k, v in (cfg.get("enzyme_coeffs") or {}).items()})
+    discovery_c = dict(DEFAULT_DISCOVERY_COEFFS)
+    discovery_c.update({k: float(v) for k, v in (cfg.get("discovery_coeffs") or {}).items()})
+    known_w = float(cfg.get("enzyme_known_weight", DEFAULT_ENZYME_MIX[0]))
+    discovery_w = float(cfg.get("enzyme_discovery_weight", DEFAULT_ENZYME_MIX[1]))
+    taxa_w = dict(DEFAULT_TAXA_WEIGHTS)
+    taxa_w.update({k: float(v) for k, v in (cfg.get("taxa_weights") or {}).items()})
+    threshold = float(cfg.get("taxa_min_priority_score", DEFAULT_TAXA_MIN_SCORE))
+
+    for name, weights in (
+        ("enzyme_coeffs", enzyme_c),
+        ("discovery_coeffs", discovery_c),
+        ("taxa_weights", taxa_w),
+    ):
+        total = sum(weights.values())
+        if abs(total - 1.0) > 0.01:
+            warnings.append(
+                f"{name} weights sum to {total:.3f}, not 1.0; the resulting priority_score "
+                "is on a different scale than the default, so any threshold must be rescaled too"
+            )
+        if total <= 0:
+            errors.append(f"{name} weights sum to {total}; nothing can ever score above zero")
+
+    if abs((known_w + discovery_w) - 1.0) > 0.01:
+        warnings.append(
+            f"enzyme_known_weight + enzyme_discovery_weight = {known_w + discovery_w:.3f}, not 1.0"
+        )
+
+    max_taxa = SCORE_MAX * sum(taxa_w.values())
+    if threshold > max_taxa:
+        errors.append(
+            f"taxa_min_priority_score = {threshold:g} is unreachable: with these weights and a "
+            f"0..{SCORE_MAX:g} score scale the maximum possible value is {max_taxa:.3f}. "
+            "Every taxon would be 'defer'. Lower the threshold or rescale the weights."
+        )
+
+    return enzyme_c, discovery_c, known_w, discovery_w, taxa_w, threshold
+
+
+def policy_string(
+    enzyme_c: dict[str, float],
+    discovery_c: dict[str, float],
+    known_w: float,
+    discovery_w: float,
+) -> str:
+    parts = [f"{k}={v:g}" for k, v in sorted(enzyme_c.items())]
+    parts += [f"{k}={v:g}" for k, v in sorted(discovery_c.items())]
+    parts.append(f"known_weight={known_w:g}")
+    parts.append(f"discovery_weight={discovery_w:g}")
+    parts.append(f"scale=0..{SCORE_MAX:g}")
+    return ";".join(parts)
+
+
+def taxa_policy_string(taxa_w: dict[str, float], threshold: float) -> str:
+    parts = [f"{k}={v:g}" for k, v in sorted(taxa_w.items())]
+    parts.append(f"min_score={threshold:g}")
+    parts.append(f"scale=0..{SCORE_MAX:g}")
+    return ";".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# ranking
+# ---------------------------------------------------------------------------
+
+
+def rank_enzymes(
+    rows: list[dict[str, str]],
+    enzyme_c: dict[str, float],
+    discovery_c: dict[str, float],
+    known_w: float,
+    discovery_w: float,
+    site: str | None,
+    problems: list[str],
+) -> list[dict[str, Any]]:
+    policy = policy_string(enzyme_c, discovery_c, known_w, discovery_w)
+    ranked: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, 1):
+        target_id = row.get("target_id", "") or f"row{index}"
+        where = f"enzyme[{target_id}]"
+        known = sum(
+            weight * score_of(row, key, site, problems, where) for key, weight in enzyme_c.items()
+        )
+        discovery = sum(
+            weight * score_of(row, key, site, problems, where)
+            for key, weight in discovery_c.items()
+        )
+        ranked.append(
+            {
+                "target_id": target_id,
+                "gene": cell(row, "gene", site),
+                "name": cell(row, "name", site),
+                "uniprot": cell(row, "uniprot", site),
+                "ec": cell(row, "ec", site),
+                "site_process": cell(row, "site_process", site),
+                "known_score": f"{known:.3f}",
+                "discovery_score": f"{discovery:.3f}",
+                "priority_score": f"{known_w * known + discovery_w * discovery:.3f}",
+                "score_basis": SCORE_BASIS,
+                "scoring_policy": policy,
+                "notes": cell(row, "notes", site),
+                **{key: f"{score_of(row, key, site, [], where):.3f}" for key in ENZYME_OUT_FIELDS if key in enzyme_c or key in discovery_c},
+            }
+        )
+    ranked.sort(key=lambda r: (-float(r["priority_score"]), str(r["target_id"])))
+    for i, row in enumerate(ranked, 1):
+        row["rank"] = i
+    return ranked
+
+
+def rank_taxa(
+    rows: list[dict[str, str]],
+    taxa_w: dict[str, float],
+    threshold: float,
+    site: str | None,
+    problems: list[str],
+    warnings: list[str],
+) -> list[dict[str, Any]]:
+    policy = taxa_policy_string(taxa_w, threshold)
+    ranked: list[dict[str, Any]] = []
+    for index, row in enumerate(rows, 1):
+        taxon_id = row.get("taxon_id", "") or f"row{index}"
+        where = f"taxa[{taxon_id}]"
+        total = sum(
+            weight * score_of(row, key, site, problems, where) for key, weight in taxa_w.items()
+        )
+        pmids = cell(row, "key_evidence_pmids", site)
+        dois = cell(row, "key_evidence_dois", site)
+        for pmid in _split_refs(pmids):
+            if not PMID_RE.match(pmid):
+                warnings.append(
+                    f"{where}: '{pmid}' is not a bare PMID; this script does not verify it, "
+                    "so keep only identifier text you actually retrieved"
+                )
+        for doi in _split_refs(dois):
+            if not DOI_RE.match(doi):
+                warnings.append(
+                    f"{where}: '{doi}' does not look like a DOI; this script does not verify it"
+                )
+        ranked.append(
+            {
+                "taxon_id": taxon_id,
+                "genus": cell(row, "genus", site),
+                "species": cell(row, "species", site),
+                "display_name": cell(row, "display_name", site),
+                "domain": cell(row, "domain", site),
+                "core_tier": cell(row, "core_tier", site),
+                "priority_score": f"{total:.3f}",
+                "selection_status": "selected" if total >= threshold else "defer",
+                "recommended_strain_count": cell(row, "recommended_strain_count", site),
+                "key_evidence_pmids": pmids,
+                "key_evidence_dois": dois,
+                "score_basis": SCORE_BASIS,
+                "scoring_policy": policy,
+                "rationale": cell(row, "rationale", site),
+                **{key: f"{score_of(row, key, site, [], where):.3f}" for key in TAXA_OUT_FIELDS if key in taxa_w},
+            }
+        )
+    ranked.sort(key=lambda r: (-float(r["priority_score"]), str(r["taxon_id"])))
+    for i, row in enumerate(ranked, 1):
+        row["rank"] = i
+    return ranked
+
+
+def _split_refs(value: str) -> list[str]:
+    if not value:
+        return []
+    return [part.strip() for part in re.split(r"[;,]", value) if part.strip()]
+
+
+# ---------------------------------------------------------------------------
+# seeding from the curated library
+# ---------------------------------------------------------------------------
+
+
+def seed_from_library(library_path: Path, site: str | None) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    payload = json.loads(library_path.read_text(encoding="utf-8"))
+    domain = payload.get("domain") or {}
+    enzyme_rows: list[dict[str, str]] = []
+    taxa_rows: list[dict[str, str]] = []
+    for process in domain.get("processes") or []:
+        for enzyme in process.get("enzymes") or []:
+            enzyme_rows.append(
+                {
+                    "target_id": enzyme.get("id", ""),
+                    "gene": (enzyme.get("gene_symbols") or [""])[0],
+                    "name": enzyme.get("enzyme_name_en", ""),
+                    "uniprot": "",
+                    "ec": enzyme.get("ec", ""),
+                    "site_process": process.get("name_en", ""),
+                    "notes": enzyme.get("provenance_note_zh", ""),
+                }
+            )
+    for taxon in domain.get("focus_taxa") or []:
+        name = taxon.get("taxon", "")
+        parts = name.split()
+        taxa_rows.append(
+            {
+                "taxon_id": re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_"),
+                "genus": parts[0] if parts else "",
+                "species": " ".join(parts[1:]) if len(parts) > 1 else "",
+                "display_name": taxon.get("name_zh", "") or name,
+                "domain": "",
+                "core_tier": taxon.get("attention", ""),
+                "recommended_strain_count": "",
+                "key_evidence_pmids": "",
+                "key_evidence_dois": "",
+                "rationale": taxon.get("role_zh", ""),
+            }
+        )
+    del site  # the library already encodes the site
+    return enzyme_rows, taxa_rows
+
+
+# ---------------------------------------------------------------------------
+# report
+# ---------------------------------------------------------------------------
+
+
+def render_report(
+    enzyme_rows: list[dict[str, Any]],
+    taxa_rows: list[dict[str, Any]],
+    threshold: float,
+    site: str | None,
+    seeded_from: Path | None,
+    problems: list[str],
+    warnings: list[str],
+) -> str:
+    lines = ["# Candidate prioritisation before screening", ""]
+    lines.append(
+        "这份表回答的是「先做谁」，不是「谁有功能」。每个分项分数都是**人工判断**"
+        f"（`score_basis = {SCORE_BASIS}`），不是实验测量。"
+    )
+    if seeded_from is not None:
+        lines.append("")
+        lines.append(
+            f"本次表由目标库 `{seeded_from}` 生成骨架，**分项分数全部留空**，"
+            "需要你按 0–5 自己打分后再跑一次。脚本不会替你编分数。"
+        )
+    lines.append("")
+    if enzyme_rows:
+        lines.append("## 酶目标排序（前 10）")
+        lines.append("")
+        lines.append("| rank | target_id | 名称 | EC | 过程 | priority | known | discovery |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+        for row in enzyme_rows[:10]:
+            lines.append(
+                f"| {row['rank']} | {row['target_id']} | {row['name']} | {row['ec']} | "
+                f"{row['site_process']} | {row['priority_score']} | {row['known_score']} | "
+                f"{row['discovery_score']} |"
+            )
+        lines.append("")
+        top = enzyme_rows[0]
+        lines.append(
+            f"排序第一的是 `{top['target_id']}`。如果它的分数与第二名差距很小，"
+            "说明这份打分还不足以支撑选择——先复核打分而非直接开工。"
+        )
+        lines.append("")
+        lines.append("下一步（入口 A）：")
+        lines.append("")
+        lines.append("```bash")
+        lines.append(
+            f"python3 scripts/build_target_function_card.py --output outputs/task/target_function_card.json "
+            f"--ec {top['ec'] or '<EC>'} --enzyme-name \"{top['name']}\" --input-source ec"
+        )
+        lines.append("```")
+        lines.append("")
+    if taxa_rows:
+        selected = [r for r in taxa_rows if r["selection_status"] == "selected"]
+        lines.append("## 菌株排序")
+        lines.append("")
+        lines.append(f"阈值 `{threshold:g}`，入选 {len(selected)} / {len(taxa_rows)} 个。")
+        lines.append("")
+        lines.append("| rank | taxon | 中文名 | core_tier | priority | 状态 |")
+        lines.append("| --- | --- | --- | --- | --- | --- |")
+        for row in taxa_rows:
+            lines.append(
+                f"| {row['rank']} | {row['genus']} {row['species']} | {row['display_name']} | "
+                f"{row['core_tier']} | {row['priority_score']} | {row['selection_status']} |"
+            )
+        lines.append("")
+        if selected:
+            source_flag = f"--source {site} " if site else "--source <skin|oral|gut|respiratory|urogenital|blood|environment> "
+            lines.append("下一步：把入选菌株直接交给基因组检索。")
+            lines.append("")
+            lines.append("```bash")
+            lines.append(
+                "python3 skills/genome-search/scripts/genome_source_search.py taxa "
+                f"--input selected_taxa.txt {source_flag}"
+                "--out-xlsx work/genome_search/selected.xlsx --out-tsv work/genome_search/selected.tsv"
+            )
+            lines.append("```")
+        else:
+            lines.append(
+                "**没有任何菌株入选。** 这通常是阈值或权重设置的问题，不是「没有值得做的菌」。"
+                "先看下面 warnings，再调低阈值或重设权重。"
+            )
+        lines.append("")
+    lines.append("## 边界")
+    lines.append("")
+    lines.append("- 分项分数由人给，不同人打分可能不一样；换一套分数排名就会变。")
+    lines.append("- 排名只用于**决定先做谁**，不能当作功能证据，也不能写进结论。")
+    lines.append("- `selected` 只表示「值得先下载它的基因组」，不表示「它一定参与这个功能」。")
+    lines.append("- `key_evidence_pmids` / `key_evidence_dois` 原样透传，本脚本**不核实**，也不补全。")
+    lines.append("")
+    if problems:
+        lines.append("## Problems")
+        lines.append("")
+        for item in problems:
+            lines.append(f"- {item}")
+        lines.append("")
+    if warnings:
+        lines.append("## Warnings")
+        lines.append("")
+        for item in warnings:
+            lines.append(f"- {item}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# cli
+# ---------------------------------------------------------------------------
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Rank candidate target enzymes and candidate taxa before screening.",
+    )
+    parser.add_argument("--enzymes", type=Path, default=None, help="Enzyme registry TSV.")
+    parser.add_argument("--taxa", type=Path, default=None, help="Taxa registry TSV.")
+    parser.add_argument("--config", type=Path, default=None, help="Optional ranking config JSON.")
+    parser.add_argument(
+        "--seed-from-library",
+        type=Path,
+        default=None,
+        help="Write registry skeletons from a library/<domain>.json instead of ranking; scores stay empty.",
+    )
+    parser.add_argument("--output", type=Path, required=True, help="Output directory.")
+    parser.add_argument("--site", default=None, help="Body site id used for legacy column aliases (skin, gut, oral ...).")
+    parser.add_argument("--min-taxa-score", type=float, default=None, help="Override the taxa selection threshold.")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    args.output.mkdir(parents=True, exist_ok=True)
+
+    if args.seed_from_library is not None:
+        if not args.seed_from_library.is_file():
+            print(f"error: library file not found: {args.seed_from_library}", file=sys.stderr)
+            return 2
+        enzyme_rows, taxa_rows = seed_from_library(args.seed_from_library, args.site)
+        enzyme_path = args.output / "enzyme_registry.seed.tsv"
+        taxa_path = args.output / "taxa_registry.seed.tsv"
+        write_tsv(
+            enzyme_path,
+            enzyme_rows,
+            ["target_id", "gene", "name", "uniprot", "ec", "site_process", "notes"]
+            + list(DEFAULT_ENZYME_COEFFS)
+            + list(DEFAULT_DISCOVERY_COEFFS),
+        )
+        write_tsv(
+            taxa_path,
+            taxa_rows,
+            ["taxon_id", "genus", "species", "display_name", "domain", "core_tier",
+             "recommended_strain_count", "key_evidence_pmids", "key_evidence_dois", "rationale"]
+            + list(DEFAULT_TAXA_WEIGHTS),
+        )
+        report = render_report([], [], DEFAULT_TAXA_MIN_SCORE, args.site, args.seed_from_library, [], [])
+        (args.output / "ranking_report.md").write_text(report, encoding="utf-8")
+        print(f"wrote {enzyme_path} ({len(enzyme_rows)} enzyme rows, scores empty)")
+        print(f"wrote {taxa_path} ({len(taxa_rows)} taxa rows, scores empty)")
+        print(f"wrote {args.output / 'ranking_report.md'}")
+        print("下一步：按 0–5 给每个分项打分（留空的会被当成 0 并提示），再运行本脚本不带 --seed-from-library。")
+        return 0
+
+    cfg = load_config(args.config)
+    errors: list[str] = []
+    warnings: list[str] = []
+    enzyme_c, discovery_c, known_w, discovery_w, taxa_w, threshold = validate_weights(cfg, errors, warnings)
+    if args.min_taxa_score is not None:
+        threshold = args.min_taxa_score
+    if errors:
+        print("ranking config rejected:", file=sys.stderr)
+        for error in errors:
+            print(f"- {error}", file=sys.stderr)
+        return 1
+
+    problems: list[str] = []
+    enzyme_rows: list[dict[str, Any]] = []
+    taxa_rows: list[dict[str, Any]] = []
+
+    if args.enzymes is not None:
+        if not args.enzymes.is_file():
+            print(f"error: enzyme registry not found: {args.enzymes}", file=sys.stderr)
+            return 2
+        enzyme_rows = rank_enzymes(
+            read_tsv(args.enzymes), enzyme_c, discovery_c, known_w, discovery_w, args.site, problems
+        )
+        write_tsv(args.output / "enzyme_priority_ranking.tsv", enzyme_rows, ENZYME_OUT_FIELDS)
+        print(f"[enzyme] ranked {len(enzyme_rows)} row(s) -> {args.output / 'enzyme_priority_ranking.tsv'}")
+
+    if args.taxa is not None:
+        if not args.taxa.is_file():
+            print(f"error: taxa registry not found: {args.taxa}", file=sys.stderr)
+            return 2
+        taxa_rows = rank_taxa(read_tsv(args.taxa), taxa_w, threshold, args.site, problems, warnings)
+        write_tsv(args.output / "taxa_priority_ranking.tsv", taxa_rows, TAXA_OUT_FIELDS)
+        selected = [row for row in taxa_rows if row["selection_status"] == "selected"]
+        write_tsv(args.output / "selected_taxa.tsv", selected, TAXA_OUT_FIELDS)
+        (args.output / "selected_taxa.txt").write_text(
+            "".join(f"{row['genus']} {row['species']}".strip() + "\n" for row in selected),
+            encoding="utf-8",
+        )
+        print(f"[taxa] ranked {len(taxa_rows)} row(s); {len(selected)} selected -> {args.output}")
+
+    if not enzyme_rows and not taxa_rows:
+        print(
+            "nothing to rank: pass --enzymes and/or --taxa, or --seed-from-library to start from the library.",
+            file=sys.stderr,
+        )
+        return 2
+
+    report = render_report(
+        enzyme_rows, taxa_rows, threshold, args.site, None, problems, warnings
+    )
+    (args.output / "ranking_report.md").write_text(report, encoding="utf-8")
+    print(f"wrote {args.output / 'ranking_report.md'}")
+    if problems:
+        print(f"note: {len(problems)} data problem(s); see the report", file=sys.stderr)
+    if warnings:
+        print(f"note: {len(warnings)} warning(s); see the report", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

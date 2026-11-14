@@ -94,6 +94,20 @@ sources:
       ceramide + phosphocholine in Staphylococcus epidermidis while its title
       never mentions sphingomyelinase, and title-only triage previously produced
       a false no_evidence verdict.
+  - local_skill: select-candidate
+    path: ~/.codex/skills/select-candidate/SKILL.md
+    absorbed:
+      - target: scripts/score_target_priorities.py
+      - target: schemas/enzyme_priority_ranking.schema.tsv
+      - target: schemas/taxa_priority_ranking.schema.tsv
+    note: >-
+      Absorbed the weighted-sum scoring model for candidate enzymes and candidate
+      taxa (0-5 human scores), generalised from skin to any body site, and extended
+      with what the original model lacked: score_basis / scoring_policy trace
+      columns, weight-sum and threshold-reachability validation (the upstream
+      example config set taxa_min_priority_score to 948 against a maximum
+      achievable ~10.6 and silently selected nothing), legacy skin_* column
+      aliases, library seeding, and a selected_taxa.txt hand-off to genome-search.
   - upstream: FEDKEA
     repo: Stevenleizheng/FEDKEA
     url: https://github.com/Stevenleizheng/FEDKEA

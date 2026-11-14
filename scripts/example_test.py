@@ -875,6 +875,117 @@ def main() -> int:
         gap_text = (out2 / "cro_gap_list.md").read_text(encoding="utf-8")
         assert "序列" in gap_text
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        ranker = SCRIPTS / "score_target_priorities.py"
+
+        # registries written for the original skin-only select-candidate skill
+        # must keep working through the legacy skin_* column aliases
+        enzyme_reg = tmp / "enzyme_registry.tsv"
+        enzyme_reg.write_text(
+            "target_id\tgene\tname\tuniprot\tec\tskin_process\t"
+            "skin_evidence_score\tdisease_relevance_score\tbiochemical_clarity_score\t"
+            "sequence_structure_score\tmicrobial_plausibility_score\t"
+            "assay_feasibility_score\tnovelty_score\tnotes\n"
+            "E1\tg1\tenzyme one\tP1\t3.1.1.3\tsebum\t5\t5\t5\t5\t5\t5\t3\ttop\n"
+            "E2\tg2\tenzyme two\tP2\t3.1.4.12\tbarrier\t2\t2\t2\t2\t2\t2\t2\tlow\n",
+            encoding="utf-8",
+        )
+        taxa_reg = tmp / "taxa_registry.tsv"
+        taxa_reg.write_text(
+            "taxon_id\tgenus\tspecies\tdisplay_name\tdomain\tcore_tier\t"
+            "skin_presence_score\tmetabolic_plausibility_score\tgenome_availability_score\t"
+            "disease_site_relevance_score\texperimental_accessibility_score\t"
+            "recommended_strain_count\tkey_evidence_pmids\tkey_evidence_dois\trationale\n"
+            "T1\tCutibacterium\tacnes\tC. acnes\tBacteria\tcore\t5\t5\t5\t5\t5\t8\t12345\t10.1000/x\tdominant\n"
+            "T2\tEscherichia\tcoli\tE. coli\tBacteria\tenteric\t1\t1\t5\t1\t5\t3\t\t\tnot skin\n",
+            encoding="utf-8",
+        )
+
+        ranked = tmp / "ranked"
+        subprocess.run(
+            [
+                sys.executable, str(ranker),
+                "--enzymes", str(enzyme_reg),
+                "--taxa", str(taxa_reg),
+                "--site", "skin",
+                "--output", str(ranked),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        with (ranked / "enzyme_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            enzymes = list(csv.DictReader(handle, delimiter="\t"))
+        assert [row["target_id"] for row in enzymes] == ["E1", "E2"]
+        scores = [float(row["priority_score"]) for row in enzymes]
+        assert scores == sorted(scores, reverse=True)
+        # subjectivity and policy must be visible on every row
+        assert all(row["score_basis"] == "manual_expert_judgement" for row in enzymes)
+        assert all(row["scoring_policy"] for row in enzymes)
+
+        with (ranked / "taxa_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            taxa = list(csv.DictReader(handle, delimiter="\t"))
+        assert taxa[0]["genus"] == "Cutibacterium"
+        assert taxa[0]["selection_status"] == "selected"
+        # a taxon scoring below the default 3.0 threshold must be deferred
+        assert taxa[1]["selection_status"] == "defer"
+        assert (ranked / "selected_taxa.txt").read_text(encoding="utf-8").strip() == "Cutibacterium acnes"
+
+        # an unreachable threshold is a config error, not "nothing is worth doing"
+        bad_cfg = tmp / "bad_config.json"
+        bad_cfg.write_text(json.dumps({"ranking": {"taxa_min_priority_score": 948}}), encoding="utf-8")
+        bad = subprocess.run(
+            [
+                sys.executable, str(ranker),
+                "--taxa", str(taxa_reg),
+                "--site", "skin",
+                "--config", str(bad_cfg),
+                "--output", str(tmp / "bad"),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert bad.returncode == 1
+        assert "unreachable" in bad.stderr
+        assert not (tmp / "bad" / "taxa_priority_ranking.tsv").exists()
+
+        # seeding from the curated library must never fill in a score
+        seeded = tmp / "seeded"
+        subprocess.run(
+            [
+                sys.executable, str(ranker),
+                "--seed-from-library", str(ROOT / "library" / "skin.json"),
+                "--output", str(seeded),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        with (seeded / "enzyme_registry.seed.tsv").open("r", encoding="utf-8") as handle:
+            seed_enzymes = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(seed_enzymes) >= 15
+        assert all(row["site_evidence_score"] == "" for row in seed_enzymes)
+        with (seeded / "taxa_registry.seed.tsv").open("r", encoding="utf-8") as handle:
+            seed_taxa = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(seed_taxa) >= 10
+        assert all(row["site_presence_score"] == "" for row in seed_taxa)
+
+        # both ranking tables must satisfy their schemas
+        for schema_name, table in (
+            ("enzyme_priority_ranking.schema.tsv", ranked / "enzyme_priority_ranking.tsv"),
+            ("taxa_priority_ranking.schema.tsv", ranked / "taxa_priority_ranking.tsv"),
+        ):
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "validate_schema.py"),
+                    "--schema", str(ROOT / "schemas" / schema_name),
+                    "--tsv", str(table),
+                ],
+                check=True,
+                capture_output=True,
+            )
+
     print("example test passed")
     return 0
 

@@ -1,0 +1,40 @@
+# Required columns for enzyme_priority_ranking.tsv
+
+rank
+target_id
+gene
+name
+uniprot
+ec
+site_process
+known_score
+discovery_score
+priority_score
+site_evidence_score
+disease_relevance_score
+biochemical_clarity_score
+sequence_structure_score
+microbial_plausibility_score
+assay_feasibility_score
+novelty_score
+score_basis
+scoring_policy
+
+# Optional but recommended
+
+notes
+
+# Notes
+
+- Produced by `scripts/score_target_priorities.py`. This is a PRE-screening
+  prioritisation table: it ranks which enzyme targets to build a project around,
+  not which proteins have a function. `score_candidates.py` is the post-screening
+  ranker and is a different table.
+- Every component score is human expert judgement on a 0..5 scale.
+  `score_basis` is hard-coded to `manual_expert_judgement` so a reader cannot
+  mistake it for measured evidence.
+- `scoring_policy` records the exact weights and the mix used, so any row can be
+  recomputed. Change the weights and the ranking changes; that is expected.
+- Legacy `skin_*` column names from the original select-candidate skill are
+  accepted on input, but this output always uses the site-agnostic names.
+- A ranking is not evidence. Never write a functional conclusion from it.

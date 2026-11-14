@@ -112,6 +112,30 @@ python3 scripts/browse_target_library.py --validate
 
 A selection writes `target_function_card.json` (`input_source: library` plus `library_id` / `library_version`) and `target_selection.md` (why this process, key taxa, recommended entry point, evidence status, falsifying experiment).
 
+### Ranking several candidates before screening
+
+The library carries a curated `priority` / `attention` hint, which is enough to say what to look at first, but not enough to defend an ordering across a dozen candidates. For that there is a **pre-screening** ranker:
+
+```bash
+# build the scoring skeleton from the library (scores stay empty)
+python3 scripts/score_target_priorities.py --seed-from-library library/skin.json --output outputs/task/priorities
+# fill the 0-5 scores, then rank
+python3 scripts/score_target_priorities.py \
+  --enzymes outputs/task/priorities/enzyme_registry.seed.tsv \
+  --taxa outputs/task/priorities/taxa_registry.seed.tsv \
+  --site skin --output outputs/task/priorities
+```
+
+It writes `enzyme_priority_ranking.tsv`, `taxa_priority_ranking.tsv`, `selected_taxa.tsv`, `selected_taxa.txt` (feed it straight into `genome_source_search.py taxa --input`) and `ranking_report.md`.
+
+The scoring model was folded in from the local `select-candidate` skill, generalised from skin to any body site, and fixed in three places:
+
+1. **Subjectivity is visible**: every row carries `score_basis = manual_expert_judgement` and the exact `scoring_policy`, so a ranking can be recomputed and challenged.
+2. **Threshold reachability is validated**: the upstream example config set `taxa_min_priority_score` to 948 against a theoretical maximum of about 10.6 on the 0-5 scale, which silently selected zero taxa. That is now a hard error with an explanation.
+3. **Legacy format still works**: `skin_process` / `skin_evidence_score` / `skin_presence_score` are read as aliases, so registries written for `select-candidate` run unchanged.
+
+A ranking answers "do this first", never "this has the function".
+
 ### Beyond the shipped domains
 
 The library holds 2 body sites and 15 processes, but it is **content, not a capability boundary**. When a user asks about periodontitis, the vaginal microbiome, or drug metabolism, the plugin does not go quiet; it escalates in three steps:

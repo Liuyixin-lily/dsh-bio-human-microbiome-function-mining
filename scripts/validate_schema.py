@@ -160,6 +160,8 @@ def main(argv: list[str] | None = None) -> int:
             "outputs/alignments/run_full_085/structural_hits.tsv": "schemas/structural_hits.schema.tsv",
             "outputs/source_feature_annotations.tsv": "schemas/source_feature_annotations.schema.tsv",
             "outputs/task/cro_package/cro_modules.tsv": "schemas/cro_work_order.schema.tsv",
+            "outputs/task/priorities/enzyme_priority_ranking.tsv": "schemas/enzyme_priority_ranking.schema.tsv",
+            "outputs/task/priorities/taxa_priority_ranking.tsv": "schemas/taxa_priority_ranking.schema.tsv",
             "demo/outputs/task/combined_candidates_full.tsv": "schemas/combined_candidates.schema.tsv",
         }
         for output_rel, schema_rel in default_map.items():

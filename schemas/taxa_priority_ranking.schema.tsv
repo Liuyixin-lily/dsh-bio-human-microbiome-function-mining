@@ -1,0 +1,41 @@
+# Required columns for taxa_priority_ranking.tsv
+
+rank
+taxon_id
+genus
+species
+display_name
+domain
+core_tier
+priority_score
+selection_status
+site_presence_score
+metabolic_plausibility_score
+genome_availability_score
+disease_site_relevance_score
+experimental_accessibility_score
+recommended_strain_count
+key_evidence_pmids
+key_evidence_dois
+score_basis
+scoring_policy
+
+# Optional but recommended
+
+rationale
+
+# Notes
+
+- Produced by `scripts/score_target_priorities.py`. Ranks which taxa are worth
+  downloading genomes for, before any screening happens.
+- `selection_status` is `selected` or `defer`, decided by the configured
+  threshold. The script refuses to run when the threshold is unreachable given
+  the weights and the 0..5 scale, because an "all defer" table looks like
+  "nothing is worth doing" rather than a config error.
+- `selected_taxa.txt` (one `Genus species` per line) is written next to this table
+  and can be passed straight to
+  `skills/genome-search/scripts/genome_source_search.py taxa --input`.
+- `key_evidence_pmids` / `key_evidence_dois` are passed through verbatim and are
+  NOT verified by this script. Keep only identifiers you actually retrieved.
+- `selected` means "download this genome first", not "this taxon performs the
+  function".
