@@ -47,6 +47,29 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+# What each tool's resolved path and version output must look like. The digit rule alone
+# was not enough: on CentOS 7 `/bin/echo --version` prints "echo (GNU coreutils) 8.22",
+# which contains digits and made a coreutils binary pass as DIAMOND.
+TOOL_TOKENS: dict[str, tuple[str, ...]] = {
+    "diamond": ("diamond",),
+    "cd-hit": ("cd-hit", "cdhit", "cd hit"),
+    "usalign": ("us-align", "usalign", "tm-align", "tmalign"),
+    "deer": ("deer",),
+    "fedkea": ("fedkea",),
+    "bakta": ("bakta",),
+    "signalp": ("signalp",),
+    "hmmsearch": ("hmmsearch", "hmmer"),
+    "esmfold": ("esmfold",),
+}
+
+# Commands that exist on every machine and must never satisfy a probe for a real tool.
+GENERIC_UTILITIES = {
+    "echo", "printf", "cat", "true", "false", "yes", "sleep", "env",
+    "sh", "bash", "zsh", "ls", "cp", "mv", "tee", "printenv",
+}
+
+GENERIC_OUTPUT_MARKERS = ("coreutils", "busybox", "gnu bash", "shell builtin")
+
 TOOLS = [
     ("diamond", "DIAMOND", "序列筛选"),
     ("cd-hit", "CD-HIT", "去冗余"),
@@ -236,8 +259,18 @@ def resolve_executable(spec: Any) -> tuple[str | None, dict[str, str]]:
     return None, {}
 
 
-def version_of(path: str, env: dict[str, str], timeout: int = 20) -> tuple[str | None, str]:
-    """Try to get a version string. An empty answer means 'cannot verify', not 'ok'."""
+def version_of(
+    path: str, env: dict[str, str], timeout: int = 20, tool: str | None = None
+) -> tuple[str | None, str]:
+    """Try to get a version string for THIS tool, not merely a string with a digit in it.
+
+    Three things must agree before a binary counts as the tool: the resolved program name
+    (or its version banner) must mention the tool, the banner must contain a version number,
+    and it must not be a generic utility reporting its own version.
+    """
+    name = os.path.basename(os.path.realpath(path)).lower()
+    if name in GENERIC_UTILITIES:
+        return None, f"解析到的是通用命令（{name}），不是 {tool or '该工具'}"
     full_env = {**os.environ, **env}
     for flag in ("--version", "-version", "version"):
         try:
@@ -260,6 +293,15 @@ def version_of(path: str, env: dict[str, str], timeout: int = 20) -> tuple[str |
         text = (proc.stdout or "") + (proc.stderr or "")
         line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
         if line and any(ch.isdigit() for ch in line):
+            lowered = line.lower()
+            tokens = tuple(t for t in TOOL_TOKENS.get(tool or "", (tool.lower() if tool else "",)) if t)
+            if any(marker in lowered or marker in name for marker in GENERIC_OUTPUT_MARKERS):
+                return None, f"解析到的是通用命令（{name}），不是 {tool or '该工具'}"
+            if tokens and not any(token in lowered or token in name for token in tokens):
+                return None, (
+                    f"版本输出里没有 {tool} 的标识（{name} 打印了 {line[:50]!r}）——"
+                    "可能是别名或包装脚本，需要人工确认"
+                )
             return line, "ok"
         if line:
             # e.g. `echo --version` prints the flag back; that is not a version
@@ -279,8 +321,46 @@ def probe_tool(name: str, spec: Any) -> dict[str, Any]:
     resolved = path if Path(path).is_absolute() else (shutil.which(path) or "")
     if not resolved or not Path(resolved).exists():
         return {"status": "missing", "detail": f"找不到可执行文件: {path}", "declared": path}
+
     missing_env = [k for k in env if not os.environ.get(k) and not Path(str(env[k])).exists()]
-    version, why = version_of(resolved, env)
+
+    # DEER / FedKEA / ESMFold are invoked as `python <script>`; there is no version banner
+    # to check, so compile the script instead of pretending a python banner proved anything.
+    if Path(resolved).suffix.lower() == ".py":
+        if name in ("deer", "fedkea", "esmfold"):
+            python = shutil.which("python3") or shutil.which("python")
+            if not python:
+                return {"status": "unverified", "declared": path, "resolved": resolved,
+                        "version": None, "detail": "脚本存在，但找不到 python 解释器，未做语法检查",
+                        "env": env, "env_paths_missing": missing_env}
+            try:
+                proc = subprocess.run(
+                    [python, "-c",
+                     "import ast,sys; ast.parse(open(sys.argv[1], encoding='utf-8', "
+                     "errors='replace').read(), sys.argv[1])",
+                     resolved],
+                    capture_output=True, text=True, timeout=30,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                return {"status": "unverified", "declared": path, "resolved": resolved,
+                        "version": None, "detail": f"语法检查未完成: {exc}",
+                        "env": env, "env_paths_missing": missing_env}
+            if proc.returncode == 0:
+                if missing_env:
+                    return {"status": "unverified", "declared": path, "resolved": resolved,
+                            "version": None,
+                            "detail": "脚本语法检查通过，但声明的环境变量路径不存在: "
+                                      + ", ".join(missing_env),
+                            "env": env, "env_paths_missing": missing_env}
+                return {"status": "ready", "declared": path, "resolved": resolved,
+                        "version": None, "detail": "脚本语法检查通过（未执行，避免副作用）",
+                        "env": env, "env_paths_missing": []}
+            tail = (proc.stderr or "").strip().splitlines()
+            return {"status": "unverified", "declared": path, "resolved": resolved,
+                    "version": None, "detail": f"脚本语法检查失败: {tail[-1][:120] if tail else 'unknown'}",
+                    "env": env, "env_paths_missing": []}
+
+    version, why = version_of(resolved, env, tool=name)
     status = "ready" if version else "unverified"
     if missing_env:
         # A tool whose required library/env path does not exist will fail at run

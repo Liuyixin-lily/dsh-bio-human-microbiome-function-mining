@@ -1592,10 +1592,21 @@ def main() -> int:
         # a declared tool that cannot report a version is unverified, never ready;
         # a declared but missing path is missing; absent means not_provided
         skeleton["execution"]["allow_local_execution"] = True
-        skeleton["tools"]["diamond"] = "/bin/echo"                    # runs, prints no version
+        def fake_tool(directory: Path, name: str, banner: str) -> str:
+            """A stand-in binary that prints a realistic version banner."""
+            path = directory / name
+            path.write_text(f"#!/bin/sh\necho '{banner}'\n", encoding="utf-8")
+            path.chmod(0o755)
+            return str(path)
+
+        # a real-looking banner is the positive case; a digit alone is not enough (below)
+        skeleton["tools"]["diamond"] = fake_tool(tmp, "diamond", "diamond version 2.1.8")
+        skeleton["tools"]["usalign"] = fake_tool(tmp, "USalign", "US-align (Version 20240924)")
         skeleton["tools"]["cd-hit"] = "definitely-not-installed-xyz"  # missing
+        fedkea_script = tmp / "main.py"
+        fedkea_script.write_text("print('fedkea')\n", encoding="utf-8")
         skeleton["tools"]["fedkea"] = {
-            "path": "/bin/echo",
+            "path": str(fedkea_script),
             "env": {"LD_LIBRARY_PATH": "/nonexistent/envs/fedkea/lib"},
         }
         answer = tmp / "answers.json"
@@ -1608,7 +1619,8 @@ def main() -> int:
             check=True, capture_output=True,
         )
         card = json.loads(card_path.read_text(encoding="utf-8"))
-        assert card["tools"]["diamond"]["status"] == "unverified"
+        assert card["tools"]["diamond"]["status"] == "ready"
+        assert card["tools"]["usalign"]["status"] == "ready"
         assert card["tools"]["cd-hit"]["status"] == "missing"
         # a declared env path that does not exist must not be called ready
         assert card["tools"]["fedkea"]["status"] == "unverified"
@@ -1616,6 +1628,32 @@ def main() -> int:
         report = report_path.read_text(encoding="utf-8")
         assert "UNVERIFIED" in report and "MISSING" in report
         assert "不要把“路径存在”当成“可以跑”" in report
+
+        # A digit in the output is NOT proof that this is the tool. On CentOS 7,
+        # `/bin/echo --version` prints "echo (GNU coreutils) 8.22"; marking that as DIAMOND
+        # is exactly the false-positive this probe exists to prevent.
+        centos_like = tmp / "centos_like"
+        centos_like.mkdir()
+        skeleton3 = json.loads(json.dumps(skeleton))
+        skeleton3["tools"]["diamond"] = "/bin/echo"
+        skeleton3["tools"]["cd-hit"] = fake_tool(centos_like, "cd-hit", "echo (GNU coreutils) 8.22")
+        skeleton3["tools"]["bakta"] = fake_tool(centos_like, "python3", "Python 3.9.7")
+        answer3 = tmp / "answers3.json"
+        answer3.write_text(json.dumps(skeleton3), encoding="utf-8")
+        card3_path = tmp / "card3.json"
+        subprocess.run(
+            [sys.executable, str(intake), "--probe", "--config", str(answer3),
+             "--output-card", str(card3_path)],
+            check=True, capture_output=True,
+        )
+        card3 = json.loads(card3_path.read_text(encoding="utf-8"))
+        assert card3["tools"]["diamond"]["status"] == "unverified"
+        assert "通用命令" in card3["tools"]["diamond"]["detail"]
+        assert card3["tools"]["cd-hit"]["status"] == "unverified"
+        assert "通用命令" in card3["tools"]["cd-hit"]["detail"]
+        # a python banner proves a python, not Bakta
+        assert card3["tools"]["bakta"]["status"] == "unverified"
+        assert "标识" in card3["tools"]["bakta"]["detail"]
 
         # permission is separate from capability: without an explicit yes, say so
         skeleton2 = dict(skeleton)
@@ -1635,14 +1673,16 @@ def main() -> int:
         intake = SCRIPTS / "intake_environment.py"
 
         # a tool that reports a real version is ready; one that cannot is not
+        fedkea_script2 = tmp / "fedkea_main.py"
+        fedkea_script2.write_text("print('fedkea')\n", encoding="utf-8")
         env = {
             "execution": {"allow_local_execution": True, "workdir": str(tmp)},
             "tools": {
-                "diamond": "/usr/bin/python3",       # prints "Python 3.x" -> ready
-                "cd-hit": "/bin/echo",               # echoes the flag -> unverified
+                "diamond": fake_tool(tmp, "diamond", "diamond version 2.1.8"),
+                "cd-hit": "/bin/echo",               # generic utility -> unverified
                 "usalign": None,
                 "deer": None,
-                "fedkea": {"path": "/usr/bin/python3",
+                "fedkea": {"path": str(fedkea_script2),
                            "env": {"LD_LIBRARY_PATH": "/nonexistent/fedkea/lib"}},
                 "bakta": None,
                 "signalp": None,
@@ -1665,7 +1705,7 @@ def main() -> int:
         fragment = json.loads(fragment_path.read_text(encoding="utf-8"))
 
         # a ready path is carried through
-        assert fragment["tools"]["sequence_screen"]["executable"] == "/usr/bin/python3"
+        assert fragment["tools"]["sequence_screen"]["executable"].endswith("/diamond")
         # but the sequence step needs CD-HIT too, so it must not be enabled
         assert fragment["tools"]["sequence_screen"]["enabled"] is False
         assert fragment["tools"]["sequence_screen"]["cdhit_executable"] == ""

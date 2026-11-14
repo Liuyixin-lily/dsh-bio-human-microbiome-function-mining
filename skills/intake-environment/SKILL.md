@@ -98,11 +98,18 @@ python3 scripts/intake_environment.py --probe --config environment.json \
 | `missing` | declared but not found | hand over the exact command; do not run |
 | `not_provided` | the user said they do not have it | give commands only |
 
-Two rules that matter:
+Three rules that matter:
 
 - **A path is not a working tool.** A binary that runs but prints no version is
   `unverified`, because the usual cause (wrong env, missing shared library) only
   shows up at run time.
+- **A version number is not proof of identity.** Found the hard way on a CentOS 7 host:
+  there `/bin/echo --version` prints `echo (GNU coreutils) 8.22`, which contains digits,
+  and the first implementation reported DIAMOND as ready. Every probe now requires the
+  resolved program name or its banner to mention the tool, rejects generic utilities
+  (`echo`, `printf`, `true`, ...) and coreutils/BusyBox banners outright, and reads a bare
+  `python --version` as proof of a python, not of Bakta or FedKEA. Tools invoked as
+  `python <script>` are verified by parsing the script, which writes nothing.
 - **Execution permission is separate from capability.** If
   `execution.allow_local_execution` is not `true`, produce a command list instead of
   running anything, no matter how ready the tools look.
