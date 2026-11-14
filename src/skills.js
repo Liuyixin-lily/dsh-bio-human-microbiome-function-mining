@@ -9,6 +9,12 @@ export const SKILL_MANIFEST = [
     file: 'browse-target-library.md'
   },
   {
+    name: 'intake-environment',
+    description: 'Ask the user for their execution environment — host, tool paths, required environment variables, databases, data locations and permission to execute — then verify what is actually reachable before running any workflow.',
+    whenToUse: '每个新任务、跑任何外部工具之前：先问用户有没有服务器地址、软件路径、数据库和数据集，并确认是否允许本机执行。',
+    file: 'intake-environment.md'
+  },
+  {
     name: 'functional-dark-matter-discover',
     description: 'Given a target enzyme sequence, EC number, or substrate-product reaction, discover candidate human microbiome protein functions by combining sequence screening, structure search, FedKEA validation, source annotations, and experimental design.',
     whenToUse: '用户给出目标酶/EC/底物产物，想从人体微生物组中找候选功能蛋白。',

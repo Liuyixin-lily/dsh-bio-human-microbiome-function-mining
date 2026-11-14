@@ -1569,6 +1569,67 @@ def main() -> int:
         # and it must not disturb the boundary statement
         assert text.index("附录 A") < text.index("边界声明")
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        intake = SCRIPTS / "intake_environment.py"
+
+        # the questionnaire must name every group the user has to answer
+        asked = subprocess.run([sys.executable, str(intake), "--ask"],
+                               check=True, capture_output=True, text=True).stdout
+        for needle in ("在哪里跑", "机器资源", "外部软件", "数据库", "数据", "约束",
+                       "允许我在本机直接执行"):
+            assert needle in asked, needle
+
+        env_json = tmp / "environment.json"
+        subprocess.run([sys.executable, str(intake), "--init", "--output", str(env_json)],
+                       check=True, capture_output=True)
+        skeleton = json.loads(env_json.read_text(encoding="utf-8"))
+        # nothing may be pre-filled into "yes": permission and network start unknown
+        assert skeleton["execution"]["allow_local_execution"] == "unknown"
+        assert skeleton["constraints"]["network"] == "unknown"
+        assert all(value is None for value in skeleton["tools"].values())
+
+        # a declared tool that cannot report a version is unverified, never ready;
+        # a declared but missing path is missing; absent means not_provided
+        skeleton["execution"]["allow_local_execution"] = True
+        skeleton["tools"]["diamond"] = "/bin/echo"                    # runs, prints no version
+        skeleton["tools"]["cd-hit"] = "definitely-not-installed-xyz"  # missing
+        skeleton["tools"]["fedkea"] = {
+            "path": "/bin/echo",
+            "env": {"LD_LIBRARY_PATH": "/nonexistent/envs/fedkea/lib"},
+        }
+        answer = tmp / "answers.json"
+        answer.write_text(json.dumps(skeleton), encoding="utf-8")
+        card_path = tmp / "environment_card.json"
+        report_path = tmp / "environment_report.md"
+        subprocess.run(
+            [sys.executable, str(intake), "--probe", "--config", str(answer),
+             "--output-card", str(card_path), "--output-report", str(report_path)],
+            check=True, capture_output=True,
+        )
+        card = json.loads(card_path.read_text(encoding="utf-8"))
+        assert card["tools"]["diamond"]["status"] == "unverified"
+        assert card["tools"]["cd-hit"]["status"] == "missing"
+        # a declared env path that does not exist must not be called ready
+        assert card["tools"]["fedkea"]["status"] == "unverified"
+        assert card["tools"]["bakta"]["status"] == "not_provided"
+        report = report_path.read_text(encoding="utf-8")
+        assert "UNVERIFIED" in report and "MISSING" in report
+        assert "不要把“路径存在”当成“可以跑”" in report
+
+        # permission is separate from capability: without an explicit yes, say so
+        skeleton2 = dict(skeleton)
+        skeleton2["execution"] = dict(skeleton["execution"], allow_local_execution="unknown")
+        answer2 = tmp / "answers2.json"
+        answer2.write_text(json.dumps(skeleton2), encoding="utf-8")
+        report2 = tmp / "report2.md"
+        subprocess.run(
+            [sys.executable, str(intake), "--probe", "--config", str(answer2),
+             "--output-report", str(report2)],
+            check=True, capture_output=True,
+        )
+        assert "未确认" in report2.read_text(encoding="utf-8")
+
     print("example test passed")
     return 0
 

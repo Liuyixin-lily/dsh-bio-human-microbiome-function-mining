@@ -22,6 +22,27 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 - 没有输入文件：告诉用户需要放什么文件，不要猜路径。
 - 有文件：先 `head -n 5` 看格式，不要整体读进上下文。
 
+## 1b. 跑任何工具之前：先问环境（必做）
+
+不要假设软件已装好、不要假设能联网、不要假设允许本机执行。先发这一份问卷：
+
+```bash
+python3 scripts/intake_environment.py --ask
+```
+
+六组问题：在哪跑（本机 / 远程 host / 你手动跑）、机器资源、外部软件绝对路径与
+所需环境变量、数据库路径、数据路径、约束（网络/配额/时限）。拿到回答后：
+
+```bash
+python3 scripts/intake_environment.py --init  --output environment.json     # 让他填
+python3 scripts/intake_environment.py --probe --config environment.json \
+    --output-card environment_card.json --output-report environment_report.md
+```
+
+只有 `ready` 的工具、且 `allow_local_execution` 明确为 true 时才在本机运行；
+其余一律给命令。**路径存在 ≠ 能跑**（报不出版本、或声明的 LD_LIBRARY_PATH/PYTHONPATH
+不存在，都记 unverified）。
+
 ## 2. 主工作流速查
 
 | 阶段 | 关键 skill | 产物 |

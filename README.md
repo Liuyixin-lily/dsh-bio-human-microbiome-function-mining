@@ -47,6 +47,26 @@ human_microbiome_function_mining/
 
 ---
 
+## Before anything runs / 先问环境
+
+插件不捆绑重型工具，所以「能不能跑」必须先问清楚，而不是假设。真实项目里最耗时的失败都属于这一类：工具用绝对路径调用但 conda 环境没进 PATH（`foldseek: command not found`）、另一个工具缺 `PYTHONPATH`、某个工具在**无外网**的机器上卡在连 HuggingFace 取 checkpoint、Bakta 因为 `BAKTA_DB_FULL` 没设而跑不起来、共享机器上已有 146 个别人的进程。
+
+```bash
+python3 scripts/intake_environment.py --ask          # 发给用户的问卷（6 组）
+python3 scripts/intake_environment.py --init --output environment.json
+python3 scripts/intake_environment.py --probe --config environment.json \
+    --output-card environment_card.json --output-report environment_report.md
+```
+
+| 状态 | 含义 | 允许做什么 |
+| --- | --- | --- |
+| `ready` | 可执行文件存在**且**能报出版本号（含数字） | 允许执行时才可运行 |
+| `unverified` | 能运行但报不出版本，或声明的环境变量路径不存在 | 不算可用，需用户确认或最小样例试跑 |
+| `missing` | 声明了但找不到 | 只给命令 |
+| `not_provided` | 用户说没有 | 只给命令 |
+
+两条硬规则：**路径存在 ≠ 能跑**（报不出版本就记 unverified，因为问题通常要到运行时才暴露）；**执行许可与能力是两件事**——`allow_local_execution` 不为 true 时，无论工具多齐都只产出命令清单。`--check-network` 可探测 NCBI / RCSB / HuggingFace 可达性，涉及自动下载的步骤必须先确认。
+
 ## Two ways in / 两种进入方式
 
 插件有两条**并列**的入口，走哪条完全看用户手里已经有什么，没有先后、没有主次：
@@ -62,6 +82,7 @@ human_microbiome_function_mining/
 
 ## Skills / 技能
 
+- `intake-environment`: **跑任何工具之前的第一步**。先问用户：在哪跑（本机 / 远程 host / 你手动跑）、机器资源、每个外部软件的绝对路径与所需环境变量、数据库路径、数据路径、能否联网。回答写进 `environment.json`，再用 `--probe` 逐项验证。只有 `ready` 的工具、且 `allow_local_execution` 明确为 true 时才在本机运行。
 - `browse-target-library`: 入口 B。当用户还没给出具体的酶/EC/序列，只说了关注某个生理过程、表型或身体部位（例如「皮肤代谢有哪些重要的生理过程」「我关注油脂分泌」「哪些菌值得看」）时，用 `library/` 里的目标库把「身体部位 → 生理过程 → 酶目标」逐级摊开给用户挑，再导出 `target_function_card.json`。**已知目标时不需要这个 skill。**
 - `build-target-function-card`: 入口 A。标准化目标输入，生成 Target Function Card；用户能说出酶/EC/反应/序列时从这一步直接开始。
 - `functional-dark-matter-discover`: 主流程，负责把目标酶/EC/反应变成候选与实验设计。

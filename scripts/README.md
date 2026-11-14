@@ -21,6 +21,14 @@ Available scripts:
   file with the honesty rules enforced in code — no invented fields, forced
   `content_status: starter`, forced empty `evidence_refs`, required
   `provenance_source`, and library validation before anything is written.
+- `intake_environment.py`: asks for and verifies the **execution environment** —
+  host, tool paths, per-tool env vars, databases, data paths, network and permission to
+  execute. `--ask` prints the questionnaire, `--init` records the answers, `--probe`
+  reports each tool as ready / unverified / missing / not provided. A declared binary
+  that cannot report a version, or whose declared `LD_LIBRARY_PATH`/`PYTHONPATH` does not
+  exist, is `unverified`; permission to execute is tracked separately from capability.
+  This is the counterpart of `preflight_inputs.py`, which checks task inputs rather than
+  the environment.
 - `score_target_priorities.py`: the **pre**-screening prioritisation layer. Ranks
   candidate enzyme targets and candidate taxa from human-assigned 0-5 scores
   (weighted sums, configurable), so a user can decide what to screen at all.

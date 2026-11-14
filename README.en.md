@@ -45,6 +45,26 @@ human_microbiome_function_mining/
 
 ---
 
+## Before anything runs
+
+The plugin bundles no heavy tools, so "can this actually run?" has to be asked, not assumed. The costliest failures in a real project were all environmental: a tool invoked by absolute path without its conda env on `PATH` (`foldseek: command not found`), another needing `PYTHONPATH`, a third hanging while trying to fetch a checkpoint from Hugging Face on a machine with no network, Bakta unable to start because `BAKTA_DB_FULL` was unset, and a shared box already running 146 processes from someone else's project.
+
+```bash
+python3 scripts/intake_environment.py --ask
+python3 scripts/intake_environment.py --init --output environment.json
+python3 scripts/intake_environment.py --probe --config environment.json \
+    --output-card environment_card.json --output-report environment_report.md
+```
+
+| status | meaning | allowed |
+| --- | --- | --- |
+| `ready` | executable exists **and** reports a version containing a number | run it, if execution is permitted |
+| `unverified` | runs but reports no version, or a declared env path is missing | not usable; ask for confirmation or a smoke test |
+| `missing` | declared but not found | hand over the command |
+| `not_provided` | user does not have it | hand over the command |
+
+Two hard rules: **a path is not a working tool** (no version means `unverified`, because the real problem usually only appears at run time), and **permission is separate from capability** (if `allow_local_execution` is not true, produce commands only, however ready the tools look). `--check-network` probes NCBI / RCSB / Hugging Face before any auto-downloading step.
+
 ## Two ways in
 
 The plugin has **two peer entries**. Which one you take depends only on what the
@@ -64,6 +84,7 @@ and buys nothing.
 
 ## Skills
 
+- `intake-environment`: **the first step before any tool runs.** Ask the user where it runs (local / remote host / they run it themselves), machine resources, the absolute path of every external tool plus the environment variables each needs, database paths, data paths and network availability. The answers go into `environment.json` and `--probe` verifies them. Only `ready` tools may be run, and only when `allow_local_execution` is explicitly true.
 - `browse-target-library`: entry B. When the user has not named an enzyme, EC number, or sequence yet and only says what they care about ("what are the important processes in skin metabolism?", "I care about sebum secretion", "which microbes or enzymes are worth looking at?"), use the shipped target library to open up body site -> physiological process -> enzyme target as a numbered choice list, then materialize the selection as `target_function_card.json`. **Not needed when the target is already known.**
 - `build-target-function-card`: entry A. Standardizes target inputs and generates the Target Function Card; start here directly when the user can name the enzyme / EC / reaction / sequence.
 - `functional-dark-matter-discover`: main workflow that turns a target enzyme/EC/reaction into candidates and experimental design.

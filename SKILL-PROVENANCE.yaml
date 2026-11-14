@@ -130,6 +130,7 @@ dsh_compat:
       - screen-sequence-candidates
       - structure-prediction
       - screen-structure-candidates
+      - intake-environment
       - prepare-cro-work-order
       - literature-evidence
       - genome-search

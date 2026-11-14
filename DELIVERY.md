@@ -51,6 +51,7 @@ tool paths already installed on their server).
 The following skills are independent deliverables and can be installed or
 updated separately:
 
+- `intake-environment`
 - `browse-target-library`
 - `build-target-function-card`
 - `screen-sequence-candidates`

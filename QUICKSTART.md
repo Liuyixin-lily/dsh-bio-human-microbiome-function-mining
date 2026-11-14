@@ -73,6 +73,23 @@ example test passed
 
 This does not require DIAMOND, US-align, DEER, or FedKEA to be installed.
 
+## 3b. Before running any tool: answer the environment questionnaire
+
+The plugin does not bundle DIAMOND, US-align, DEER, FedKEA or Bakta, so it must ask what
+you actually have before it plans anything:
+
+```bash
+python3 scripts/intake_environment.py --ask                  # the 6 groups of questions
+python3 scripts/intake_environment.py --init --output environment.json   # record answers
+python3 scripts/intake_environment.py --probe --config environment.json \
+    --output-card environment_card.json --output-report environment_report.md
+```
+
+Each tool ends up `ready`, `unverified`, `missing` or `not provided`. Only `ready` tools
+are run, and only if you answered that local execution is allowed. A binary that exists
+but reports no version is `unverified` — the usual cause (wrong conda env, missing shared
+library, no network) only shows up at run time.
+
 ## 4. Entry B — only if you cannot name the target yet
 
 This section is **skipped entirely** in the normal case. The only reason to read
