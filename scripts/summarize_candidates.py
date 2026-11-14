@@ -617,7 +617,22 @@ def main(argv: list[str] | None = None) -> int:
             "fold can carry convergent or moonlighting activity and FedKEA is only a prediction, "
             "so such rows are candidates for experimental testing rather than exclusions.",
             "",
-            "To deliver them, widen the rule set:",
+            "Before widening the rule set, check whether FedKEA was actually run. When US-align "
+            "candidates exist but carry no FedKEA result, their tier is `USALIGN_UNVALIDATED` and no "
+            "row can reach `USALIGN_TARGET_EC`:",
+            "",
+            "```bash",
+            "# run FedKEA on the candidate FASTA, parse it, then merge it back in",
+            "python3 scripts/parse_fedkea.py --binary-result <OUT>/binary_result.txt \\",
+            "    --probability-csv <OUT>/enzyme_result_with_probability.csv \\",
+            "    --confidence-csv <OUT>/enzyme_result_with_confidence.csv \\",
+            "    --output outputs/task/fedkea_results.tsv",
+            "python3 scripts/merge_candidates.py --sequence <seq>.tsv --structural <struct>.tsv \\",
+            "    --fedkea outputs/task/fedkea_results.tsv --project project.json \\",
+            "    --output outputs/task/combined_candidates.tsv",
+            "```",
+            "",
+            "To deliver them without FedKEA, widen the rule set:",
             "",
             "```bash",
             "python3 scripts/summarize_candidates.py --scored outputs/task/scored_candidates.tsv \\",

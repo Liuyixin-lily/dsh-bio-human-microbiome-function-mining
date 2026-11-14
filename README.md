@@ -658,6 +658,7 @@ Agent:
 - FedKEA 把其中 2 个升级为 `USALIGN_TARGET_EC`：*S. pyogenes* `WP_023610742.1`（TM 0.7088）、*S. thermophilus* `..._bin.19_00773`（TM 0.6988）
 - 其余为 `USALIGN_OTHER_EC`：TM 达标，但 FedKEA 给的是别的 EC
 - DEER 未被使用
+- 第一次跑时**漏了 FedKEA**，最终表因此为空（只有 `USALIGN_UNVALIDATED`）；补跑 FedKEA 后两个候选升为 `USALIGN_TARGET_EC`，与上面的结果一致。这条经验写进了空表的说明文件：先查 FedKEA 是否跑过，再考虑放宽规则
 
 ### Example 3: 从已知序列出发，预测人体微生物是否编码类似的代谢基因
 
