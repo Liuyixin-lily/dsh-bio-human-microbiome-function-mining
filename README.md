@@ -201,7 +201,9 @@ python3 scripts/browse_target_library.py --validate
 
 ## Judgment points / 判断题
 
-插件不替你做的判断，全部选项化并记录在 `environment.json` 的 `decisions`：候选数据来源、是否有候选结构、结构来源偏好、是否启用 DEER、排序主键、交付表收哪些 tier。`--probe` 逐项校验，未选（`needs_decision`）不等于同意。完整清单与"为什么必须问"见 `references/decision_points.md`。
+插件不替你做的判断，全部选项化并记录在 `environment.json` 的 `decisions`。**它们按阶段提问，不是一开始全问完**：`start` 阶段只问候选数据；`structure` 阶段问结构文件与结构来源；US-align 候选不足时才问是否启用 DEER；排序与交付各自在对应步骤问。
+
+走到某一步而该判断还没答时，脚本会**停下打印选项**（`DECISION REQUIRED`）而不是用默认值继续：`run_deer.py` 退出码 3、`summarize_candidates.py` 在交付表为空时、`run_usalign.py` 在结构目录为空时。`--probe` 把未选报成 `needs_decision`——没选不等于同意。完整清单与"为什么必须问"见 `references/decision_points.md`。
 
 ## Evidence gate / 证据门槛
 

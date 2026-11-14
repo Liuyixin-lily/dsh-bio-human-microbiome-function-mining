@@ -22,6 +22,9 @@ import csv
 import json
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from decisions import gate as decision_gate  # noqa: E402
 from typing import Any
 
 
@@ -393,6 +396,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Directory to write final artifacts. Defaults to the current directory.",
     )
     parser.add_argument(
+        "--decisions",
+        default=None,
+        help="environment.json holding recorded decisions; a delivery_rules decision is checked "
+             "when the final table would be empty.",
+    )
+    parser.add_argument(
         "--final-rules",
         default="USALIGN_TARGET_EC,SEQUENCE_ANNOTATION_CONFIRMED",
         help="Comma-separated priority rules included in final_target_candidates.tsv.",
@@ -520,6 +529,13 @@ def main(argv: list[str] | None = None) -> int:
     # An empty final table must never read as "nothing was found". When candidates exist but
     # none is in the delivery rule set, write the reason next to the table and say what widens it.
     if not final_rows and summary_rows:
+        # The empty table is a delivery-rules decision, so ask it here instead of only noting it.
+        decision_gate(
+            getattr(args, "decisions", None),
+            "delivery_rules",
+            override=bool(args.final_rules and "OTHER_EC" in args.final_rules),
+            why="交付表为空：要不要把 USALIGN_OTHER_EC 收进来，是科学判断",
+        )
         tiers: dict[str, int] = {}
         for row in summary_rows:
             tier = row.get("priority_tier") or row.get("evidence_base") or "unknown"

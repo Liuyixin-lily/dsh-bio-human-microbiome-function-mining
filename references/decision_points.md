@@ -2,7 +2,32 @@
 
 原则：**凡是会改变"结果含义"的选择，都必须摆到用户面前**。插件可以给默认值和建议，但不能把判断悄悄做掉——那样会削弱用户自己的判断力，也让错误无法从结果里看出来。
 
+**这些判断不是一开始全部问完**，而是走到对应步骤时才问。理由很直接：在还没筛任何东西之前问"是否启用 DEER"没有意义，用户也无法回答；那时候他只知道自己有没有文件。
+
 每一条都对应 `environment.json` 里的 `decisions.<id>.choice`，由 `intake_environment.py --probe` 校验。
+
+| 阶段 | 何时问 | 判断点 |
+| --- | --- | --- |
+| `start` | 开始之前（必须有才能动手） | `candidate_data` |
+| `structure` | 走到结构分析这一步 | `candidate_structures`、`structure_source` |
+| `deer` | US-align 合格候选不足时 | `deer_fallback` |
+| `ranking` | 决定排序主键时 | `ranking_policy` |
+| `delivery` | 写交付表时 | `delivery_rules` |
+
+问法：
+
+```bash
+python3 scripts/intake_environment.py --ask                 # start 阶段 + 列出后面会问什么
+python3 scripts/intake_environment.py --ask --at deer       # 只问 DEER 那一个
+```
+
+走到该步骤时如果还没答，脚本会**停下并打印选项**（`DECISION REQUIRED`），而不是用默认值继续：
+
+| 脚本 | 闸门 | 未答时 |
+| --- | --- | --- |
+| `run_deer.py` | `deer_fallback`（`--decisions env.json`） | 退出码 3 + 打印选项；`--allow-without-usalign` 视为用户明确指示，并在输出里注明 |
+| `summarize_candidates.py` | `delivery_rules`（交付表为空时） | 打印选项；`--final-rules ...OTHER_EC` 视为用户明确要收 |
+| `run_usalign.py` | `candidate_structures`（结构目录为空） | 打印问句 + `blocked` checkpoint |
 状态语义：`resolved`（已选且字段齐）／`needs_field`（选了没填）／`needs_decision`（还没选）／`invalid`。
 **`needs_decision` 永远不等于用户同意。**
 

@@ -30,6 +30,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from decisions import gate as decision_gate  # noqa: E402
 from typing import Any
 
 
@@ -44,6 +47,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--script-path", type=Path, help="Path to DEER do_retrieval.py.")
     parser.add_argument("--tool-version", help="DEER version or repository tag.")
     parser.add_argument("--device", choices=["cpu", "gpu"], help="Force CPU or allow GPU execution.")
+    parser.add_argument(
+        "--decisions",
+        default=None,
+        help="environment.json holding recorded decisions; deer_fallback is required before "
+             "DEER may run.",
+    )
     parser.add_argument(
         "--allow-without-usalign",
         dest="allow_without_usalign",
@@ -422,6 +431,16 @@ def ensure_deer_runtime_compat(outdir: Path) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+
+    # "May DEER run" is a user decision, not a default this script may take for itself. Without a
+    # recorded choice (or the explicit override flag) it prints the options and stops.
+    if not decision_gate(
+        getattr(args, "decisions", None),
+        "deer_fallback",
+        override=bool(args.allow_without_usalign),
+        why="DEER 是 US-align 的 fallback，启用与否会改变证据来源",
+    ):
+        return 3
     project, root = load_project(args)
     deer_cfg = (project.get("tools") or {}).get("deer") or {}
     usalign_cfg = (project.get("tools") or {}).get("usalign") or {}

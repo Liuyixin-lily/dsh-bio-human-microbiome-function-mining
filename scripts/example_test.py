@@ -2139,17 +2139,25 @@ def main() -> int:
         assert "Bakta" in full and "DEER" in full
 
         # the two data questions are CHOICES, present in every scope, not scope-dependent prose
+        # Only the start-stage decision is asked up front; the rest are named as coming later,
+        # because "may DEER run" is meaningless before anything has been screened.
         for text in (card_only, screening, structure, full):
             assert "候选菌的蛋白组/基因组从哪来" in text
             assert "[user_path]" in text and "[download_ncbi]" in text
-            assert "有没有候选菌的蛋白结构文件" in text
-            assert "[predict]" in text and "[skip]" in text
-            assert "kind=experimental|predicted" in text
-            # the other judgment points must not be decided silently either
-            for point in ("接受哪种来源", "是否启用 DEER", "最终排序以什么为主键", "交付表收哪些 tier"):
-                assert point in text, point
-            for option in ("[pdb_then_afdb]", "[run]", "[tm_first]", "[include_other_ec]"):
-                assert option in text, option
+            assert "后面还会在相应步骤再问你" in text
+            assert "有没有候选菌的蛋白结构文件？  [candidate_structures]  在「structure」阶段" in text
+            assert "是否启用 DEER？  [deer_fallback]  在「deer」阶段" in text
+            # not asked yet
+            assert "[pdb_then_afdb]" not in text
+            assert "[include_other_ec]" not in text
+
+        # each stage prints its own question when the run reaches it
+        deer_stage = ask("--at", "deer", "--task", "full")
+        assert "US-align 合格候选不足时" in deer_stage
+        assert "[skip]" in deer_stage and "[run]" in deer_stage
+        assert "[download_ncbi]" not in deer_stage
+        delivery_stage = ask("--at", "delivery", "--task", "full")
+        assert "[include_other_ec]" in delivery_stage and "[strict]" in delivery_stage
         assert "--task card / screening / structure / full" in full
 
         # the execution rule never relaxes, whatever the scope
@@ -2847,6 +2855,62 @@ def main() -> int:
         undecided, _ = probe({})
         assert undecided["decisions"]["candidate_data"]["status"] == "needs_decision"
         assert "不要自己替他选" in undecided["decisions"]["candidate_data"]["detail"]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        decisions_path = tmp / "environment.json"
+        decisions_path.write_text(json.dumps({
+            "decisions": {"deer_fallback": {"choice": None}, "delivery_rules": {"choice": None}}
+        }), encoding="utf-8")
+
+        # a stage script must refuse to proceed on an unanswered decision, and show the options
+        project = tmp / "project.json"
+        project.write_text(json.dumps({"target_function_card": {"ec": "4.1.1.28"}}), encoding="utf-8")
+        deer = subprocess.run(
+            [sys.executable, str(SCRIPTS / "run_deer.py"), "--project", str(project),
+             "--decisions", str(decisions_path)],
+            capture_output=True, text=True,
+        )
+        assert deer.returncode == 3, deer.returncode
+        assert "DECISION REQUIRED" in deer.stderr
+        assert "[run]" in deer.stderr and "[skip]" in deer.stderr
+
+        # the explicit override counts as the user's instruction, and says so
+        overridden = subprocess.run(
+            [sys.executable, str(SCRIPTS / "run_deer.py"), "--project", str(project),
+             "--decisions", str(decisions_path), "--allow-without-usalign"],
+            capture_output=True, text=True,
+        )
+        assert "explicitly asked for it" in (overridden.stderr + overridden.stdout)
+
+        # delivery: an unanswered delivery_rules decision is printed, not silently defaulted
+        structural = tmp / "structural.tsv"
+        structural.write_text(
+            "candidate_id\ttemplate_id\ttm_score_1\ttm_score_2\ttm_score_mean\tstructure_support\n"
+            "WP_1\t3RBF\t0.66\t0.70\t0.68\t1\n",
+            encoding="utf-8",
+        )
+        combined = tmp / "combined.tsv"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "merge_candidates.py"),
+             "--structural", str(structural), "--project", str(project),
+             "--output", str(combined)],
+            check=True, capture_output=True,
+        )
+        scored = tmp / "scored.tsv"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_candidates.py"),
+             "--input", str(combined), "--output", str(scored), "--project", str(project)],
+            check=True, capture_output=True,
+        )
+        summary = subprocess.run(
+            [sys.executable, str(SCRIPTS / "summarize_candidates.py"),
+             "--scored", str(scored), "--project", str(project), "--outdir", str(tmp / "out"),
+             "--decisions", str(decisions_path)],
+            capture_output=True, text=True,
+        )
+        assert "DECISION REQUIRED" in summary.stderr
+        assert "[include_other_ec]" in summary.stderr
 
     print("example test passed")
     return 0

@@ -121,107 +121,15 @@ TASK_PROFILES: dict[str, dict[str, Any]] = {
     },
 }
 
-# The two decisions the user must make before any screening. They are modelled as choices,
-# not as prose, so the answer is recorded, machine-checkable, and impossible to silently assume.
-DECISIONS: dict[str, dict[str, Any]] = {
-    "candidate_data": {
-        "question": "候选菌的蛋白组/基因组从哪来？",
-        "options": [
-            ("user_path", "我有文件，给你绝对路径", "必需字段：path（.faa/.fna/.gbff）"),
-            ("download_ncbi", "我没有，帮我从 NCBI 下载", "必需字段：accession（GCF_/GCA_）或 species"),
-            ("not_available", "暂时没有候选数据", "后续只能做目标卡片，不能做筛选"),
-        ],
-        "fields": ("path", "annotation_path", "accession", "species"),
-    },
-    "candidate_structures": {
-        "question": "有没有候选菌的蛋白结构文件？",
-        "options": [
-            ("user_path", "有，给你结构目录", "必需字段：dir；建议 kind=experimental|predicted"),
-            ("predict", "没有，先跑 structure-prediction", "PDB > AlphaFold DB pLDDT>=60 > 同源建模 > de novo"),
-            ("skip", "没有，且这次不做结构分析", "只能得到 SEQUENCE_ONLY / 注释层结论"),
-        ],
-        "fields": ("dir", "kind"),
-    },
-    # The remaining judgment points. Each one changes what the answer means, so none of them
-    # may be decided by the plugin on the user's behalf.
-    "structure_source": {
-        "question": "需要预测结构时，接受哪种来源？",
-        "options": [
-            ("pdb_then_afdb", "实验结构优先，其次 AlphaFold DB（pLDDT>=60）", "默认，证据强度递减"),
-            ("afdb_only", "只用 AlphaFold DB", "有 AFDB 模型即可，不找实验结构"),
-            ("homology_ok", "允许同源建模", "有同源模板但无实验/预测结构时"),
-            ("de_novo", "允许 de novo 预测", "完全没有模板，证据最弱，必须在报告里标注"),
-        ],
-        "fields": (),
-    },
-    "deer_fallback": {
-        "question": "US-align 合格候选不足时，是否启用 DEER？",
-        "options": [
-            ("skip", "不启用（默认）", "只保留 US-align 结果"),
-            ("run", "启用", "需要用 --allow-fallback 显式放行，DEER 是 fallback 而非主筛"),
-        ],
-        "fields": (),
-    },
-    "ranking_policy": {
-        "question": "最终排序以什么为主键？",
-        "options": [
-            ("tm_first", "结构相似度（TM）优先（默认）", "趋同/兼职酶不会被 EC 不一致压下去"),
-            ("priority_first", "优先级层级优先", "需要严格按 tier 排序时"),
-        ],
-        "fields": (),
-    },
-    "delivery_rules": {
-        "question": "交付表收哪些 tier？",
-        "options": [
-            ("strict", "只收已确认（快速通道 / USALIGN_TARGET_EC）", "交付表可能为空，需读说明文件"),
-            ("include_other_ec", "同时收 USALIGN_OTHER_EC", "结构相似但 FedKEA 预测其他 EC，作为待验证候选"),
-        ],
-        "fields": (),
-    },
-}
-
-DECISION_REQUIRED = {
-    ("candidate_data", "user_path"): "path",
-    ("candidate_data", "download_ncbi"): "accession",
-    ("candidate_structures", "user_path"): "dir",
-}
-
-
-def decision_question_text(name: str, number: int | None = None) -> str:
-    spec = DECISIONS[name]
-    label = f"{number}. " if number is not None else ""
-    lines = [f"{label}{spec['question']}"]
-    for index, (option_id, text, note) in enumerate(spec["options"], 1):
-        lines.append(f"   {index}) {text}   [{option_id}]")
-        if note:
-            lines.append(f"      → {note}")
-    return "\n".join(lines)
-
-
-def check_decision(name: str, value: Any) -> dict[str, Any]:
-    """Validate one recorded decision: an option must be chosen, and its required field filled."""
-    spec = DECISIONS[name]
-    valid = {option_id for option_id, _text, _note in spec["options"]}
-    if value is None:
-        return {"status": "needs_decision", "choice": None,
-                "detail": "用户还没选；先把选项发给他，不要自己替他选"}
-    if not isinstance(value, dict):
-        return {"status": "invalid", "choice": None, "detail": "decision 必须是对象"}
-    choice = value.get("choice")
-    if choice not in valid:
-        return {"status": "invalid", "choice": choice,
-                "detail": f"choice 必须是 {', '.join(sorted(valid))}"}
-    required = DECISION_REQUIRED.get((name, choice))
-    if required and not (value.get(required) or "").strip():
-        return {"status": "needs_field", "choice": choice,
-                "detail": f"选了 {choice}，但缺少 {required}"}
-    if choice == "user_path" and name == "candidate_structures":
-        kind = (value.get("kind") or "").strip()
-        if kind and kind not in ("experimental", "predicted"):
-            return {"status": "invalid", "choice": choice,
-                    "detail": "kind 只能是 experimental 或 predicted"}
-    return {"status": "resolved", "choice": choice,
-            "detail": f"choice={choice}" + (f" ({kind})" if name == "candidate_structures" and (value.get("kind") or "").strip() else "")}
+# The decision registry lives in decisions.py so the scripts that reach a stage can print the
+# same options. This file only asks them at the right time.
+from decisions import (  # noqa: E402  (local module next to this script)
+    DECISION_POINTS as DECISIONS,
+    check as check_decision,
+    render as decision_question_text,
+    render_stage,
+    points_for_stage,
+)
 
 
 GROUP_LABEL = {
@@ -316,7 +224,13 @@ QUESTIONNAIRE_TEMPLATE = """\
 另外请明确一句：**你允许我在本机直接执行脚本，还是所有命令都由你手动运行？**
 """
 QUESTIONNAIRE = QUESTIONNAIRE_TEMPLATE.format(
-    all_choices="\n\n".join(decision_question_text(name) for name in DECISIONS)
+    all_choices=render_stage("start")
+    + "\n\n后面还会在相应步骤再问你（不用现在答）：\n"
+    + "\n".join(
+        f"- {DECISIONS[name]['question']}  [{name}]  在「{DECISIONS[name]['stage']}」阶段"
+        for name in DECISIONS
+        if DECISIONS[name]["stage"] != "start"
+    )
 )
 
 
@@ -1009,6 +923,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--ask", action="store_true", help="Print the questionnaire to send to the user.")
     parser.add_argument(
+        "--at",
+        choices=("start", "structure", "deer", "ranking", "delivery"),
+        default=None,
+        help="With --ask: print only the decisions that become relevant at this stage.",
+    )
+    parser.add_argument(
         "--task",
         choices=sorted(TASK_PROFILES),
         default=None,
@@ -1059,10 +979,17 @@ def main(argv: list[str] | None = None) -> int:
         for group in profile["groups"]:
             print(GROUP_TEXT[group])
             print()
-        # never skipped, whatever the scope: the judgment points come first
-        print("先回答这些判断题（插件不会替你选）：")
-        for number, name in enumerate(DECISIONS, 1):
-            print(decision_question_text(name, number))
+        # Only the decisions this stage needs. Asking "may DEER run" before anything has been
+        # screened is noise: it becomes meaningful only if US-align leaves too few candidates.
+        stage = args.at or "start"
+        print(render_stage(stage))
+        print()
+        later = [name for name in DECISIONS if DECISIONS[name]["stage"] != stage]
+        if later:
+            print("后面还会在相应步骤再问你（不用现在答）：")
+            for name in later:
+                spec = DECISIONS[name]
+                print(f"  - {spec['question']}  [{name}]  在「{spec['stage']}」阶段")
             print()
         # never skipped, whatever the scope: this is the one answer that gates execution
         print(PERMISSION_QUESTION)

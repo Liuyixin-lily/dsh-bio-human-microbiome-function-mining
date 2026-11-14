@@ -211,9 +211,13 @@ One deliberate behaviour: **a hit in a different body site does not count as cov
 ## Judgment points
 
 Every decision the plugin must not make for the user is modelled as a choice recorded in
-`environment.json` under `decisions`: where candidate data comes from, whether structures exist,
-which structure source is acceptable, whether DEER may run, the ranking key, and which tiers the
-delivery table includes. `--probe` validates each one; `needs_decision` is never consent. The full
+`environment.json` under `decisions`, and they are asked **by stage, not all at once**: `start`
+asks only for candidate data; `structure` asks about structure files and the acceptable structure
+source; DEER is asked when US-align leaves too few candidates; ranking and delivery ask at their own
+step. When a script reaches a stage whose decision is unanswered it stops and prints the options
+(`DECISION REQUIRED`) instead of applying a default: `run_deer.py` exits 3,
+`summarize_candidates.py` when the delivery table would be empty, `run_usalign.py` when the structure
+directory is empty. `--probe` reports `needs_decision`, which is never consent. The full
 list and why each must be asked are in `references/decision_points.md`.
 
 ## Evidence gates
