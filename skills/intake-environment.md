@@ -89,6 +89,31 @@ Two rules that matter:
 Add `--check-network` when the plan touches a downloader (AlphaFold DB, PDB, NCBI,
 Hugging Face). If a host is unreachable, do not start a step that would auto-download.
 
+## Step 4 — hand the verified paths to the project config
+
+The same answers are what `project.json`'s `tools` block needs, so do not make the user
+type them twice:
+
+```bash
+python3 scripts/intake_environment.py --probe --config environment.json \
+    --output-card environment_card.json --emit-config outputs/task/config.tools.json
+```
+
+That fragment is generated under one rule: **a path is written only for a tool that came
+back `ready`**. Everything else gets an empty `executable` with `enabled: false`, and a
+note explaining why. Consequences worth knowing:
+
+- `sequence_screen` stays disabled when CD-HIT is missing even if DIAMOND is ready —
+  deduplication is a mandatory step, so the pair is the unit.
+- a tool whose declared `LD_LIBRARY_PATH` / `PYTHONPATH` does not exist keeps its `env`
+  block (so the user can see what to fix) but is not enabled.
+- when execution permission was not explicitly granted, every `auto_run_local` is false.
+- tools the bundled runners do not read (e.g. `hmmsearch`) are reported as notes instead
+  of being invented into the schema.
+
+Merge the fragment's `tools` and `inputs` keys into the project config. Because it is
+generated rather than hand-written, re-run it whenever a path changes.
+
 ## Reporting back
 
 Tell the user, in one short block:

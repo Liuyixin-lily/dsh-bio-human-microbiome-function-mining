@@ -65,6 +65,15 @@ python3 scripts/intake_environment.py --probe --config environment.json \
 | `missing` | 声明了但找不到 | 只给命令 |
 | `not_provided` | 用户说没有 | 只给命令 |
 
+同一份回答还能直接生成 `project.json` 需要的 `tools` / `inputs` 片段，不用填两遍：
+
+```bash
+python3 scripts/intake_environment.py --probe --config environment.json \
+    --output-card environment_card.json --emit-config outputs/task/config.tools.json
+```
+
+规则同上：**只有 `ready` 的工具才写路径**，其余留空并 `enabled: false`；DIAMOND 就绪但 CD-HIT 缺失时 `sequence_screen` 仍为禁用（去冗余是强制步骤）；环境变量路径不存在的工具保留 `env` 便于修正但不算启用。
+
 两条硬规则：**路径存在 ≠ 能跑**（报不出版本就记 unverified，因为问题通常要到运行时才暴露）；**执行许可与能力是两件事**——`allow_local_execution` 不为 true 时，无论工具多齐都只产出命令清单。`--check-network` 可探测 NCBI / RCSB / HuggingFace 可达性，涉及自动下载的步骤必须先确认。
 
 ## Two ways in / 两种进入方式

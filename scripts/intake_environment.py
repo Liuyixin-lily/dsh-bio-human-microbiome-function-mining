@@ -412,6 +412,168 @@ def render_report(card: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# project config fragment
+# ---------------------------------------------------------------------------
+
+# Only tools the bundled runners actually read get a config block. Anything else is
+# reported as a note rather than invented into the schema.
+CONFIG_TOOL_KEYS = {
+    "diamond": "sequence_screen",
+    "cd-hit": "sequence_screen.cdhit_executable",
+    "usalign": "usalign",
+    "deer": "deer",
+    "fedkea": "fedkea",
+    "bakta": "genome_dataset.annotation",
+    "signalp": "signalp",
+    "esmfold": "structure_prediction",
+}
+
+
+def emit_project_config(card: dict[str, Any], source: Path) -> dict[str, Any]:
+    """Translate a verified environment card into project.json's tools/inputs blocks.
+
+    The rule that makes this worth doing is the same one the probe enforces: a path is
+    written only for a tool that came back `ready`. Unverified or missing tools get an
+    empty executable and `enabled: false`, so a project config can never claim a
+    capability the environment check did not confirm.
+    """
+    allow = card["execution"].get("allow_local_execution") is True
+    tools = card["tools"]
+    dbs = card["databases"]
+    data = card["data"]
+    notes: list[str] = []
+
+    def ready(name: str) -> tuple[bool, str]:
+        info = tools.get(name) or {}
+        if info.get("status") == "ready":
+            return True, info.get("resolved") or info.get("declared") or ""
+        return False, ""
+
+    def block(name: str, extra: dict[str, Any] | None = None, label: str | None = None) -> dict[str, Any]:
+        ok, path = ready(name)
+        if not ok:
+            status = (tools.get(name) or {}).get("status", "not_provided")
+            if status != "not_provided":
+                notes.append(f"{name}: {status} —— 未写入路径，enabled=false")
+        out: dict[str, Any] = {
+            "name": label or name,
+            "enabled": ok,
+            "auto_run_local": bool(ok and allow),
+            "executable": path,
+        }
+        if extra:
+            out.update(extra)
+        return out
+
+    cfg_tools: dict[str, Any] = {}
+
+    dm_ok, dm_path = ready("diamond")
+    cd_ok, cd_path = ready("cd-hit")
+    seq = {
+        "name": "DIAMOND",
+        "enabled": bool(dm_ok and cd_ok),
+        "auto_run_local": bool(dm_ok and cd_ok and allow),
+        "executable": dm_path,
+        "cdhit_executable": cd_path,
+        "db": (data.get("candidate_proteome_fasta") or {}).get("path", "") or "",
+    }
+    if not cd_ok:
+        notes.append(
+            "sequence_screen: CD-HIT 未就绪，DIAMOND 单独可用也不能跑默认流程（去冗余是强制步骤）"
+        )
+    cfg_tools["sequence_screen"] = seq
+
+    cfg_tools["structure_prediction"] = block("esmfold", label="ESMFold")
+    cfg_tools["usalign"] = block("usalign", label="US-align")
+
+    deer_ok, deer_path = ready("deer")
+    deer_block = {
+        "name": "DEER",
+        "enabled": deer_ok,
+        "auto_run_local": bool(deer_ok and allow),
+        "executable": "python" if deer_path else "",
+        "script_path": deer_path if deer_path.endswith(".py") else "",
+        "user_supplied_path": deer_path,
+        "ckpt_dir": (dbs.get("DEER_CKPT") or {}).get("path", "") or "",
+        "output_dir": "outputs/alignments/deer",
+    }
+    if deer_ok and not deer_path.endswith(".py"):
+        notes.append(
+            "deer: 填入的是可执行文件路径，config 期望 script_path 指向 do_retrieval.py —— 请补上脚本路径"
+        )
+    cfg_tools["deer"] = deer_block
+
+    fed_ok, fed_path = ready("fedkea")
+    fed_info = tools.get("fedkea") or {}
+    cfg_tools["fedkea"] = {
+        "name": "FedKEA",
+        "enabled": fed_ok,
+        "auto_run_local": bool(fed_ok and allow),
+        "executable": "python" if fed_path else "",
+        "script_path": fed_path if fed_path.endswith(".py") else "",
+        "user_supplied_path": fed_path,
+        "env": fed_info.get("env") or {},
+        "data_dir": (dbs.get("FEDKEA_HOME") or {}).get("path", "") or "",
+        "local_result_dir": "outputs/fedkea/result",
+    }
+    if fed_info.get("env_paths_missing"):
+        notes.append(
+            "fedkea: 声明的环境变量路径不存在（"
+            + ", ".join(fed_info["env_paths_missing"])
+            + "）—— 运行前必须修正"
+        )
+
+    bakta_ok, bakta_path = ready("bakta")
+    full_db = dbs.get("BAKTA_DB_FULL") or {}
+    light_db = dbs.get("BAKTA_DB_LIGHT") or {}
+    if full_db.get("status") == "ready":
+        bakta_db, bakta_db_path = "full", full_db.get("path", "")
+    elif light_db.get("status") == "ready":
+        bakta_db, bakta_db_path = "light", light_db.get("path", "")
+    else:
+        bakta_db, bakta_db_path = "full", ""
+        if bakta_ok:
+            notes.append("bakta: 可执行文件就绪但没有数据库，注释无法启动")
+        elif bakta_db_path:
+            notes.append("bakta: 数据库已就绪，但可执行文件缺失或未验证 —— 注释仍无法启动")
+    cfg_tools["genome_dataset"] = {
+        "annotation": {
+            "enabled": bool(bakta_ok and bakta_db_path),
+            "auto_run_local": bool(bakta_ok and bakta_db_path and allow),
+            "executable": bakta_path,
+            "db": bakta_db,
+            "db_path": bakta_db_path,
+        }
+    }
+
+    cfg_tools["signalp"] = block("signalp", {"env": (tools.get("signalp") or {}).get("env") or {}}, label="SignalP")
+
+    for name in ("hmmsearch", "esmfold"):
+        if (tools.get(name) or {}).get("status") == "ready" and name not in CONFIG_TOOL_KEYS_CONSUMED:
+            notes.append(f"{name}: 已确认可用，但插件当前的 runner 不读取它 —— 用它时需要自己给命令")
+
+    cfg_inputs = {
+        "target_structure_pdb": (data.get("target_structure") or {}).get("path", "") or "",
+        "candidate_proteome_fasta": (data.get("candidate_proteome_fasta") or {}).get("path", "") or "",
+        "candidate_genome_fasta": (data.get("candidate_genome_fasta") or {}).get("path", "") or "",
+        "candidate_annotation_gbff": (data.get("candidate_annotation_gbff") or {}).get("path", "") or "",
+        "candidate_structure_dir": (data.get("candidate_structure_dir") or {}).get("path", "") or "",
+    }
+
+    return {
+        "_generated_by": "scripts/intake_environment.py --emit-config",
+        "_source_environment": str(source),
+        "_rule": "只写入 probe 结果为 ready 的路径；unverified/missing 一律留空并 enabled=false",
+        "_notes": notes,
+        "tools": cfg_tools,
+        "inputs": cfg_inputs,
+    }
+
+
+CONFIG_TOOL_KEYS_CONSUMED = {"diamond", "cd-hit", "usalign", "deer", "fedkea", "bakta", "signalp"}
+
+
+# ---------------------------------------------------------------------------
 # cli
 # ---------------------------------------------------------------------------
 
@@ -429,6 +591,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-card", type=Path, default=None, help="Where --probe writes environment_card.json.")
     parser.add_argument("--output-report", type=Path, default=None, help="Where --probe writes environment_report.md.")
     parser.add_argument("--check-network", action="store_true", help="Also probe network reachability (off by default).")
+    parser.add_argument(
+        "--emit-config",
+        type=Path,
+        default=None,
+        help="With --probe: also write a project-config fragment (tools + inputs) using only ready tools.",
+    )
     return parser.parse_args(argv)
 
 
@@ -469,8 +637,17 @@ def main(argv: list[str] | None = None) -> int:
         args.output_report.parent.mkdir(parents=True, exist_ok=True)
         args.output_report.write_text(report, encoding="utf-8")
         print(f"wrote {args.output_report}")
-    if not args.output_card and not args.output_report:
+    if not args.output_card and not args.output_report and not args.emit_config:
         print(report)
+
+    if args.emit_config:
+        fragment = emit_project_config(card, args.config)
+        args.emit_config.parent.mkdir(parents=True, exist_ok=True)
+        args.emit_config.write_text(json.dumps(fragment, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"wrote {args.emit_config}")
+        print("把这个文件的 tools / inputs 合并进 project.json；未就绪的工具已留空并 enabled=false。")
+        for note in fragment["_notes"]:
+            print(f"  note: {note}")
 
     blocked = [n for n, i in card["tools"].items() if i.get("status") in {"missing", "unverified"}]
     if card["execution"].get("allow_local_execution") is not True:

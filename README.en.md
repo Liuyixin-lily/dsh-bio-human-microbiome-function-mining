@@ -63,6 +63,19 @@ python3 scripts/intake_environment.py --probe --config environment.json \
 | `missing` | declared but not found | hand over the command |
 | `not_provided` | user does not have it | hand over the command |
 
+The same answers also generate the `tools` / `inputs` fragment that `project.json`
+expects, so nothing is typed twice:
+
+```bash
+python3 scripts/intake_environment.py --probe --config environment.json \
+    --output-card environment_card.json --emit-config outputs/task/config.tools.json
+```
+
+Same rule: **a path is written only for a `ready` tool**; everything else is left empty
+with `enabled: false`. If DIAMOND is ready but CD-HIT is not, `sequence_screen` stays
+disabled because deduplication is mandatory. A tool whose declared env path is missing
+keeps its `env` block so the user can fix it, but is not enabled.
+
 Two hard rules: **a path is not a working tool** (no version means `unverified`, because the real problem usually only appears at run time), and **permission is separate from capability** (if `allow_local_execution` is not true, produce commands only, however ready the tools look). `--check-network` probes NCBI / RCSB / Hugging Face before any auto-downloading step.
 
 ## Two ways in

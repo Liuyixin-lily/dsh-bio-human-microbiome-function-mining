@@ -28,7 +28,9 @@ Available scripts:
   that cannot report a version, or whose declared `LD_LIBRARY_PATH`/`PYTHONPATH` does not
   exist, is `unverified`; permission to execute is tracked separately from capability.
   This is the counterpart of `preflight_inputs.py`, which checks task inputs rather than
-  the environment.
+  the environment. `--emit-config` turns the verified card into the `tools`/`inputs`
+  fragment that `project.json` expects, writing a path only for `ready` tools and
+  `enabled: false` for the rest, so the environment is not typed twice.
 - `score_target_priorities.py`: the **pre**-screening prioritisation layer. Ranks
   candidate enzyme targets and candidate taxa from human-assigned 0-5 scores
   (weighted sums, configurable), so a user can decide what to screen at all.

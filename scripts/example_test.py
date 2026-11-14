@@ -1630,6 +1630,72 @@ def main() -> int:
         )
         assert "未确认" in report2.read_text(encoding="utf-8")
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        intake = SCRIPTS / "intake_environment.py"
+
+        # a tool that reports a real version is ready; one that cannot is not
+        env = {
+            "execution": {"allow_local_execution": True, "workdir": str(tmp)},
+            "tools": {
+                "diamond": "/usr/bin/python3",       # prints "Python 3.x" -> ready
+                "cd-hit": "/bin/echo",               # echoes the flag -> unverified
+                "usalign": None,
+                "deer": None,
+                "fedkea": {"path": "/usr/bin/python3",
+                           "env": {"LD_LIBRARY_PATH": "/nonexistent/fedkea/lib"}},
+                "bakta": None,
+                "signalp": None,
+                "hmmsearch": None,
+                "esmfold": None,
+            },
+            "databases": {"BAKTA_DB_FULL": str(tmp), "FEDKEA_HOME": str(tmp)},
+            "data": {"candidate_proteome_fasta": str(tmp / "p.faa")},
+            "constraints": {"network": "no"},
+        }
+        cfg = tmp / "env.json"
+        cfg.write_text(json.dumps(env), encoding="utf-8")
+        fragment_path = tmp / "config.tools.json"
+        subprocess.run(
+            [sys.executable, str(intake), "--probe", "--config", str(cfg),
+             "--output-card", str(tmp / "card.json"),
+             "--emit-config", str(fragment_path)],
+            check=True, capture_output=True,
+        )
+        fragment = json.loads(fragment_path.read_text(encoding="utf-8"))
+
+        # a ready path is carried through
+        assert fragment["tools"]["sequence_screen"]["executable"] == "/usr/bin/python3"
+        # but the sequence step needs CD-HIT too, so it must not be enabled
+        assert fragment["tools"]["sequence_screen"]["enabled"] is False
+        assert fragment["tools"]["sequence_screen"]["cdhit_executable"] == ""
+        # a tool that never reported a version contributes no path
+        assert fragment["tools"]["usalign"]["executable"] == ""
+        assert fragment["tools"]["usalign"]["enabled"] is False
+        # a declared-but-broken env is preserved for the user to fix, and still disabled
+        assert fragment["tools"]["fedkea"]["env"]["LD_LIBRARY_PATH"].endswith("fedkea/lib")
+        assert fragment["tools"]["fedkea"]["enabled"] is False
+        assert any("环境变量路径不存在" in n for n in fragment["_notes"])
+        assert any("CD-HIT" in n for n in fragment["_notes"])
+        # the fragment states the rule it followed
+        assert "ready" in fragment["_rule"]
+
+        # with permission withheld nothing may be marked auto_run_local
+        env_no = json.loads(json.dumps(env))
+        env_no["execution"]["allow_local_execution"] = "unknown"
+        cfg2 = tmp / "env2.json"
+        cfg2.write_text(json.dumps(env_no), encoding="utf-8")
+        frag2 = tmp / "config2.json"
+        subprocess.run(
+            [sys.executable, str(intake), "--probe", "--config", str(cfg2),
+             "--emit-config", str(frag2)],
+            check=True, capture_output=True,
+        )
+        second = json.loads(frag2.read_text(encoding="utf-8"))
+        for name, block in second["tools"].items():
+            if isinstance(block, dict) and "auto_run_local" in block:
+                assert block["auto_run_local"] is False, name
+
     print("example test passed")
     return 0
 
