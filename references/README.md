@@ -6,6 +6,10 @@ plugin maps to the existing workspace.
 Intended files:
 
 - `workflow.md`: the target workflow steps and expected intermediate files.
+- `data_intake.md`: **the two questions that must be asked before any screening** — where the
+  candidate proteome/genome is, and whether candidate structure files exist — with the code
+  gates that enforce them (`--require-candidate-data`, `--require-candidate-structures`, and the
+  blocked US-align checkpoint). Read this first on every new task.
 - `input_paths.md`: the checklist of data locations and software paths to ask the
   user for, including the remote-host convention and the `--require-tools` checks.
 - `evidence_sources.md`: existing `data/`, `results/`, and `scripts/` files that

@@ -22,6 +22,20 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 - 没有输入文件：告诉用户需要放什么文件，不要猜路径。
 - 有文件：先 `head -n 5` 看格式，不要整体读进上下文。
 
+## 1a. 跑任何筛选之前：先问两个数据问题（必做）
+
+**这两个问题不能替用户回答。**
+
+1. **候选数据在哪？** 蛋白组（.faa）或基因组（.fna/.gbff）的绝对路径；有注释文件吗？
+   用户说没有 → 问"要我从 NCBI 下载吗？给 GCF/GCA 号或物种名"，**不要自己挑一个装配顶上去**。
+2. **有没有候选菌的结构文件？** 有 → 结构目录路径；没有 → 问是否先跑 structure-prediction
+   （PDB > AlphaFold DB pLDDT≥60 > 同源建模 > de novo），不要静默跳过、也不要静默开始预测。
+
+代码闸门（不是建议）：
+`preflight_inputs.py --require-candidate-data`、`--require-candidate-structures`；
+结构目录为空时 `run_usalign.py` 会打印问句并写 `blocked` checkpoint。
+细节见 `references/data_intake.md`。
+
 ## 1b. 跑任何工具之前：先问环境（但先定目标）
 
 不要假设软件已装好、不要假设能联网、不要假设允许本机执行。**但顺序是先定目标、再按需问环境**：

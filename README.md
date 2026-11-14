@@ -302,6 +302,8 @@ entry B (user only knows):   vague interest "油脂分泌" / "皮肤屏障" / "�
   -> 可证伪假设 + 实验设计
 ```
 
+**跑之前必须先问清两件事**（详见 `references/data_intake.md`）：候选数据（蛋白组/基因组）的路径、以及有没有候选菌的结构文件。这两件事在插件里是**选择题**，写进 `environment.json` 的 `decisions`，由 `--probe` 校验：`candidate_data` 选 `user_path` / `download_ncbi` / `not_available`，`candidate_structures` 选 `user_path` / `predict` / `skip`。选了 `user_path` 却没给路径会报 `needs_field`，没选会报 `needs_decision`——**没选永远不等于同意**。另有代码闸门：`preflight_inputs.py --require-candidate-data` / `--require-candidate-structures`，`run_usalign.py` 在结构目录为空时打印问句并写 `blocked` checkpoint。替用户下载一个蛋白组、或假定"没有结构"就跳过结构层，都会让结果看起来正常但其实不是他要的。
+
 流程的起点是**模板序列文件**，不是单条目标序列：判断「微生物是否编码人体相关的酶」时，需要同时拿宿主自身的酶和微生物的同源酶做模板——前者回答"是否与人体酶同源"，后者回答"是否是同类酶"。只取一组会漏。
 
 默认排序由 `scripts/score_candidates.py` 给出确定性的 `overall_rank`，**以结构相似性（TM-score）为主键**（`--rank-by structure`，默认）：有 TM 值的行按 TM 降序排在前；没有 TM 值的行（快速通道跳过结构的行、只有距离的 DEER 行、仅序列、仅注释）排在其后，内部再按 `priority_order`，然后按序列分、注释强度、`candidate_id` 破平。

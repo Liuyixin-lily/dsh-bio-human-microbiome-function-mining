@@ -295,6 +295,17 @@ entry B (user only knows):   vague interest "sebum" / "skin barrier" / "body odo
   -> falsifiable hypotheses + experimental design
 ```
 
+**Two questions must be asked before any screening** (see `references/data_intake.md`): where the
+candidate proteome/genome is, and whether candidate structure files exist. Both are **choices** recorded in `environment.json` under `decisions` and validated by
+`--probe`: `candidate_data` is `user_path` / `download_ncbi` / `not_available`, and
+`candidate_structures` is `user_path` / `predict` / `skip`. Choosing `user_path` without a path
+reports `needs_field`, and not choosing reports `needs_decision` — an unanswered question is never
+consent. Code gates back them up —
+`preflight_inputs.py --require-candidate-data` / `--require-candidate-structures`, and
+`run_usalign.py` prints the question and writes a `blocked` checkpoint when the structure directory
+is empty. Downloading a proteome on the user's behalf, or assuming "no structures" and skipping the
+structural branch, produces a result that looks fine but is not the one they asked for.
+
 The pipeline starts from a **template sequence file**, not from a single target sequence. To ask
 whether a microbe encodes a host-like enzyme you need both sets: the host's own enzymes (does
 the microbial protein resemble a human one?) and microbial homologues (is it the same class of

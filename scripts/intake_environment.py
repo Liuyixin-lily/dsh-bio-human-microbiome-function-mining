@@ -121,6 +121,73 @@ TASK_PROFILES: dict[str, dict[str, Any]] = {
     },
 }
 
+# The two decisions the user must make before any screening. They are modelled as choices,
+# not as prose, so the answer is recorded, machine-checkable, and impossible to silently assume.
+DECISIONS: dict[str, dict[str, Any]] = {
+    "candidate_data": {
+        "question": "候选菌的蛋白组/基因组从哪来？",
+        "options": [
+            ("user_path", "我有文件，给你绝对路径", "必需字段：path（.faa/.fna/.gbff）"),
+            ("download_ncbi", "我没有，帮我从 NCBI 下载", "必需字段：accession（GCF_/GCA_）或 species"),
+            ("not_available", "暂时没有候选数据", "后续只能做目标卡片，不能做筛选"),
+        ],
+        "fields": ("path", "annotation_path", "accession", "species"),
+    },
+    "candidate_structures": {
+        "question": "有没有候选菌的蛋白结构文件？",
+        "options": [
+            ("user_path", "有，给你结构目录", "必需字段：dir；建议 kind=experimental|predicted"),
+            ("predict", "没有，先跑 structure-prediction", "PDB > AlphaFold DB pLDDT>=60 > 同源建模 > de novo"),
+            ("skip", "没有，且这次不做结构分析", "只能得到 SEQUENCE_ONLY / 注释层结论"),
+        ],
+        "fields": ("dir", "kind"),
+    },
+}
+
+DECISION_REQUIRED = {
+    ("candidate_data", "user_path"): "path",
+    ("candidate_data", "download_ncbi"): "accession",
+    ("candidate_structures", "user_path"): "dir",
+}
+
+
+def decision_question_text(name: str, number: int | None = None) -> str:
+    spec = DECISIONS[name]
+    label = f"{number}. " if number is not None else ""
+    lines = [f"{label}{spec['question']}"]
+    for index, (option_id, text, note) in enumerate(spec["options"], 1):
+        lines.append(f"   {index}) {text}   [{option_id}]")
+        if note:
+            lines.append(f"      → {note}")
+    return "\n".join(lines)
+
+
+def check_decision(name: str, value: Any) -> dict[str, Any]:
+    """Validate one recorded decision: an option must be chosen, and its required field filled."""
+    spec = DECISIONS[name]
+    valid = {option_id for option_id, _text, _note in spec["options"]}
+    if value is None:
+        return {"status": "needs_decision", "choice": None,
+                "detail": "用户还没选；先把选项发给他，不要自己替他选"}
+    if not isinstance(value, dict):
+        return {"status": "invalid", "choice": None, "detail": "decision 必须是对象"}
+    choice = value.get("choice")
+    if choice not in valid:
+        return {"status": "invalid", "choice": choice,
+                "detail": f"choice 必须是 {', '.join(sorted(valid))}"}
+    required = DECISION_REQUIRED.get((name, choice))
+    if required and not (value.get(required) or "").strip():
+        return {"status": "needs_field", "choice": choice,
+                "detail": f"选了 {choice}，但缺少 {required}"}
+    if choice == "user_path" and name == "candidate_structures":
+        kind = (value.get("kind") or "").strip()
+        if kind and kind not in ("experimental", "predicted"):
+            return {"status": "invalid", "choice": choice,
+                    "detail": "kind 只能是 experimental 或 predicted"}
+    return {"status": "resolved", "choice": choice,
+            "detail": f"choice={choice}" + (f" ({kind})" if name == "candidate_structures" and (value.get("kind") or "").strip() else "")}
+
+
 GROUP_LABEL = {
     "execution": "执行位置与许可",
     "data": "数据路径",
@@ -136,10 +203,18 @@ GROUP_TEXT = {
    - 本机，还是远程服务器（host / 用户名 / 端口）？
    - 是否允许我这边直接连上去执行？还是只能我给命令、你来跑、把结果拿回来？
    - 工作目录（可写）是哪个？""",
-    "data": """数据路径
-   - 目标序列 / 目标结构模板（有就给绝对路径，没有就说没有）
-   - 候选蛋白 FASTA（或候选基因组 .faa/.gbff、结构目录）
-   - 这些文件在哪个机器上？""",
+    "data": """数据路径（两个必须单独问清的问题，别替用户猜）
+
+   【必问 1】候选数据在哪？
+   - 候选菌的蛋白组（.faa）或基因组（.fna/.gbff）的绝对路径？
+   - 有没有对应的注释文件（.gbff/.gff）？
+   - 如果用户说没有：问"要我从 NCBI 下载吗？给 GCF/GCA 号或物种名"——不要自己挑一个装配。
+
+   【必问 2】有没有候选菌的结构文件？
+   - 有：结构目录的绝对路径（PDB/mmCIF），是实验结构还是预测结构？
+   - 没有：问"是否先跑 structure-prediction（PDB > AlphaFold DB pLDDT>=60 > 同源建模 > de novo）？"
+
+   另外：目标序列 / 目标结构模板（有就给绝对路径，没有就说没有）；这些文件在哪个机器上？""",
     "tools_core": """2. 序列筛选工具（有就给绝对路径，没有就说没有）
    DIAMOND、CD-HIT
    - 是否依赖 conda 环境或特殊环境变量？""",
@@ -165,9 +240,14 @@ GROUP_TEXT = {
 PERMISSION_QUESTION = "另外请明确一句：**你允许我在本机直接执行脚本，还是所有命令都由你手动运行？**"
 
 
-QUESTIONNAIRE = """\
+QUESTIONNAIRE_TEMPLATE = """\
 在跑任何流程之前，请先回答下面 6 组问题。不知道的直接说“不知道”——我不会替你猜，
 也不会假设某个软件已经装好。（回答后我会写进 environment.json 并逐项验证。）
+
+0. 两个必须先选的数据问题
+{data_choices}
+
+{structure_choices}
 
 1. 在哪里跑？
    - 本机，还是远程服务器（host / 用户名）？
@@ -201,6 +281,10 @@ QUESTIONNAIRE = """\
 
 另外请明确一句：**你允许我在本机直接执行脚本，还是所有命令都由你手动运行？**
 """
+QUESTIONNAIRE = QUESTIONNAIRE_TEMPLATE.format(
+    data_choices=decision_question_text("candidate_data"),
+    structure_choices=decision_question_text("candidate_structures"),
+)
 
 
 def skeleton() -> dict[str, Any]:
@@ -223,6 +307,7 @@ def skeleton() -> dict[str, Any]:
             "scheduler": None,
             "shared_machine": "unknown",
         },
+        "decisions": {name: {"choice": None} for name in DECISIONS},
         "tools": {name: None for name, _, _ in TOOLS},
         "databases": {name: None for name, _ in DATABASES},
         "data": {
@@ -523,6 +608,11 @@ def probe_config(cfg: dict[str, Any], check_network: bool, check_ssh: bool = Fal
     for name, _, _ in TOOLS:
         card["tools"][name] = probe_tool(name, (cfg.get("tools") or {}).get(name))
 
+    card["decisions"] = {
+        name: check_decision(name, (cfg.get("decisions") or {}).get(name))
+        for name in DECISIONS
+    }
+
     db_map = {
         "BAKTA_DB_FULL": "dir",
         "BAKTA_DB_LIGHT": "dir",
@@ -597,6 +687,24 @@ def render_report(card: dict[str, Any]) -> str:
         lines.append("")
         lines.append(f"**远程执行主机：{state}。** {ssh.get('detail', '')}")
         lines.append("")
+    decisions = card.get("decisions") or {}
+    if decisions:
+        lines.append("## 两个数据选择题")
+        lines.append("")
+        lines.append("| 问题 | 选择 | 状态 |")
+        lines.append("| --- | --- | --- |")
+        labels = {
+            "candidate_data": "候选数据从哪来",
+            "candidate_structures": "有没有候选结构",
+        }
+        for name, info in decisions.items():
+            lines.append(f"| {labels.get(name, name)} | {info.get('choice') or '—'} | {info['status']} |")
+        lines.append("")
+        for name, info in decisions.items():
+            if info["status"] != "resolved":
+                lines.append(f"- **{labels.get(name, name)}**: {info['detail']}")
+        lines.append("")
+
     wd = execu.get("workdir") or {}
     lines.append(f"| workdir | {wd.get('path') or '—'} ({STATUS_LABEL.get(wd.get('status'), wd.get('status'))}) |")
     lines.append("")
@@ -918,6 +1026,12 @@ def main(argv: list[str] | None = None) -> int:
         for group in profile["groups"]:
             print(GROUP_TEXT[group])
             print()
+        # never skipped, whatever the scope: the two data decisions come first
+        print("先回答两个选择题（数据从哪来）：")
+        print(decision_question_text("candidate_data", 1))
+        print()
+        print(decision_question_text("candidate_structures", 2))
+        print()
         # never skipped, whatever the scope: this is the one answer that gates execution
         print(PERMISSION_QUESTION)
         print()

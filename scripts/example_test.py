@@ -2134,6 +2134,14 @@ def main() -> int:
 
         full = ask()
         assert "Bakta" in full and "DEER" in full
+
+        # the two data questions are CHOICES, present in every scope, not scope-dependent prose
+        for text in (card_only, screening, structure, full):
+            assert "候选菌的蛋白组/基因组从哪来" in text
+            assert "[user_path]" in text and "[download_ncbi]" in text
+            assert "有没有候选菌的蛋白结构文件" in text
+            assert "[predict]" in text and "[skip]" in text
+            assert "kind=experimental|predicted" in text
         assert "--task card / screening / structure / full" in full
 
         # the execution rule never relaxes, whatever the scope
@@ -2767,6 +2775,67 @@ def main() -> int:
         with (tmp / "out2" / "final_target_candidates.tsv").open("r", encoding="utf-8") as handle:
             delivered = list(csv.DictReader(handle, delimiter="\t"))
         assert [row["protein_accession"] for row in delivered] == ["WP_1"]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        intake = SCRIPTS / "intake_environment.py"
+
+        # the skeleton must carry both decisions as unfilled choices, never a default answer
+        env_json = tmp / "environment.json"
+        subprocess.run([sys.executable, str(intake), "--init", "--output", str(env_json)],
+                       check=True, capture_output=True)
+        skeleton = json.loads(env_json.read_text(encoding="utf-8"))
+        assert set(skeleton["decisions"]) == {"candidate_data", "candidate_structures"}
+        for name, value in skeleton["decisions"].items():
+            assert value["choice"] is None, name
+
+        def probe(decisions: dict) -> tuple[dict, str]:
+            cfg = tmp / "cfg.json"
+            cfg.write_text(json.dumps({"execution": {"allow_local_execution": True},
+                                       "decisions": decisions}), encoding="utf-8")
+            card_path = tmp / "card.json"
+            report = tmp / "report.md"
+            subprocess.run(
+                [sys.executable, str(intake), "--probe", "--config", str(cfg),
+                 "--output-card", str(card_path), "--output-report", str(report)],
+                check=True, capture_output=True,
+            )
+            return json.loads(card_path.read_text(encoding="utf-8")), report.read_text(encoding="utf-8")
+
+        # choosing "I have files" without a path must be reported, not accepted
+        card, report = probe({
+            "candidate_data": {"choice": "user_path"},
+            "candidate_structures": {"choice": "skip"},
+        })
+        assert card["decisions"]["candidate_data"]["status"] == "needs_field"
+        assert "缺少 path" in card["decisions"]["candidate_data"]["detail"]
+        assert "缺少 path" in report
+
+        # a fully answered pair resolves, and the structure kind is validated
+        card, report = probe({
+            "candidate_data": {"choice": "user_path", "path": "/data/x.faa"},
+            "candidate_structures": {"choice": "user_path", "dir": "/data/pdb",
+                                     "kind": "predicted"},
+        })
+        assert card["decisions"]["candidate_data"]["status"] == "resolved"
+        assert card["decisions"]["candidate_structures"]["status"] == "resolved"
+        assert "predicted" in card["decisions"]["candidate_structures"]["detail"]
+
+        bad_kind, _ = probe({
+            "candidate_data": {"choice": "download_ncbi", "accession": "GCF_000010425.1"},
+            "candidate_structures": {"choice": "user_path", "dir": "/data/pdb", "kind": "maybe"},
+        })
+        assert bad_kind["decisions"]["candidate_structures"]["status"] == "invalid"
+        assert "experimental" in bad_kind["decisions"]["candidate_structures"]["detail"]
+
+        unknown, _ = probe({"candidate_data": {"choice": "whatever"},
+                            "candidate_structures": {"choice": "skip"}})
+        assert unknown["decisions"]["candidate_data"]["status"] == "invalid"
+
+        # "no decision yet" must never be treated as answered
+        undecided, _ = probe({})
+        assert undecided["decisions"]["candidate_data"]["status"] == "needs_decision"
+        assert "不要自己替他选" in undecided["decisions"]["candidate_data"]["detail"]
 
     print("example test passed")
     return 0
