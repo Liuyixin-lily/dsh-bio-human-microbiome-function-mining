@@ -327,6 +327,48 @@ def annotation_rows(
     return out
 
 
+def matches_target(
+    row: dict[str, str],
+    mapping: dict[str, str],
+    target_ec: str | None,
+    target_names: list[str],
+) -> tuple[bool, str]:
+    """Coarse annotation screen. Returns (keep, reason).
+
+    This only filters on fields the user mapped; it never infers a function from a
+    partial match beyond the match itself.
+    """
+    if target_ec:
+        ec = get(row, mapping, "ec_number")
+        wanted = target_ec.strip()
+        if not ec:
+            return False, ""
+        if wanted.endswith("."):
+            if ec.startswith(wanted) or ec.startswith(wanted.rstrip(".")):
+                return True, f"EC {ec} matches prefix {wanted}"
+            return False, ""
+        if ec == wanted:
+            return True, f"EC {ec} exact"
+        # allow family-level match such as 3.1.4.- against 3.1.4.12
+        parts_wanted = wanted.split(".")
+        parts_ec = ec.split(".")
+        if len(parts_wanted) == len(parts_ec) and all(
+            w == "-" or w == e for w, e in zip(parts_wanted, parts_ec)
+        ):
+            return True, f"EC {ec} matches family {wanted}"
+        return False, ""
+    if target_names:
+        haystack = " ".join(
+            get(row, mapping, field)
+            for field in ("product", "protein_name", "description", "gene")
+        ).lower()
+        for name in target_names:
+            if name and name.lower() in haystack:
+                return True, f"名称命中 {name!r}"
+        return False, ""
+    return True, ""
+
+
 def write_tsv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -405,13 +447,70 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Original file path recorded in source_feature_annotations.")
     parser.add_argument("--output", type=Path, default=None, help="Output TSV.")
     parser.add_argument("--provenance", type=Path, default=None, help="Provenance JSON sidecar.")
+    parser.add_argument("--target-ec", default=None,
+                        help="With --annotation: keep only rows whose mapped EC matches this (prefix match, e.g. 3.1.4.12 or 3.1.4.).")
+    parser.add_argument("--target-name", default=None,
+                        help="With --annotation: comma-separated names/products/substrings to keep.")
     parser.add_argument("--dry-run", action="store_true", help="Print the resolved mapping and row counts; write nothing.")
+    parser.add_argument(
+        "--inspect",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Show delimiter, columns, row count and the mapping the alias tables would suggest. Writes nothing.",
+    )
     return parser.parse_args(argv)
+
+
+def inspect_table(path: Path) -> int:
+    """Show what the file looks like and what the alias tables can infer.
+
+    This is the step to run first, because GMPS's export columns are not documented:
+    see the real headers, then decide the mapping explicitly.
+    """
+    if not path.is_file():
+        print(f"error: file not found: {path}", file=sys.stderr)
+        return 2
+    headers, rows, delimiter = read_table(path)
+    print(f"file       : {path}")
+    print(f"delimiter  : {delimiter!r}")
+    print(f"rows       : {len(rows)}")
+    print(f"columns    : {len(headers)}")
+    print()
+    print("列名字:")
+    for index, header in enumerate(headers, 1):
+        print(f"  {index:2}. {header}")
+    print()
+    for label, aliases in (("结构命中表", STRUCTURAL_ALIASES), ("注释表", ANNOTATION_ALIASES)):
+        lowered = {header.strip().lower(): header for header in headers}
+        inferred = {}
+        for target, names in aliases.items():
+            for name in names:
+                if name.lower() in lowered:
+                    inferred[target] = lowered[name.lower()]
+                    break
+        if not inferred:
+            continue
+        print(f"{label}：按别名表可推断的映射（仍需你确认）")
+        for target, column in sorted(inferred.items()):
+            print(f"  {column!r} -> {target}")
+        unmapped = [h for h in headers if h not in set(inferred.values())]
+        if unmapped:
+            print(f"  未映射: {', '.join(unmapped)}")
+        print()
+    print(
+        "下一步：用 --map 显式声明列含义后 --dry-run；未确认的列不会被导入。"
+        "歧义名（如 query / target）不会自动映射，需要你自己指定。"
+    )
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     warnings: list[str] = []
+
+    if args.inspect is not None:
+        return inspect_table(args.inspect)
 
     if args.species_map is not None:
         if not args.species_map.is_file():
@@ -520,8 +619,26 @@ def main(argv: list[str] | None = None) -> int:
             required=("protein_accession",), warnings=warnings,
         )
         source_file = args.source_file or str(args.annotation)
+        target_names = [n for n in (args.target_name or "").split(",") if n.strip()]
+        screening = bool(args.target_ec or target_names)
+        reasons: list[str] = []
+        if screening:
+            kept_rows = []
+            for row in rows:
+                keep, reason = matches_target(row, mapping, args.target_ec, target_names)
+                if keep:
+                    kept_rows.append(row)
+                    reasons.append(reason)
+            print(
+                f"注释层粗筛：{len(rows)} 行中命中 {len(kept_rows)} 行"
+                f"（EC={args.target_ec or '—'}；名称={args.target_name or '—'}）"
+            )
+            rows = kept_rows
         annotations = annotation_rows(rows, mapping, source_file, args.annotation_source)
         print(f"注释表：{len(annotations)} 行（分隔符 {delimiter!r}）")
+        if screening:
+            for annotation, reason in zip(annotations, reasons):
+                print(f"  {annotation['protein_accession']}  ← {reason}")
         print("列映射：")
         for target, column in sorted(mapping.items()):
             print(f"  {column!r} -> {target}")
@@ -544,6 +661,11 @@ def main(argv: list[str] | None = None) -> int:
             "rows_out": len(annotations),
             "column_mapping": mapping,
             "annotation_source": args.annotation_source,
+            "screen": {
+                "target_ec": args.target_ec,
+                "target_name": args.target_name,
+                "rows_kept": len(annotations),
+            },
             "notes": [
                 "Annotation text is passed through unchanged; nothing is inferred.",
                 "GMPS ships DRAM / microbeannotator / eggnog-mapper annotations; record which one this is.",

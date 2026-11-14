@@ -47,6 +47,77 @@ python3 scripts/import_gmps.py --annotation bacteria_final_annotation.tsv \
 
 产物直接符合本插件既有 schema（`structural_candidates.schema.tsv`、`source_feature_annotations.schema.tsv`），可以并入 `merge_candidates.py`。
 
+注意合并的时机：`merge_candidates.py` 只统计**真实候选**（序列或结构命中后才会出现行），单独喂注释表会写出 0 行。注释层只用于粗筛（`--target-ec/--target-name`），确认有苗头后再去做序列/结构证据。
+
+## 肠道项目的最短启动路径（推荐）
+
+GMPS 的注释表只有 250 MB，却带着三套功能注释和物种信息；结构卷是 130 GB。所以正确顺序是**先用注释表做粗筛，确认值得再下结构**。
+
+```bash
+# ── 0. 环境登记（让 probe 认得这些路径）──────────────────────────────
+# environment.json 里填 databases.GMPS_ANNOTATION / GMPS_ROOT / GMPS_SPECIES_MAP
+python3 scripts/intake_environment.py --probe --config environment.json \
+    --output-card environment_card.json
+
+# ── 1. 取注释表 ───────────────────────────────────────────────────
+# 出处：<https://www.gmpsdb.cn/home> 的 Download 页，或 Dryad doi:10.5061/dryad.gtht76hx2
+# 文件：bacteria_final_annotation.zip（约 250 MB）
+curl -L -o bacteria_final_annotation.zip "<你从上面页面拿到的下载地址>"
+sha256sum bacteria_final_annotation.zip          # 记下来，写进 provenance
+unzip -o bacteria_final_annotation.zip -d gmps_annotation/
+
+# ── 2. 先看列名（GMPS 导出格式没有公开文档，不要猜）─────────────────
+python3 scripts/import_gmps.py --inspect gmps_annotation/*.tsv
+#   -> 看 delimiter / 列名 / 别名表能推断的部分，以及"未映射"的列
+
+# ── 3. 显式声明映射，dry-run 确认 ─────────────────────────────────
+python3 scripts/import_gmps.py --annotation gmps_annotation/*.tsv \
+    --map "protein=protein_accession,product=product,ec=ec_number,pfam=pfam" \
+    --annotation-source DRAM --source-file bacteria_final_annotation.tsv \
+    --dry-run --output outputs/task/source_feature_annotations.gmps.tsv
+
+# ── 4. 正式导入（带 provenance sidecar）───────────────────────────
+python3 scripts/import_gmps.py --annotation gmps_annotation/*.tsv \
+    --map "protein=protein_accession,product=product,ec=ec_number,pfam=pfam" \
+    --annotation-source DRAM --source-file bacteria_final_annotation.tsv \
+    --output outputs/task/source_feature_annotations.gmps.tsv
+
+# ── 5. 注释层粗筛：目标功能在这个肠道菌里出现吗？──────────────────
+python3 scripts/import_gmps.py --annotation gmps_annotation/*.tsv \
+    --map "protein=protein_accession,product=product,ec=ec_number,pfam=pfam" \
+    --target-ec 3.1.4.12 --target-name "sphingomyelinase" \
+    --annotation-source DRAM --source-file bacteria_final_annotation.tsv \
+    --output outputs/task/screen_hits.tsv
+#   命中行会逐条打印，例如: WP_002468583.1  ← EC 3.1.4.12 exact
+
+# ── 6. 只有粗筛命中之后，才去下结构卷 ─────────────────────────────
+# 把粗筛命中的蛋白对应的物种名填进 --taxa（物种列在你自己的注释表里）
+python3 scripts/import_gmps.py --species-map bacteria_N.tar.gz_Species.txt \
+    --taxa "Genus species1,Genus species2"
+#   -> 只拉需要的 bacteria_N.tar.gz，再走结构层（--hits 导入或本地 US-align）
+
+# ── 7. 结构命中导入（或本地 US-align 后走既有流程）─────────────────
+python3 scripts/import_gmps.py --hits gmps_export.tsv \
+    --map "query=protein_accession,species=organism_or_strain,tm1=tm_score_1,tm2=tm_score_2" \
+    --tool-version "GMPS_v1 (导出日期)" \
+    --output outputs/task/structural_candidates.gmps.tsv
+```
+
+这条路径能在**几百 MB**的下载量内回答"这些肠道菌里有没有目标功能的候选"；确认有苗头之后再投入 130 GB 的结构数据。
+
+### 用 GMPS 可以跳过什么
+
+| 常规步骤 | 用 GMPS 时 |
+| --- | --- |
+| `genome-search` + `genome-download` | 可跳过（注释表已带物种与基因组信息） |
+| `genome-annotation`（Bakta） | 可跳过（DRAM / microbeannotator / eggnog 三套注释已在表里），但**要记清用的是哪一套** |
+| `structure-prediction` | 可跳过（结构是现成的 AF2 模型），但**必须记住是预测结构** |
+| 序列筛选 / 结构比对 / 文献证据 / 排序 | **不能跳过** |
+
+### 不能省的一步
+
+粗筛只回答"注释里出现了这个功能"。`source_feature_annotations` 是**自动注释**，不是实验证据；它和插件其他证据一样，必须经过序列/结构/文献三层才算候选。别把"注释命中"写成"该菌有这个基因"以外的结论。
+
 ## 三条硬边界
 
 1. **只有肠道。** 968 个细菌基因组 + 噬菌体，没有皮肤、口腔、阴道。它对"部位"这个维度没有任何帮助——那正是目标库存在的原因。

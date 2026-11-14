@@ -1814,6 +1814,66 @@ def main() -> int:
                 check=True, capture_output=True,
             )
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        gmps = SCRIPTS / "import_gmps.py"
+
+        # --inspect must show the columns and what the aliases can infer, writing nothing
+        ann = tmp / "ann.tsv"
+        ann.write_text(
+            "query\tproduct\tec\tcategory\n"
+            "WP_1\tsphingomyelin phosphodiesterase\t3.1.4.12\tmetabolism\n"
+            "WP_2\thypothetical protein\t\tunknown\n",
+            encoding="utf-8",
+        )
+        inspected = subprocess.run(
+            [sys.executable, str(gmps), "--inspect", str(ann)],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "列名字" in inspected and "product" in inspected
+        assert "未映射" in inspected            # 'query' and 'category' stay unresolved
+        assert "不会自动映射" in inspected
+        assert not list(tmp.glob("*.gmps*"))
+
+        # annotation coarse screen: keep only the row matching the target EC, and say why
+        screened = tmp / "screen.tsv"
+        result = subprocess.run(
+            [sys.executable, str(gmps), "--annotation", str(ann),
+             "--map", "query=protein_accession,product=product,ec=ec_number",
+             "--target-ec", "3.1.4.12",
+             "--source-file", "bacteria_final_annotation.tsv", "--annotation-source", "DRAM",
+             "--output", str(screened)],
+            check=True, capture_output=True, text=True,
+        )
+        assert "2 行中命中 1 行" in result.stdout
+        assert "EC 3.1.4.12 exact" in result.stdout
+        with screened.open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        assert [r["protein_accession"] for r in rows] == ["WP_1"]
+        provenance = json.loads((tmp / "screen.provenance.json").read_text(encoding="utf-8"))
+        assert provenance["screen"]["target_ec"] == "3.1.4.12"
+        assert provenance["screen"]["rows_kept"] == 1
+
+        # family-level EC matching works too
+        family = subprocess.run(
+            [sys.executable, str(gmps), "--annotation", str(ann),
+             "--map", "query=protein_accession,ec=ec_number",
+             "--target-ec", "3.1.4.-", "--source-file", "x.tsv",
+             "--output", str(tmp / "family.tsv")],
+            check=True, capture_output=True, text=True,
+        )
+        assert "matches family 3.1.4.-" in family.stdout
+
+        # name-based screening
+        by_name = subprocess.run(
+            [sys.executable, str(gmps), "--annotation", str(ann),
+             "--map", "query=protein_accession,product=product",
+             "--target-name", "sphingomyelinase,sphingomyelin",
+             "--source-file", "x.tsv", "--output", str(tmp / "name.tsv")],
+            check=True, capture_output=True, text=True,
+        )
+        assert "名称命中" in by_name.stdout
+
     print("example test passed")
     return 0
 
