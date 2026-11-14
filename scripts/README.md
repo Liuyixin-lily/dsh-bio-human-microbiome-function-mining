@@ -80,6 +80,12 @@ Available scripts:
 - `run_diamond.py`: fills the organism from the proteome's binomial directory name (falling back to
   the FASTA header) and records `diamond --version`, so the tables say which strain and which build
   produced the numbers.
+- `decisions.py`: the judgment-point registry imported by `intake_environment.py` and the gate
+  helpers. Not a CLI; it defines the decisions, their options, and `gate()` which refuses to proceed
+  with an unanswered choice.
+- `check_skill_copies.py`: reports divergence between `skills/<name>.md` (what `src/skills.js`
+  loads at runtime) and `skills/<name>/SKILL.md`. Eleven of twelve pairs have drifted and both sides
+  hold text the other lacks, so this only reports; merging each pair is a content decision.
 - `check_deliverables.py`: verifies that a run produced the delivery set in `outputs/task/`
   (`final_target_candidates.tsv`, its note when the table is empty, the high-confidence summary,
   the experimental hypotheses and a scored table) and prints the command that fills each gap. A run

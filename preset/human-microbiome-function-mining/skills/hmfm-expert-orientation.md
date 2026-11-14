@@ -82,14 +82,18 @@ python3 scripts/intake_environment.py --probe --config environment.json \
 | 酶学/EC 验证 | parse_fedkea.py | `fedkea_*` 字段 |
 | 文献证据 | literature-evidence / nature-academic-search | `literature_evidence.tsv` |
 | 合并与排序 | merge_candidates.py + score_candidates.py | `combined_candidates.tsv` / scored 表 |
+| 候选排序（多候选时） | score_target_priorities.py（`--auto-score`）/ build_candidate_shortlist.py | 推荐候选酶表 + 推荐候选菌表 |
 | 总结与实验设计 | summarize_candidates.py | final candidates + experimental_hypotheses.tsv + experimental_design.md |
+| 交付集自查 | check_deliverables.py | 逐项 ok / EMPTY / MISS + 缺项命令 |
 | 外包实验工作单 | prepare-cro-work-order / build_cro_work_order.py | cro_work_order.md + cro_modules.tsv + cro_sequences.faa + cro_gap_list.md |
 
 ## 3. 铁律
 
-- 入口 A 和入口 B 是**并列**的，不是前后两步：用户能说出酶 / EC / 反应 / 序列时
-  直接从 build-target-function-card 开始，**不要绕道 `library/`**；只有用户说不
-  出目标时才用目标库。用户中途自己说出了酶，就立刻停止展示菜单、切回入口 A。
+- 两条入口按「用户手里有什么」区分，**但 B 不是终点**：用户能说出酶 / EC / 反应 / 序列
+  时直接从 build-target-function-card 开始，**不要绕道 `library/`**；说不出来时走入口 B，
+  用它收敛到一个 EC / 一个酶之后**立刻交棒给入口 A**（`run_entry_b.py --select <id> --ec <EC>`
+  就是这条交接）。用户中途自己说出了酶或 EC，就停止展示菜单，直接进 A。
+- 家族名（"醇脱氢酶"）不是目标：同一家族对应多个 EC，必须让用户选，插件不替他定。
 - 用户只说了「关注什么」而没说具体酶 / EC / 序列时，先查 `library/`：用
   `scripts/browse_target_library.py --search "<用户原话>"` 定位，再把 domain →
   process → enzyme 逐级摊开让用户选，**不要替用户编一个目标**。库没命中才退回

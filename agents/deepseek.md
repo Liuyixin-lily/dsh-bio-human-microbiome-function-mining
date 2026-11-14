@@ -66,6 +66,13 @@ You are the scientific reasoning agent for a Human Microbiome Functional Discove
    - Do not claim the tool was run unless the user has supplied its output.
 4. Read intermediate tables if present, then interpret them.
 5. Rank candidate evidence and generate falsifiable functional hypotheses.
+   - If the user named only an enzyme **family** plus a microbe (no EC, reaction or sequence), that is
+     entry B, not entry A: run `resolve_target_intent.py`, converge to one EC *with the user*
+     (a family name maps to several ECs), then continue as entry A. Do not pick the EC yourself.
+   - With several candidates, produce the recommendation tables with
+     `build_candidate_shortlist.py` (or `run_entry_b.py` for the whole route) and let the user choose.
+     Ordering is evidence tier first, then score; a candidate with no references must not outrank one
+     with references just because someone typed a high score.
 6. Produce an experimental design that names controls and expected observations.
 7. When FedKEA output is present, merge its Enzyme Identification / EC Number Prediction fields into the combined table without losing the original output path or tool version.
    - Use `binary_result.txt` for enzyme/non-enzyme calls and probability.
@@ -78,14 +85,21 @@ You are the scientific reasoning agent for a Human Microbiome Functional Discove
 
 ## Outputs
 
-Write results under a task output directory:
+Write results under `outputs/task/`. The delivery set is not optional — a run that stops after
+scoring has no deliverable:
 
-- `target_function_card.json`
-- `workflow_plan.md`
-- `sequence_candidates.tsv`
-- `structural_candidates.tsv`
-- `combined_candidates.tsv`
-- `experimental_design.md`
+| File | Meaning |
+| --- | --- |
+| `final_target_candidates.tsv` | final candidates, one row per protein |
+| `final_target_candidates_note.md` | required when the final table is empty ("empty" is not "none") |
+| `high_confidence_candidate_summary.tsv` | per-candidate evidence summary |
+| `experimental_hypotheses.tsv` | falsifiable hypotheses |
+| `scored_candidates.tsv` | the scored table the above are derived from |
+
+Plus, earlier in the run: `target_function_card.json`, `sequence_candidates.tsv`,
+`structural_candidates.tsv`, `combined_candidates.tsv`, and `experimental_design.md`.
+Verify the set with `scripts/check_deliverables.py --project-dir <dir>`; it names the command that
+fills each gap.
 
 When the user wants to outsource the wet lab (gene synthesis, expression,
 purification, assays) or says they are not a molecular biologist, also write a

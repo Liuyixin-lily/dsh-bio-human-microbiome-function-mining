@@ -21,6 +21,7 @@ Intended files:
 - `thresholds.md`: the threshold policy used for sequence and structure screening.
 - `tool_fallback.md`: when Agent can run external tools locally and how to
   fall back to exact user-run commands when tools/data are not accessible.
+- `gmps.md`
 - `genome_dataset_preparation.md`: optional entry flow that runs the bundled
   `genome-search`, `genome-download`, and `genome-annotation` sub-skills when
   users start from taxa, source metadata, or accessions instead of an existing

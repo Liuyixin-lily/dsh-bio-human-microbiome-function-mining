@@ -49,7 +49,7 @@ human_microbiome_function_mining/
 
 ## Two ways in / 两种进入方式
 
-插件有两条**并列**的入口，走哪条完全看用户手里已经有什么，没有先后、没有主次：
+插件有两条入口，按用户手里已经有什么来分。它们不是两套流程：**入口 B 收敛到具体目标后会交棒给入口 A**（`run_entry_b.py --select <id> --ec <EC>`）。
 
 | 用户手里有什么 | 走哪条 | 关键 skill |
 | --- | --- | --- |
@@ -140,7 +140,7 @@ domain（身体部位）  ->  process（生理过程）  ->  enzyme（真正拿�
 
 **默认库刻意很小。** 它只放逐条有真实文献支撑、且与示例对得上的条目，用 `--require-evidence` 衡量是 1/1 通过。旧的 27 条没有引用，已移到 `examples/unverified/`，在那个门槛下会被全部隔离——所以不再摆在默认菜单里。
 
-**库整体是可选的。** 清空 `library/` 后插件仍能做完全部功能，只是没有「先看哪几个酶」的菜单：入口 A（EC/反应/序列）、按部位挑基因组、序列/结构/注释/文献证据、排序、外包工作单都不受影响。唯一可数的代价是 `--auto-score` 的自动分项从 8 项降到 4 项。空库是受支持状态——`--list-domains` 会打印"库为空、不是错误"和三条替代路径。
+**库整体是可选的。** 清空 `library/` 后插件仍能做完全部功能，只是没有「先看哪几个酶」的菜单：入口 A（EC/反应/序列）、按部位挑基因组、序列/结构/注释/文献证据、排序、外包工作单都不受影响。唯一可数的代价是 `--auto-score` 少 4 个可从库推导的分项（`biochemical_clarity`、`microbial_plausibility`、`novelty` 属于酶，`metabolic_plausibility` 属于菌），其余仍可从文献、参考酶和 genome-search 推导。空库是受支持状态——`--list-domains` 会打印"库为空、不是错误"和三条替代路径。
 
 ### 多个候选之间怎么排 / Ranking before screening
 
@@ -160,9 +160,25 @@ python3 scripts/score_target_priorities.py \
 
 这套打分模型整合自本地 `select-candidate` skill 并做了通用化，同时补上它缺的三件事：
 
-1. **权重与分数分开，能自动算的不用手填**：权重是"标准"，分项分数是输入。`--auto-score` 会从已有产物推导 **6 项**——`biochemical_clarity` / `microbial_plausibility` / `novelty`（来自库条目）、`sequence_structure`（来自参考酶集合）、`genome_availability` / `site_presence`（来自 genome-search 结果），并在每行的 `score_sources` 里记明依据（`auto:library` 等）。其中 `site_evidence` 与 `disease_relevance` 两项可以来自**真实文献表**：先跑 `literature-evidence`，再用 `--literature outputs/task/literature_evidence.tsv [--disease "<表型>"]`。规则是只算 `verified=yes` 的功能性记录（`direct_functional_evidence` / `related_assay`）：1 条=3、2 条=4、≥3 条=5，只有 review 时=2；`no_evidence` 与未核实记录**不抬高分数**，也**不会变成 0**——没有证据不等于不重要，那两格会留成缺口。报告里会列出具体计入了哪些 reference、证据类型和是否已核实。`disease_relevance` 统计的是共现，不是因果。
+1. **权重与分数分开，能自动算的不用手填**：权重是"标准"，分项分数是输入。`--auto-score` 最多能推导 **9 个分项**，每个都在 `score_sources` 里写明依据：
 
-剩下真正需要人判断的只剩 3 项：测活可行性、代谢合理性、菌株可操作性。任一必填分项既没给也无法推导时，脚本拒绝排序并逐格告诉缺哪个、用哪个 flag 可以补上；仍要排序就用 `--allow-missing-scores`，缺失项会记成 `missing` 并在报告里标红。
+   | 分项 | 表 | 来源 |
+   | --- | --- | --- |
+   | `biochemical_clarity` | 酶 | 库条目 `ec_confidence`/反应；或文献发现的注册表 `ec_confidence`（`auto:registry`） |
+   | `microbial_plausibility` | 酶 | 库条目的已知微生物实例；或注册表的 `microbial_context` |
+   | `novelty` | 酶 | 库条目是否 dark matter / 有已知实例 |
+   | `site_evidence` | 酶 | 库条目的 `evidence_status` + `evidence_refs`；或真实文献表 |
+   | `disease_relevance` | 酶 | 真实文献表（共现，不是因果） |
+   | `sequence_structure` | 酶 | 参考酶集合是否有序列/结构 |
+   | `genome_availability` | 菌 | genome-search 结果 |
+   | `site_presence` | 菌 | genome-search 结果（direct 命中的比例） |
+   | `metabolic_plausibility` | 菌 | 库的 `focus_taxa` 及其 attention |
+
+   仍**只能手填**的三项：`assay_feasibility`（酶）、`experimental_accessibility` 与 `disease_site_relevance`（菌）——插件不替你判断"这个实验好不好做"。
+
+   文献表的计分规则：只算 `verified=yes` 的功能性记录（`direct_functional_evidence` / `related_assay`）：1 条=3、2 条=4、≥3 条=5，只有 review 时=2；`no_evidence` 与未核实记录**不抬高分数**，也**不会变成 0**——没有证据不等于不重要，那两格会留成缺口。报告里会列出具体计入了哪些 reference、证据类型和是否已核实。`disease_relevance` 统计的是共现，不是因果。
+
+真正需要人判断的只有 3 项：测活可行性（`assay_feasibility`）、菌株可操作性（`experimental_accessibility`）、疾病-部位相关性（`disease_site_relevance`）。任一必填分项既没给也无法推导时，脚本拒绝排序并逐格告诉缺哪个、用哪个 flag 可以补上；仍要排序就用 `--allow-missing-scores`，缺失项会记成 `missing` 并在报告里标红。
 2. **主观性可见**：每一行都带 `score_basis = manual_expert_judgement` 与 `scoring_policy`（精确权重），任何排名都能被重算和质疑。
 3. **阈值可达性校验**：原 skill 的示例配置把 `taxa_min_priority_score` 设成 948，而 0–5 分量表下的理论上限约 10.6——结果静默选出 0 个菌。现在这种情况直接报错并说明原因。
 4. **兼容旧格式**：`skin_process` / `skin_evidence_score` / `skin_presence_score` 作为别名读取，原 `select-candidate` 的注册表可直接用。
@@ -171,7 +187,7 @@ python3 scripts/score_target_priorities.py \
 
 ### 库覆盖不到的方向怎么办 / Beyond the shipped domains
 
-库只有 2 个部位、15 个过程，它是**内容**而不是**能力边界**。用户问牙周炎、阴道菌群、药物代谢时，插件不会哑掉，而是走三步升级：
+库只有 2 个域、7 个过程（其中 1 个是逐条带 PMID 的 curated 域，1 个是 6 类的 starter 域），它是**内容**而不是**能力边界**。用户问牙周炎、阴道菌群、药物代谢时，插件不会哑掉，而是走三步升级：
 
 | 问题形状 | 由什么机制接住 | 命令 |
 | --- | --- | --- |
@@ -215,6 +231,7 @@ python3 scripts/browse_target_library.py --validate
 
 ```bash
 python3 scripts/check_deliverables.py --project-dir <项目目录>
+python3 scripts/check_skill_copies.py   # 检查两份 skill 副本是否已经漂移
 ```
 
 它逐项报 ok / EMPTY / MISS，并对缺的项给出生成命令；四个示例里曾有三个卡在不同阶段，

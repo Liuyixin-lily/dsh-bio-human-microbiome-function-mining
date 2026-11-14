@@ -334,3 +334,40 @@ python3 scripts/browse_target_library.py --validate
 Checks required fields, id collisions, EC/`ec_confidence` consistency, entry-point
 and evidence enums, `key_taxa` cross-references, empty `literature_verified`, and
 malformed identifiers.
+
+## The full B route, and where it hands off to A
+
+Entry B is a front end, not a terminus. Three scripts cover it end to end:
+
+```bash
+# 1) focus phrase only -> menu, route, and (if the library misses) literature discovery,
+#    then the recommendation tables
+python3 scripts/run_entry_b.py --topic "皮肤外源性物质代谢" --site skin \
+    --output-dir outputs/task/entry_b
+
+# 2) the library misses and you want the candidate list to come from literature
+python3 scripts/discover_enzyme_candidates.py --site skin \
+    --terms "skin microbiome xenobiotic metabolism enzyme" --limit 25 \
+    --output outputs/task/discovery/enzyme_registry.tsv \
+    --evidence outputs/task/discovery/literature_evidence.tsv
+
+# 3) merge several registries + a taxa list into the two recommendation tables
+python3 scripts/build_candidate_shortlist.py --site skin \
+    --enzymes <registry>.tsv --taxa <site>_taxa_registry.tsv --library library/<domain>.json \
+    --output-dir outputs/task/candidates
+```
+
+The tables are `recommended_enzymes.tsv` / `recommended_taxa.tsv` (only rows with at least two
+scored components; a rank built on one component is just that component restated), with the full
+pool in `candidate_enzymes.tsv` / `candidate_taxa.tsv`. Ordering is evidence tier first, then
+score: a hand-scored entry with no references must not outrank one with references.
+
+Once the user picks a row, hand off to entry A — same command, no re-derivation:
+
+```bash
+python3 scripts/run_entry_b.py --topic "<same topic>" --site skin \
+    --select <target_id> --ec <EC> --proteome <candidate proteome>.faa --output-dir outputs/task/entry_b
+```
+
+A family name is not a target: one family maps to several ECs, so `--select` without `--ec` stops and
+asks. Do not choose the EC for the user.

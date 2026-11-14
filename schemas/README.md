@@ -7,6 +7,7 @@ must follow these schemas when writing new task files.
 
 - `target_function_card.schema.json`: target function normalization.
 - `reference_enzyme_set.schema.tsv`: loaded reference enzyme table.
+- `withheld_rows.schema.tsv`: rows held back by an evidence gate, with the reason.
 - `sequence_hits.schema.tsv`: sequence screening output. One row per (template, candidate) pair;
   `representative_id` is the template the candidate was aligned to (DIAMOND `qseqid`).
 - `structural_hits.schema.tsv`: structure screening / alignment output.
