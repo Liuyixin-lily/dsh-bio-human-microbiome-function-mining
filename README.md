@@ -280,8 +280,9 @@ entry A (user can name it):  enzyme / EC / substrate-product / sequence
 entry B (user only knows):   vague interest "油脂分泌" / "皮肤屏障" / "体味"
                                -> browse-target-library: domain -> process -> enzyme
   (both entries converge here)
-  -> 模板序列文件（宿主模板 + 微生物模板，人工策展或 fetch_reference_enzymes.py 抓取，
-     只收有实验证据的 reviewed 条目，TrEMBL 的 "Inferred from homology" 不入模板）
+  -> 模板序列 + 结构文件（宿主模板 + 微生物模板，人工策展或 fetch_reference_enzymes.py
+     抓取；只收有实验证据的 reviewed 条目，TrEMBL 的 "Inferred from homology" 不入模板；
+     结构文件取自 UniProt 的 PDB 交叉引用，US-align 需要它而不能只靠 FASTA）
   -> CD-HIT 去冗余（单基因组 100%；同一物种多个 GCF 的 pan-proteome 95%）
   -> DIAMOND 序列筛选（identity ≥ 0.2，query coverage ≥ 0.7，E ≤ 1e-5）
   -> parse_source_annotations（.faa/.gbff 已有注释作为独立证据）

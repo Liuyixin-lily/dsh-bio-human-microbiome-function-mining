@@ -227,6 +227,69 @@ def fetch_uniprot_references(
     return rows, fasta
 
 
+def uniprot_pdb_map(
+    ec: str,
+    organism_id: int | None,
+    reviewed_only: bool,
+    extra_clause: str | None = None,
+    size: int = 50,
+) -> dict[str, list[str]]:
+    """accession -> PDB ids, from UniProt's own cross-references.
+
+    The template set needs structures as well as sequences: US-align cannot run against a
+    FASTA. Taking the ids from UniProt (rather than guessing PDB codes) keeps every
+    template structure traceable to the entry it belongs to.
+    """
+    clauses = [f"ec:{ec}"]
+    if organism_id is not None:
+        clauses.append(f"organism_id:{organism_id}")
+    if extra_clause:
+        clauses.append(extra_clause)
+    if reviewed_only:
+        clauses.append("reviewed:true")
+    params = {"query": " AND ".join(clauses), "format": "json", "size": str(size),
+              "fields": "accession,xref_pdb"}
+    url = f"https://rest.uniprot.org/uniprotkb/search?{urllib.parse.urlencode(params)}"
+    try:
+        data = json.loads(http_get(url).decode("utf-8", errors="replace"))
+    except Exception as exc:
+        print(f"UniProt PDB lookup failed: {exc}", file=sys.stderr)
+        return {}
+    out: dict[str, list[str]] = {}
+    for entry in data.get("results", []):
+        accession = entry.get("primaryAccession", "")
+        pdb_ids = [
+            ref.get("id", "")
+            for ref in entry.get("uniProtKBCrossReferences", [])
+            if ref.get("database") == "PDB" and ref.get("id")
+        ]
+        if accession and pdb_ids:
+            out[accession] = pdb_ids
+    return out
+
+
+def first_pdb_id(pdb_ids: list[str]) -> str:
+    """Deterministic pick so a re-run downloads the same structure."""
+    return sorted(pdb_ids)[0] if pdb_ids else ""
+
+
+def download_template_structure(pdb_id: str, target_dir: Path) -> Path | None:
+    if not pdb_id:
+        return None
+    target_dir.mkdir(parents=True, exist_ok=True)
+    out = target_dir / f"{pdb_id}.pdb"
+    if out.is_file() and out.stat().st_size > 0:
+        return out
+    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
+    try:
+        data = http_get(url)
+    except Exception as exc:
+        print(f"template structure download failed for {pdb_id}: {exc}", file=sys.stderr)
+        return None
+    out.write_bytes(data)
+    return out
+
+
 def ncbi_build_term(
     *,
     enzyme_name: str = "",
@@ -487,6 +550,10 @@ def main(argv: list[str] | None = None) -> int:
                              "templates can make a host-like enzyme search look empty.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the UniProt queries that would run for host and microbial templates.")
+    parser.add_argument("--with-structures", dest="with_structures", action="store_true", default=True,
+                        help="Also download a template PDB for every template that has one (default).")
+    parser.add_argument("--no-structures", dest="with_structures", action="store_false",
+                        help="Sequences only; skip template structure download.")
     args = parser.parse_args(argv)
 
     # The plugin expects commands to run from the project root. `--project`
@@ -533,6 +600,10 @@ def main(argv: list[str] | None = None) -> int:
                                           "(taxonomy_id:2 OR taxonomy_id:2157)"))
         print()
         print("两类模板分开取：微生物模板找同类酶，宿主模板判断微生物蛋白是否与人体酶同源。")
+        if args.with_structures:
+            print("同时会从 UniProt 的 PDB 交叉引用下载每个模板的结构文件（--no-structures 可关闭）。")
+        else:
+            print("--no-structures：只取序列，不下载结构。")
         return 0
 
     # Host + microbial templates, reviewed first. This ordering is the fix for a real false
@@ -557,6 +628,18 @@ def main(argv: list[str] | None = None) -> int:
                 group=group,
                 extra_clause=clause,
             )
+            if args.with_structures and group_rows:
+                pdb_map = uniprot_pdb_map(ec, taxid, reviewed_only, clause, size=retmax)
+                struct_dir = (args.output.parent if args.output else Path("outputs")) / "template_structures"
+                for row in group_rows:
+                    pdb_ids = pdb_map.get(row["reference_id"], [])
+                    pdb_id = first_pdb_id(pdb_ids)
+                    if not pdb_id:
+                        continue
+                    path = download_template_structure(pdb_id, struct_dir)
+                    if path is not None:
+                        row["structure_file"] = str(path)
+                        row["notes"] = f"template structure from PDB {pdb_id}"
             if group == "host":
                 host_accessions = {row["reference_id"] for row in group_rows}
             elif host_accessions:

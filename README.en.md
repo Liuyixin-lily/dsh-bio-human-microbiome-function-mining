@@ -272,9 +272,10 @@ entry A (user can name it):  enzyme / EC / substrate-product / sequence
 entry B (user only knows):   vague interest "sebum" / "skin barrier" / "body odour"
                                -> browse-target-library: domain -> process -> enzyme
   (both entries converge here)
-  -> template sequence file (host templates + microbial templates, curated or fetched by
-     fetch_reference_enzymes.py; only entries with experimental evidence, so TrEMBL
-     "Inferred from homology" records are not admitted)
+  -> template sequences + structure files (host templates + microbial templates, curated or
+     fetched by fetch_reference_enzymes.py; only entries with experimental evidence, so TrEMBL
+     "Inferred from homology" records are not admitted; structures come from UniProt's PDB
+     cross-references because US-align cannot run on a FASTA alone)
   -> CD-HIT deduplication (100% for a single genome; 95% for a multi-GCF pan-proteome)
   -> DIAMOND sequence screening (identity >= 0.2, query coverage >= 0.7, E <= 1e-5)
   -> parse_source_annotations (existing .faa/.gbff annotation as an independent layer)

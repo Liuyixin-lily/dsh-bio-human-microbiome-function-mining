@@ -2318,6 +2318,15 @@ def main() -> int:
         ).stdout
         assert "reviewed%3Atrue" not in unreviewed
 
+        # the template set needs structures too, because US-align cannot use a FASTA
+        assert "结构文件" in planned
+        no_struct = subprocess.run(
+            [sys.executable, str(fetcher), "--ec", "3.1.4.12", "--dry-run", "--no-structures"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "--no-structures" in no_struct
+        assert "结构文件" not in no_struct
+
         # dry-run must not create any output file
         assert not list(tmp.glob("*.tsv"))
 
