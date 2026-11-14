@@ -433,6 +433,11 @@ def render_markdown(
     lines.append("## 6. 数据回来之前就先定好的判定规则")
     lines.append("")
     if hypotheses:
+        lines.append(
+            "只列出**本次委托范围内的候选**。未纳入本次委托的候选不在此表，"
+            "以免让承接方对不在订单内的蛋白执行判定规则。"
+        )
+        lines.append("")
         lines.append("| 候选 | 假设 | 证伪条件（出现即判定该假设不成立） |")
         lines.append("| --- | --- | --- |")
         for h in hypotheses:
@@ -547,6 +552,20 @@ def main(argv: list[str] | None = None) -> int:
     candidates = candidate_rows(read_tsv(args.candidates), args.max_candidates, fasta)
     hypotheses = read_tsv(args.hypotheses)
 
+    # A vendor must not be asked to run decision rules for proteins that are not in
+    # the order. Keep only hypotheses whose accession is part of this package.
+    excluded_hypotheses = 0
+    if candidates and hypotheses:
+        ordered = {c["accession"] for c in candidates if c["accession"]}
+        kept = []
+        for row in hypotheses:
+            key = (row.get("protein_accession") or row.get("candidate_id") or "").strip()
+            if key in ordered:
+                kept.append(row)
+            else:
+                excluded_hypotheses += 1
+        hypotheses = kept
+
     args.outdir.mkdir(parents=True, exist_ok=True)
     modules = modules_for_scope(args.scope)
 
@@ -592,6 +611,13 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     write_modules_tsv(args.outdir / "cro_modules.tsv", modules)
+
+    if excluded_hypotheses:
+        print(
+            f"note: {excluded_hypotheses} hypothesis row(s) excluded because those candidates "
+            "are not in this order",
+            file=sys.stderr,
+        )
 
     md = render_markdown(
         card,

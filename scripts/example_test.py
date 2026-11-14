@@ -1498,6 +1498,44 @@ def main() -> int:
         ).stdout
         assert "demo_unevidenced" in ungated_demo
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # A work order must not ask the vendor to run decision rules for proteins
+        # that are not in the order.
+        card = tmp / "card.json"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "build_target_function_card.py"),
+             "--output", str(card), "--target-id", "T", "--enzyme-name", "e",
+             "--ec", "3.1.4.12", "--input-source", "ec"],
+            check=True, capture_output=True,
+        )
+        cands = tmp / "cands.tsv"
+        cands.write_text(
+            "final_rank\tprotein_accession\torganism_or_strain\n1\tCAND_A\tOrg_a\n",
+            encoding="utf-8",
+        )
+        hyps = tmp / "hyps.tsv"
+        fields = ["protein_accession", "hypothesis_statement", "falsification_criteria"]
+        hyps.write_text(
+            "\t".join(fields) + "\n"
+            + "\t".join(["CAND_A", "in order", "crit-A"]) + "\n"
+            + "\t".join(["CAND_Z", "NOT in order", "crit-Z"]) + "\n",
+            encoding="utf-8",
+        )
+        out = tmp / "cro"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "build_cro_work_order.py"),
+             "--card", str(card), "--candidates", str(cands), "--hypotheses", str(hyps),
+             "--outdir", str(out), "--scope", "candidates"],
+            check=True, capture_output=True,
+        )
+        text = (out / "cro_work_order.md").read_text(encoding="utf-8")
+        assert "CAND_A" in text
+        assert "crit-A" in text
+        assert "CAND_Z" not in text
+        assert "crit-Z" not in text
+        assert "本次委托范围内" in text
+
     print("example test passed")
     return 0
 
