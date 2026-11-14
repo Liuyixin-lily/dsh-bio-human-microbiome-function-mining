@@ -108,7 +108,9 @@ def rows_from_compact_table(text: str, args: argparse.Namespace) -> list[dict[st
                 "plddt_mean": args.plddt_mean,
                 "tool": args.tool,
                 "tool_version": args.tool_version,
-                "structure_support": "1" if tm_mean >= args.threshold else "0",
+                # "TM >= threshold in BOTH directions": a mean can hide a one-sided match
+                # (TM1 0.40 + TM2 0.65 averages 0.525 but the template is only 40% covered).
+                "structure_support": "1" if (tm_1 >= args.threshold and tm_2 >= args.threshold) else "0",
                 "prediction_pdb": candidate_source or args.prediction_pdb,
                 "aligned_residues": "",
                 "notes": f"parsed from {args.input.name}",
@@ -137,6 +139,8 @@ def rows_from_text(path: Path, args: argparse.Namespace) -> list[dict[str, Any]]
                 "plddt_mean": args.plddt_mean,
                 "tool": args.tool,
                 "tool_version": args.tool_version,
+                # this older text format reports a single TM-score, so one direction is all
+                # that can be checked; the note records that the bidirectional rule could not run
                 "structure_support": "1" if float_or_zero(scores.get("tm_score", "")) >= args.threshold else "0",
                 "prediction_pdb": args.prediction_pdb,
                 "aligned_residues": "",

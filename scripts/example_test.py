@@ -2440,6 +2440,34 @@ def main() -> int:
         lines2 = [line for line in merged2.read_text(encoding="utf-8").splitlines() if line.strip()]
         assert len(lines2) == 3, lines2          # header + WP_1 + WP_3
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # US-align filter is "TM >= threshold in BOTH directions". A mean hid a one-sided
+        # match: 0.40 + 0.65 averages 0.525 while the template is covered only 40%.
+        compact = tmp / "compact.txt"
+        compact.write_text(
+            "#PDBchain1\tPDBchain2\tTM1\tTM2\tRMSD\tID1\tID2\tIDali\tL1\tL2\tLali\n"
+            "tpl.pdb:A\tone_sided.pdb:A\t0.40\t0.65\t3.0\t0.1\t0.1\t0.1\t288\t100\t60\n"
+            "tpl.pdb:A\tboth.pdb:A\t0.62\t0.58\t2.1\t0.2\t0.2\t0.2\t288\t240\t230\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "parse_usalign.py"),
+             "--input", str(compact), "--out-hits", str(tmp / "h.tsv"),
+             "--out-candidates", str(tmp / "c.tsv"), "--threshold", "0.5"],
+            check=True, capture_output=True,
+        )
+        with (tmp / "h.tsv").open("r", encoding="utf-8") as handle:
+            hits = list(csv.DictReader(handle, delimiter="\t"))
+        with (tmp / "c.tsv").open("r", encoding="utf-8") as handle:
+            candidates = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(hits) == 2                       # every alignment is reported
+        assert [c["candidate_id"] for c in candidates] == ["both"]   # only two-way support
+        assert candidates[0]["tm_score_1"] == "0.6200"
+        by_id = {h["candidate_id"]: h for h in hits}
+        assert by_id["one_sided"]["structure_support"] == "0"
+
     print("example test passed")
     return 0
 

@@ -33,7 +33,7 @@ priority_tier
 # Notes
 
 - This table should include structure-supported candidates after running structure prediction and US-align for all sequence candidates.
-- `structure_support` is derived by the case and should be `1` only when the configured TM-score threshold is met.
+- `structure_support` is `1` only when BOTH directions meet the threshold (`tm_score_1 >= t` and `tm_score_2 >= t`). A mean on its own is not enough: TM1 0.40 + TM2 0.65 averages 0.525 while the template is covered only 40%.
 - Avoid placing sequence-only candidates here; keep them in `sequence_candidates.tsv`.
 - For DEER fallback evidence, keep the raw DEER metric in `deer_distance` and
   `deer_rank`, mark `structure_support` according to the configured distance
