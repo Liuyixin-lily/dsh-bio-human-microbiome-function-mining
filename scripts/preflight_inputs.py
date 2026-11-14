@@ -151,6 +151,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--project", type=Path, help="Project JSON or project directory.")
     parser.add_argument("--report", type=Path, help="Optional TSV report path.")
     parser.add_argument(
+        "--require-candidate-data",
+        action="store_true",
+        help="Fatal when no candidate proteome/genome FASTA is configured. Use it before any "
+             "screening so a missing path becomes a question for the user, not a reason to fetch one.",
+    )
+    parser.add_argument(
         "--require-genome-complete",
         action="store_true",
         help="Treat optional .faa/.ffn/.fna/.gbff entries as fatal when missing or empty.",
@@ -319,16 +325,35 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    if not (
-        bool(inputs.get("candidate_proteome_fasta"))
-        or genome_rows
+    has_candidate_sequences = bool(inputs.get("candidate_proteome_fasta")) or bool(genome_rows)
+    has_any_candidate = (
+        has_candidate_sequences
         or bool(inputs.get("candidate_annotation_fasta"))
         or bool(inputs.get("candidate_annotation_gbff"))
-    ):
+    )
+    if args.require_candidate_data and not has_candidate_sequences:
+        print(
+            "No candidate proteome or genome FASTA is configured, so nothing can be screened.",
+            file=sys.stderr,
+        )
+        print(
+            "ASK THE USER for the path instead of sourcing one yourself, for example:",
+            file=sys.stderr,
+        )
+        print('  "候选菌的蛋白组/基因组文件在哪个路径？比如 /path/to/GCF_xxxxx_protein.faa"',
+              file=sys.stderr)
+        print(
+            "Do not download or guess a proteome: the user may already have the exact assembly.",
+            file=sys.stderr,
+        )
+        return 1
+    if not has_any_candidate:
         print(
             "No candidate proteome or candidate genome files are configured.",
             file=sys.stderr,
         )
+        print('ASK THE USER for the path rather than fetching one:', file=sys.stderr)
+        print('  "候选菌的蛋白组/基因组文件在哪个路径？"', file=sys.stderr)
         return 1
     if optional_rows:
         print(

@@ -162,7 +162,10 @@ Input preflight:
   candidate structure directories before heavy screening. It never creates
   data. Configured candidate paths are validated; `--require-genome-complete`,
   `--require-target-sequence`, or `--require-target-structure` to enforce
-  different route requirements.
+  different route requirements. `--require-candidate-data` makes a missing candidate
+  proteome/genome fatal and prints the question to send the user, because "no path
+  configured" is an answer to ask for — not a reason to download a proteome and guess which
+  assembly they meant.
 
 Agent-runnable wrappers:
 
@@ -173,6 +176,9 @@ Agent-runnable wrappers:
   multi-genome pan-proteomes; set `tools.sequence_screen.cdhit_identity` or
   pass `--cluster-identity` to override. Pass `--cluster-identity 0` to skip
   CD-HIT when the input FASTA is already non-redundant.
+- `run_usalign.py`: refuses to run when the candidate structure directory is empty: it prints
+  the question (does the user have structures elsewhere, or should structure-prediction run)
+  and writes a `blocked` checkpoint instead of silently skipping or silently predicting.
 - `run_usalign.py`: runs configured US-align when executable/structures are
   accessible, then calls `parse_usalign.py`. Derived from the
   `structure-mapping` US-align route.

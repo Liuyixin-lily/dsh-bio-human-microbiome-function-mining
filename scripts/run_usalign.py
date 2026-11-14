@@ -175,7 +175,24 @@ def main(argv: list[str] | None = None) -> int:
         if path.is_file() and path.suffix.lower() in (".pdb", ".cif")
     )
     if not structure_files:
+        # This is the step where the workflow says to ASK, not to improvise: either the user
+        # has structures somewhere else, or none exist and structure-prediction has to run.
         print(f"no PDB/CIF files in candidate directory: {candidate_dir}", file=sys.stderr)
+        print(
+            "\nASK THE USER before doing anything else, for example:\n"
+            '  "候选菌的蛋白结构文件在哪？如果还没有，是否先跑 structure-prediction'
+            '（PDB > AlphaFold DB pLDDT>=60 > 同源建模 > de novo）？"\n'
+            "Do not silently predict or silently skip: both change what the result means.",
+            file=sys.stderr,
+        )
+        write_checkpoint(
+            checkpoint,
+            "blocked",
+            "usalign",
+            [],
+            [],
+            "candidate structure directory is empty; ask the user or run structure-prediction",
+        )
         return 489
     cmds_by_file = {
         path: [

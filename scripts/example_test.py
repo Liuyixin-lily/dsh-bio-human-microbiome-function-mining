@@ -2512,6 +2512,54 @@ def main() -> int:
             merged2 = list(csv.DictReader(handle, delimiter="\t"))
         assert {row["protein_accession"] for row in merged2} == {"WP_MINE", "WP_FOREIGN"}
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # A missing candidate path is a question for the user, not a reason to fetch one.
+        project = tmp / "project.json"
+        project.write_text(json.dumps({
+            "project_name": "no_candidate",
+            "target_function_card": {"target_id": "DDC", "ec": "4.1.1.28"},
+            "inputs": {},
+        }), encoding="utf-8")
+        gate = subprocess.run(
+            [sys.executable, str(SCRIPTS / "preflight_inputs.py"),
+             "--project", str(project), "--require-candidate-data"],
+            capture_output=True, text=True,
+        )
+        assert gate.returncode == 1
+        assert "ASK THE USER" in gate.stderr
+        assert "候选菌的蛋白组/基因组文件在哪个路径" in gate.stderr
+        assert "Do not download or guess a proteome" in gate.stderr
+
+        # The same project without the flag still passes the older, weaker check
+        lenient = subprocess.run(
+            [sys.executable, str(SCRIPTS / "preflight_inputs.py"), "--project", str(project)],
+            capture_output=True, text=True,
+        )
+        assert lenient.returncode == 1        # nothing configured at all is already an error
+
+        # An empty candidate structure directory must stop US-align and ask, not skip or predict
+        target = tmp / "target.pdb"
+        target.write_text(
+            "ATOM      1  CA  ALA A   1      0.000   0.000   0.000  1.00 50.00           C\n",
+            encoding="utf-8",
+        )
+        empty_dir = tmp / "structures"
+        empty_dir.mkdir()
+        outdir = tmp / "usalign"
+        checkpoint_path = tmp / "checkpoint.json"
+        blocked = subprocess.run(
+            [sys.executable, str(SCRIPTS / "run_usalign.py"),
+             "--target", str(target), "--candidate-dir", str(empty_dir),
+             "--outdir", str(outdir), "--checkpoint", str(checkpoint_path)],
+            capture_output=True, text=True,
+        )
+        assert blocked.returncode != 0
+        assert "ASK THE USER" in blocked.stderr
+        assert "structure-prediction" in blocked.stderr
+        assert json.loads(checkpoint_path.read_text(encoding="utf-8"))["status"] == "blocked"
+
     print("example test passed")
     return 0
 
