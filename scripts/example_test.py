@@ -3235,6 +3235,88 @@ def main() -> int:
         assert "metabolic_plausibility_score=missing" in taxa_rows["other_species"]["score_sources"]
         assert taxa_rows["other_species"]["metabolic_plausibility_score"] == "0.000"
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        shortlist = SCRIPTS / "build_candidate_shortlist.py"
+
+        # two enzyme sources with different completeness: a hand-scored legacy registry and a
+        # verified library entry. Ranking them by score alone puts the verified one last.
+        legacy = tmp / "legacy.tsv"
+        legacy.write_text(
+            "rank\ttarget_id\tgene\tname\tuniprot\tec\tskin_process\t"
+            "known_score\tdiscovery_score\tpriority_score\t"
+            "skin_evidence_score\tdisease_relevance_score\tbiochemical_clarity_score\t"
+            "sequence_structure_score\tmicrobial_plausibility_score\t"
+            "assay_feasibility_score\tnovelty_score\tnotes\n"
+            "1\tXEN-001\tADH1B\tAlcohol dehydrogenase\t\t1.1.1.1\tp\t"
+            "5\t4.4\t4.7\t5\t5\t5\t5\t5\t5\t3\tmanually scored\n",
+            encoding="utf-8",
+        )
+        library = tmp / "lib.json"
+        library.write_text(json.dumps({"library_version": "0.1.0", "domain": {
+            "id": "skin_x", "name_zh": "皮肤", "name_en": "Skin",
+            "content_status": "starter", "role": "user_defined",
+            "keywords_zh": ["x"], "keywords_en": ["x"],
+            "niche_summary_zh": "t", "selection_hint_zh": "t", "focus_taxa": [],
+            "processes": [{"id": "p", "name_zh": "p", "name_en": "p",
+                           "keywords_zh": ["x"], "keywords_en": ["x"], "why_it_matters_zh": "t",
+                           "host_context_zh": "h", "microbe_effect_zh": "m", "key_taxa": ["x"],
+                           "enzymes": [{"id": "azo", "enzyme_name_zh": "偶氮还原酶",
+                                        "enzyme_name_en": "azoreductase", "ec": "",
+                                        "ec_confidence": "none", "reaction_zh": "r",
+                                        "substrate_zh": "s", "product_zh": "p",
+                                        "entry_point": "reaction", "dark_matter": False,
+                                        "priority": "high", "evidence_status": "literature_verified",
+                                        "evidence_refs": ["PMID:33385118"],
+                                        "provenance_source": "literature",
+                                        "provenance_note_zh": "skin bacteria reduce azo dyes",
+                                        "validation_note_zh": "assay"}]}]}},
+        ), encoding="utf-8")
+        seeded = tmp / "seeded.tsv"
+        seeded.write_text(
+            "target_id\tgene\tname\tuniprot\tec\tsite_process\nazo\t\tazoreductase\t\t\tp\n",
+            encoding="utf-8",
+        )
+        taxa = tmp / "taxa.tsv"
+        taxa.write_text(
+            "taxon_id\tgenus\tspecies\tdisplay_name\tsite_presence_score\n"
+            "a\tCutibacterium\tacnes\tCutibacterium acnes\t5\n",
+            encoding="utf-8",
+        )
+
+        out = tmp / "out"
+        result = subprocess.run(
+            [sys.executable, str(shortlist), "--site", "skin",
+             "--enzymes", str(legacy), "--enzymes", str(seeded),
+             "--taxa", str(taxa), "--library", str(library),
+             "--output-dir", str(out)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "merged 2 row(s)" in result.stdout
+
+        with (out / "candidate_enzymes.tsv").open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        by_id = {r["target_id"]: r for r in rows}
+        # the verified entry ranks first even though its score (1.65) is far below 4.7
+        assert rows[0]["target_id"] == "azo"
+        assert rows[0]["evidence_status"] == "literature_verified"
+        assert rows[0]["evidence_refs"] == "PMID:33385118"
+        # a user-supplied registry says so instead of "unknown"
+        assert by_id["XEN-001"]["evidence_status"] == "user_supplied（无 references）"
+        assert "not comparable" in by_id["XEN-001"]["ranking_note"]
+        # both sources survive the merge instead of one silently replacing the other
+        assert len(rows) == 2
+
+        with (out / "candidate_taxa.tsv").open("r", encoding="utf-8") as handle:
+            taxa_rows = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(taxa_rows) == 1
+
+        note = (out / "candidate_shortlist.md").read_text(encoding="utf-8")
+        assert "## 1. Recommended" in note and "## 2. Candidate pool" in note
+        assert "azoreductase" in note
+        assert "--genomes" in note and "--literature" in note
+
     print("example test passed")
     return 0
 

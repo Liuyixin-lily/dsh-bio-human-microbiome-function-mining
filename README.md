@@ -199,6 +199,24 @@ python3 scripts/browse_target_library.py --validate
 
 ---
 
+## Candidate lists / 候选清单
+
+入口 B 的产出是两张清单，而不是一个结论：
+
+```bash
+python3 scripts/build_candidate_shortlist.py --site skin \
+    --enzymes <你的酶表>.tsv --enzymes <库导出的注册表>.tsv \
+    --taxa <位点菌名单>.tsv --library library/<domain>.json \
+    --output-dir outputs/task/candidates
+```
+
+产出 `candidate_enzymes.tsv` / `candidate_taxa.tsv` / `candidate_shortlist.md`，分两段：
+
+1. **recommended**：`literature_verified` 且带真实引用的条目
+2. **candidate_pool**：用户提供的排序表、starter 域条目——每条都标注 `evidence_status` 与 `evidence_refs`
+
+排序**证据优先**，因为分数跨来源不可比：旧的人工打分表把七项都填满了，而 starter 条目只有可推导的两项，单按分数排会把"没证据但打分高"的排到"有文献"的前面。
+
 ## Judgment points / 判断题
 
 插件不替你做的判断，全部选项化并记录在 `environment.json` 的 `decisions`。**它们按阶段提问，不是一开始全问完**：`start` 阶段只问候选数据；`structure` 阶段问结构文件与结构来源；US-align 候选不足时才问是否启用 DEER；排序与交付各自在对应步骤问。

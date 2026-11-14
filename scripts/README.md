@@ -72,6 +72,14 @@ Available scripts:
   reference actually supports (including "this is only a prediction" or "the evidence is from
   another body site"), stored verbatim in `provenance_note_zh`. `curated_prior` may also carry
   refs, so retrieval stays visible while the gate still quarantines the entry.
+- `build_candidate_shortlist.py`: the output layer of entry B. Merges any number of enzyme and
+  taxa registries (including a legacy select-candidate `enzyme_ranking.tsv`), scores them with
+  `score_target_priorities.py`, and writes `candidate_enzymes.tsv`, `candidate_taxa.tsv` and
+  `candidate_shortlist.md` in two sections: `recommended` (`literature_verified` with references)
+  and `candidate_pool` (user-supplied rankings and curation priors, each row labelled). Ordering is
+  evidence-first, because scores are not comparable across sources: a hand-scored registry has
+  every component filled while a starter entry only has what is derivable, so sorting on score
+  alone puts an unscored-by-evidence entry above the one the literature supports.
 - `record_query.py`: records what the user asked into `library/_staging/queries.json` (dedup by
   query+site, `times_asked` increments, new enzyme names are merged). A query is not evidence, so
   entries stay `curated_prior` with empty `evidence_refs` and the library never reads them.
