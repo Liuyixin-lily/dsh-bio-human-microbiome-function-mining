@@ -2227,6 +2227,67 @@ def main() -> int:
                 check=True, capture_output=True,
             )
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # DIAMOND --outfmt 6 writes no header. csv.DictReader would eat the first hit as the
+        # header: a one-hit result became zero rows, and every other run silently lost one.
+        one_hit = tmp / "one_hit.m8"
+        one_hit.write_text(
+            "WP_A\tWP_A\t100\t40\t0\t0\t1\t40\t1\t40\t2.5e-23\t79.3\t100\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "parse_sequence_hits.py"),
+             "--input", str(one_hit),
+             "--out-hits", str(tmp / "h.tsv"), "--out-candidates", str(tmp / "c.tsv"),
+             "--tool", "diamond"],
+            check=True, capture_output=True,
+        )
+        with (tmp / "h.tsv").open("r", encoding="utf-8") as handle:
+            hits = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(hits) == 1, "a single hit must not be consumed as a header"
+        assert hits[0]["protein_accession"] == "WP_A"
+        assert hits[0]["pident"] == "100.0"
+        assert hits[0]["query_coverage"] == "100.0"
+
+        # several headerless hits: every line must survive
+        many = tmp / "many.m8"
+        many.write_text(
+            "Q1\tWP_1\t85\t300\t1\t0\t1\t300\t5\t304\t1e-40\t300\t95\n"
+            "Q1\tWP_2\t42\t280\t3\t1\t1\t280\t9\t288\t1e-12\t120\t88\n"
+            "Q1\tWP_3\t25\t150\t8\t2\t1\t150\t1\t150\t1e-6\t60\t70\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "parse_sequence_hits.py"),
+             "--input", str(many),
+             "--out-hits", str(tmp / "h2.tsv"), "--out-candidates", str(tmp / "c2.tsv"),
+             "--tool", "diamond"],
+            check=True, capture_output=True,
+        )
+        with (tmp / "h2.tsv").open("r", encoding="utf-8") as handle:
+            hits2 = list(csv.DictReader(handle, delimiter="\t"))
+        assert [h["protein_accession"] for h in hits2] == ["WP_1", "WP_2", "WP_3"]
+
+        # a file that DOES carry a header must still be read through the header
+        headered = tmp / "headered.tsv"
+        headered.write_text(
+            "qseqid\tsseqid\tpident\tlength\tevalue\tbitscore\tqcovhsp\n"
+            "Q1\tWP_9\t99\t400\t1e-90\t800\t100\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "parse_sequence_hits.py"),
+             "--input", str(headered),
+             "--out-hits", str(tmp / "h3.tsv"), "--out-candidates", str(tmp / "c3.tsv"),
+             "--tool", "diamond"],
+            check=True, capture_output=True,
+        )
+        with (tmp / "h3.tsv").open("r", encoding="utf-8") as handle:
+            hits3 = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(hits3) == 1 and hits3[0]["protein_accession"] == "WP_9"
+
     print("example test passed")
     return 0
 

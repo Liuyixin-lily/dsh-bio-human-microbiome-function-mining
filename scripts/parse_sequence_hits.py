@@ -28,6 +28,32 @@ READABLE_HEADERS = {
 }
 
 
+# DIAMOND `--outfmt 6 ...` writes NO header. Reading such a file with csv.DictReader
+# consumes the first hit as the header column names, which silently deletes that hit —
+# and reduces a one-hit result to zero rows. Positional names below match the outfmt the
+# runner emits.
+DIAMOND_FIELDS = [
+    "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
+    "qstart", "qend", "sstart", "send", "evalue", "bitscore", "qcovhsp",
+]
+HEADER_HINTS = {"qseqid", "query_id", "sseqid", "candidate_id"}
+
+
+def looks_like_header(first_line: list[str]) -> bool:
+    if not first_line:
+        return False
+    if {cell.strip().lower() for cell in first_line} & HEADER_HINTS:
+        return True
+    # a header would carry words where the body carries numbers
+    for index in (2, 3, 10, 11, 12):
+        if index < len(first_line):
+            try:
+                float(first_line[index])
+            except ValueError:
+                return True
+    return False
+
+
 def detect_rows(path: Path) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     with path.open("r", encoding="utf-8", newline="") as handle:
@@ -38,10 +64,22 @@ def detect_rows(path: Path) -> list[dict[str, str]]:
         if "\t" not in sample:
             print(f"error: not a tab-separated file: {path}", file=sys.stderr)
             sys.exit(2)
-        reader = csv.DictReader(handle, delimiter="\t")
-        for record in reader:
-            if not record or not any(record.values()):
+        first = sample.splitlines()[0].split("\t")
+        if looks_like_header(first):
+            for record in csv.DictReader(handle, delimiter="\t"):
+                if record and any(record.values()):
+                    rows.append(record)
+            return rows
+        # headerless DIAMOND output: name the columns by position, never drop a line
+        for line in handle:
+            line = line.rstrip("\n")
+            if not line.strip():
                 continue
+            cells = line.split("\t")
+            record = {
+                field: (cells[index] if index < len(cells) else "")
+                for index, field in enumerate(DIAMOND_FIELDS)
+            }
             rows.append(record)
     return rows
 

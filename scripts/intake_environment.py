@@ -260,56 +260,68 @@ def resolve_executable(spec: Any) -> tuple[str | None, dict[str, str]]:
 
 
 def version_of(
-    path: str, env: dict[str, str], timeout: int = 20, tool: str | None = None
+    path: str, env: dict[str, str], timeout: int = 60, tool: str | None = None
 ) -> tuple[str | None, str]:
-    """Try to get a version string for THIS tool, not merely a string with a digit in it.
+    """Find a version banner that belongs to THIS tool.
 
-    Three things must agree before a binary counts as the tool: the resolved program name
-    (or its version banner) must mention the tool, the banner must contain a version number,
-    and it must not be a generic utility reporting its own version.
+    Three things must agree before a binary counts as the tool: its name (or its banner)
+    must mention the tool, the banner must carry a version number, and it must not be a
+    generic utility reporting its own version. Found the hard way on CentOS 7, where
+    `/bin/echo --version` prints "echo (GNU coreutils) 8.22" and made a coreutils binary
+    pass as DIAMOND.
+
+    Some tools have no version flag at all: US-align treats `--version` as a file name and
+    only prints its banner when invoked with no arguments. That is why the flag list ends
+    with a bare invocation, and why every line is scanned instead of only the first.
+
+    The timeout is generous because a cold Python entry point on an NFS home can take tens
+    of seconds the first time (Bakta timed out at 20s on node7 and returned instantly on the
+    second run).
     """
     name = os.path.basename(os.path.realpath(path)).lower()
     if name in GENERIC_UTILITIES:
         return None, f"解析到的是通用命令（{name}），不是 {tool or '该工具'}"
+
+    tokens = tuple(t for t in TOOL_TOKENS.get(tool or "", (tool.lower() if tool else "",)) if t)
     full_env = {**os.environ, **env}
-    for flag in ("--version", "-version", "version"):
+    first_line = ""
+    for flag in ("--version", "-version", "-v", "version", None):
+        argv = [path] if flag is None else [path, flag]
+        label = "（无参数）" if flag is None else f"`{flag}`"
         try:
             proc = subprocess.run(
-                [path, flag],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                env=full_env,
-                cwd=os.path.expanduser("~"),
+                argv, capture_output=True, text=True, timeout=timeout,
+                env=full_env, cwd=os.path.expanduser("~"),
             )
         except FileNotFoundError:
             return None, "not found"
         except subprocess.TimeoutExpired:
-            return None, f"timed out on `{flag}`"
+            return None, (
+                f"在 {timeout}s 内没有返回（{label}）；"
+                "冷启动在 NFS 家目录上可能很慢，重跑一次或手动确认"
+            )
         except PermissionError:
             return None, "not executable (permission denied)"
         except OSError as exc:
             return None, f"cannot run: {exc}"
+
         text = (proc.stdout or "") + (proc.stderr or "")
-        line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
-        if line and any(ch.isdigit() for ch in line):
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        if lines and not first_line:
+            first_line = lines[0]
+        for line in lines:
             lowered = line.lower()
-            tokens = tuple(t for t in TOOL_TOKENS.get(tool or "", (tool.lower() if tool else "",)) if t)
             if any(marker in lowered or marker in name for marker in GENERIC_OUTPUT_MARKERS):
                 return None, f"解析到的是通用命令（{name}），不是 {tool or '该工具'}"
+            if not any(ch.isdigit() for ch in line):
+                continue
             if tokens and not any(token in lowered or token in name for token in tokens):
-                return None, (
-                    f"版本输出里没有 {tool} 的标识（{name} 打印了 {line[:50]!r}）——"
-                    "可能是别名或包装脚本，需要人工确认"
-                )
+                continue  # this line is not about our tool; keep looking
             return line, "ok"
-        if line:
-            # e.g. `echo --version` prints the flag back; that is not a version
-            return None, f"输出不含版本号: {line[:60]!r}"
-        if proc.returncode == 0:
-            # ran cleanly but printed nothing usable
-            return None, "ran but reported no version"
-    return None, "no version flag produced output"
+
+    if first_line:
+        return None, f"输出不含 {tool or '该工具'} 的版本标识: {first_line[:60]!r}"
+    return None, "ran but reported no version"
 
 
 def probe_tool(name: str, spec: Any) -> dict[str, Any]:
@@ -384,6 +396,20 @@ def probe_path(kind: str, value: Any) -> dict[str, Any]:
     path = Path(str(value)).expanduser()
     if not path.exists():
         return {"status": "missing", "path": str(path)}
+    if kind == "dir_or_file":
+        # some artifacts are legitimately either (a checkpoint file, or the directory
+        # that contains it); accept both, and say which one was found
+        if path.is_dir():
+            entries = sum(1 for _ in path.iterdir())
+            if entries == 0:
+                return {"status": "unverified", "path": str(path), "detail": "目录为空"}
+            return {"status": "ready", "path": str(path), "kind": "directory", "entries": entries}
+        if path.is_file():
+            size = path.stat().st_size
+            if size == 0:
+                return {"status": "unverified", "path": str(path), "detail": "文件为空"}
+            return {"status": "ready", "path": str(path), "kind": "file", "bytes": size}
+        return {"status": "unverified", "path": str(path), "detail": "既不是文件也不是目录"}
     if kind == "dir":
         if not path.is_dir():
             return {"status": "not_a_directory", "path": str(path)}
@@ -503,7 +529,7 @@ def probe_config(cfg: dict[str, Any], check_network: bool, check_ssh: bool = Fal
         "AFDB_DIR": "dir",
         "PDB_MIRROR": "dir",
         "UNIPROT_FASTA": "file",
-        "DEER_CKPT": "file",
+        "DEER_CKPT": "dir_or_file",
         "FEDKEA_HOME": "dir",
         "GMPS_ROOT": "dir",
         "GMPS_ANNOTATION": "file",

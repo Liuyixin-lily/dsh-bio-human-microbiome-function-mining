@@ -178,7 +178,8 @@ def main(argv: list[str] | None = None) -> int:
     out_cfg = project.get("output") or {}
 
     primary_ref = read_primary_reference(root)
-    primary_query = Path(primary_ref.get("sequence_file", "")) if primary_ref.get("sequence_file") else Path()
+    # None, not Path(): Path() is "." and truthy, which silently defeated the fallback
+    primary_query = Path(primary_ref["sequence_file"]) if primary_ref.get("sequence_file") else None
     query = args.query or primary_query or Path(inputs_cfg.get("target_sequence_fasta", "inputs/target_sequence.faa"))
     db = args.db or Path(seq_cfg.get("db", ""))
     dmnd = args.dmnd or (Path(seq_cfg["dmnd"]) if seq_cfg.get("dmnd") else None)

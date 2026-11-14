@@ -145,9 +145,10 @@ def main(argv: list[str] | None = None) -> int:
     out_cfg = project.get("output") or {}
 
     primary_ref = read_primary_reference(root)
-    primary_target = Path(primary_ref.get("structure_file", "")) if primary_ref.get("structure_file") else Path()
+    # None, not Path(): Path() is "." and truthy, which silently defeated the fallback
+    primary_target = Path(primary_ref["structure_file"]) if primary_ref.get("structure_file") else None
     target = args.target or primary_target or Path(inputs_cfg.get("target_structure_pdb", "inputs/target_structure.pdb"))
-    candidate_dir = args.candidate_dir or Path()
+    candidate_dir = args.candidate_dir or None
     outdir = args.outdir or Path(ua_cfg.get("output_dir", "outputs/alignments/usalign"))
     threshold = args.threshold if args.threshold is not None else float(ua_cfg.get("tm_score_threshold", 0.498))
     executable = args.executable or str(ua_cfg.get("executable", "USalign"))
