@@ -2405,6 +2405,41 @@ def main() -> int:
         mismatch = score("--project", str(project))
         assert mismatch[0]["priority_tier"] == "SEQUENCE_ONLY"
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # run_usalign writes one partial per candidate structure and merges them. The parser
+        # writes a real header, not a "#" comment, and the old merge only stripped "#", so
+        # every structure contributed its header as a data row: 1,625 structures produced
+        # 1,625 header lines and 2 candidates.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "run_usalign_under_test", str(SCRIPTS / "run_usalign.py"))
+        run_usalign = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(run_usalign)
+
+        header = "candidate_id\ttemplate_id\ttm_score_1\ttm_score_2\n"
+        part_a = tmp / "a.hits.tsv"
+        part_b = tmp / "b.hits.tsv"
+        part_a.write_text(header + "WP_1\t2DDR\t0.66\t0.68\n", encoding="utf-8")
+        part_b.write_text(header + "WP_2\t2DDR\t0.69\t0.73\n", encoding="utf-8")
+        merged = tmp / "merged.tsv"
+        run_usalign.merge_partials([part_a, part_b], merged)
+        lines = [line for line in merged.read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert lines[0].startswith("candidate_id")
+        assert sum(1 for line in lines if line.startswith("candidate_id")) == 1
+        assert len(lines) == 3, lines
+
+        # an empty partial must not add anything, and a "#" comment header is still tolerated
+        empty = tmp / "empty.tsv"
+        empty.write_text("", encoding="utf-8")
+        commented = tmp / "c.tsv"
+        commented.write_text("#comment\nWP_3\t2DDR\t0.5\t0.5\n", encoding="utf-8")
+        merged2 = tmp / "merged2.tsv"
+        run_usalign.merge_partials([empty, part_a, commented], merged2)
+        lines2 = [line for line in merged2.read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert len(lines2) == 3, lines2          # header + WP_1 + WP_3
+
     print("example test passed")
     return 0
 

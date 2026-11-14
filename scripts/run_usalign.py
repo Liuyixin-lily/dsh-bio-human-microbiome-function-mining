@@ -240,24 +240,33 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def is_header_line(line: str) -> bool:
+    """The parser writes a real header (`candidate_id...`), not a `#` comment.
+
+    The old check only looked for `#`, so no part's header was ever stripped and every
+    structure contributed its own header as if it were a row: 1,625 structures produced
+    1,625 header lines plus 2 real candidates.
+    """
+    stripped = line.lstrip()
+    return stripped.startswith("#") or stripped.startswith("candidate_id") or stripped.startswith("hit_id")
+
+
 def merge_partials(parts: list[Path], output: Path) -> None:
     with output.open("w", encoding="utf-8") as handle:
-        seen_header = False
+        header_written = False
         for part in parts:
             if not part.is_file():
                 continue
-            lines = part.read_text(encoding="utf-8").splitlines()
+            lines = [line for line in part.read_text(encoding="utf-8").splitlines() if line.strip()]
             if not lines:
                 continue
-            # Accept an existing header line from any part, and note the
-            # parser always writes one, so this is mostly a safety net.
-            if not seen_header and lines[0].startswith("#"):
-                handle.write(lines[0] + "\n")
-                seen_header = True
+            if is_header_line(lines[0]):
+                if not header_written:
+                    handle.write(lines[0] + "\n")
+                    header_written = True
                 lines = lines[1:]
             for line in lines:
-                if line.strip():
-                    handle.write(line + "\n")
+                handle.write(line + "\n")
 
 
 def write_summary(
