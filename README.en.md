@@ -495,8 +495,7 @@ research scenarios:
 | 1 | Known metabolic reaction | Substrate/product is known, but no template sequence or EC. | sphingomyelin -> ceramide + phosphocholine | `reaction` |
 | 2 | Known enzyme name / EC | Functional annotation is known. | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
 | 3 | Known reference sequence | A FASTA or UniProt accession is available. | DDC / P20711 | `sequence` |
-| 4 | A physiological process is the focus | The process is known, the enzyme is not. | skin xenobiotic metabolism | entry B (`B→A`) |
-| 5 | Known microbe + enzyme family | Only "this enzyme class in this species" is known. | alcohol dehydrogenase in S. epidermidis | entry B (`B→A`) |
+| 4 | A physiological process is the focus | The process is known, the enzyme is not. | skin xenobiotic metabolism, then screen alcohol dehydrogenase | entry B (`B→A`) |
 
 Each example contains a prompt you can send directly, the workflow the Agent
 will run with the bundled skills, and the result of a real run so you can see what
@@ -707,22 +706,22 @@ Both handoff branches are real results:
 - **A candidate without an EC** (azoreductase): the handoff **stops and asks for an EC**. One family
   name maps to several ECs; the plugin does not choose for you.
 
-### Example 5: given only a microbe and an enzyme family, converge and then screen out the candidates
+#### After the handoff: turning the process into one screenable target
 
 ```text
-User:
+User (follow-up):
 "Mine alcohol dehydrogenase in Staphylococcus epidermidis."
 
 Agent:
-- Also entry B: the sentence names an enzyme family and a species, but no EC, reaction or sequence.
+- The follow-up names an enzyme family and a species, still no EC, reaction or sequence: a family name is not a target.
 - Converge first: one family maps to several ECs (different substrates and cofactors); the user picks
   EC 1.1.1.1.
-- Hand off to entry A: card, reviewed templates, CD-HIT (single genome 100%), DIAMOND.
+- Hand off to entry A: card, reviewed templates, CD-HIT (single genome 100%), DIAMOND, join source annotations.
 - Join each hit's own annotation from the genome's GenBank; if it agrees, the row is
   `SEQUENCE_ANNOTATION_CONFIRMED` and structure screening is skipped.
 ```
 
-Result (real run: *S. epidermidis* GCF_038181645.1, 2,372 proteins):
+Result after the handoff (real run: *S. epidermidis* GCF_038181645.1, 2,372 proteins):
 
 | Rank | Candidate | Template | Identity | Coverage | E | Annotation |
 | --- | --- | --- | --- | --- | --- | --- |

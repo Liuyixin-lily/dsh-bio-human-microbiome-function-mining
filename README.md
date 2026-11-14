@@ -578,15 +578,14 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples / 使用示例
 
-以下示例按五种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
+以下示例按四种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
 
 | # | 输入类型 | 触发点 | 举例 | 起手式 |
 | --- | --- | --- | --- | --- |
 | 1 | 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC | sphingomyelin → ceramide + phosphocholine | `reaction` |
 | 2 | 已知酶名/EC | 有酶功能或功能类别注释 | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
 | 3 | 已知参考序列 | 有模板蛋白 FASTA 或 UniProt accession | DDC / P20711 | `sequence` |
-| 4 | 关注具体生理过程 | 说得出"关注什么过程"，说不出酶 | 皮肤外源性物质代谢 | 入口 B（`B→A`） |
-| 5 | 已知菌 + 酶家族 | 只说得出"在某个菌里找某类酶" | S. epidermidis 的醇脱氢酶 | 入口 B（`B→A`） |
+| 4 | 关注具体生理过程 | 说得出"关注什么过程"，说不出酶 | 皮肤外源性物质代谢 → 交棒后筛醇脱氢酶 | 入口 B（`B→A`） |
 
 每个示例都给出“用户可以直接发送的一句话 prompt”、“Agent 按插件 skill 实际会走的分析链”，以及**一次真实运行的结果**——这样你能直接看到输出长什么样。实际运行时，把工具和数据路径替换成你自己的即可。
 
@@ -725,20 +724,20 @@ Agent:
 - **选了有 EC 的候选**（β-葡萄糖醛酸苷酶，EC 3.2.1.31）→ 对 *S. epidermidis* 筛选：11 个 reviewed 模板、0 条命中（identity≥20 / cov≥0.7 / E≤1e-5）。**0 命中也是结论**，交付里写明筛了什么、阈值多少、下一步该做什么（换结构通道 / 有意识地放宽阈值并说明）
 - **选了没有 EC 的候选**（azoreductase）→ 插件**停下来要 EC**：一个家族名对应多个 EC，插件不替你定
 
-### Example 5: 只给菌和酶家族，收敛后筛选出候选
+#### 交棒之后：把"关注的过程"落成一条可筛的目标
 
 ```text
-User:
+User（接着问）:
 "对 Staphylococcus epidermidis 进行醇脱氢酶的挖掘。"
 
 Agent:
-- 同样是入口 B：句中只有酶**家族名**和菌名，没有 EC / 反应式 / 序列
-- 先收敛：一个家族名对应多个 EC（底物与辅因子不同），用户选定 EC 1.1.1.1
-- 交棒入口 A：建档 → 取 reviewed 模板 → CD-HIT（单基因组 100%）→ DIAMOND
+- 这一句里只有酶**家族名**和菌名，仍然没有 EC / 反应式 / 序列：家族名不是目标
+- 先收敛：`alcohol dehydrogenase` 对应多个 EC，用户选定 EC 1.1.1.1
+- 交棒入口 A：建档 → 取 reviewed 模板 → CD-HIT（单基因组 100%）→ DIAMOND → 并入源注释
 - 命中后并入候选自身注释（来自基因组 GenBank），同向即 `SEQUENCE_ANNOTATION_CONFIRMED`，跳过结构
 ```
 
-结果（真实运行：*S. epidermidis* GCF_038181645.1，2,372 个蛋白）：
+交棒之后的结果（真实运行：*S. epidermidis* GCF_038181645.1，2,372 个蛋白）：
 
 | 排序 | 候选蛋白 | 比对模板 | identity | coverage | E | 注释 |
 | --- | --- | --- | --- | --- | --- | --- |
