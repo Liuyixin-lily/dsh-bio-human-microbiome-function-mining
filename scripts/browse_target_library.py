@@ -407,7 +407,9 @@ def validate_enzyme(
 
 
 class Index:
-    def __init__(self, payloads: list[dict[str, Any]]) -> None:
+    def __init__(self, payloads: list[dict[str, Any]], require_evidence: bool = False) -> None:
+        self.require_evidence = require_evidence
+        self.quarantined: list[dict[str, Any]] = []
         self.domains: list[dict[str, Any]] = []
         # taxon name -> list of {domain, role_zh, attention, processes}
         self.taxa: dict[str, list[dict[str, Any]]] = {}
@@ -445,8 +447,24 @@ class Index:
                 return domain
         return None
 
+    @staticmethod
+    def qualifies(enzyme: dict[str, Any]) -> bool:
+        """An entry may enter a menu only if it carries a verified identifier."""
+        refs = enzyme.get("evidence_refs") or []
+        return bool(refs) and enzyme.get("evidence_status") == "literature_verified"
+
+    def _admit(self, enzyme: dict[str, Any]) -> bool:
+        if not self.require_evidence or self.qualifies(enzyme):
+            return True
+        self.quarantined.append(enzyme)
+        return False
+
     def iter_processes(self, domain: dict[str, Any]):
         for process in domain.get("processes", []):
+            if self.require_evidence:
+                if not any(self.qualifies(e) for e in process.get("enzymes") or []):
+                    self.quarantined.extend(process.get("enzymes") or [])
+                    continue
             yield process
 
     def iter_enzymes(self, domain: dict[str, Any], process: dict[str, Any]):
@@ -455,6 +473,8 @@ class Index:
             if enzyme["id"] in seen:
                 continue
             seen.add(enzyme["id"])
+            if not self._admit(enzyme):
+                continue
             yield enzyme
 
     def find_process(self, process_id: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
@@ -680,9 +700,17 @@ def fmt_keywords(items: list[str], limit: int = 8) -> str:
     return ", ".join(items[:limit]) + (" …" if len(items) > limit else "")
 
 
-def render_domain_line(domain: dict[str, Any]) -> str:
-    n_process = len(domain.get("processes") or [])
-    n_enzyme = sum(len(p.get("enzymes") or []) for p in domain.get("processes") or [])
+def render_domain_line(domain: dict[str, Any], index: "Index | None" = None) -> str:
+    if index is None:
+        n_process = len(domain.get("processes") or [])
+        n_enzyme = sum(len(p.get("enzymes") or []) for p in domain.get("processes") or [])
+    else:
+        # Count only what the current gate admits, so the number matches the menu.
+        n_process = sum(1 for _ in index.iter_processes(domain))
+        n_enzyme = sum(
+            sum(1 for _ in index.iter_enzymes(domain, process))
+            for process in index.iter_processes(domain)
+        )
     role = domain.get("role")
     role_tag = "" if role in (None, "shipped_example") else f" [{role}]"
     return (
@@ -691,7 +719,12 @@ def render_domain_line(domain: dict[str, Any]) -> str:
     )
 
 
-def render_process_block(domain: dict[str, Any], process: dict[str, Any], verbose: bool = True) -> str:
+def render_process_block(
+    domain: dict[str, Any],
+    process: dict[str, Any],
+    verbose: bool = True,
+    index: "Index | None" = None,
+) -> str:
     lines = [f"{process['id']}  {process['name_zh']} / {process['name_en']}"]
     if verbose:
         lines.append(f"  keywords : {fmt_keywords((process.get('keywords_zh') or []) + (process.get('keywords_en') or []))}")
@@ -700,7 +733,8 @@ def render_process_block(domain: dict[str, Any], process: dict[str, Any], verbos
     else:
         lines.append(f"  {process.get('why_it_matters_zh', '')}")
     lines.append("  enzymes  :")
-    for enzyme in process.get("enzymes") or []:
+    enzymes = list(index.iter_enzymes(domain, process)) if index is not None else list(process.get("enzymes") or [])
+    for enzyme in enzymes:
         ec = enzyme.get("ec") or "no EC"
         flags = []
         if enzyme.get("dark_matter"):
@@ -1149,6 +1183,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--target-id", default=None, help="Override target_id in the generated card.")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of text.")
     parser.add_argument("--limit", type=int, default=10, help="Maximum search hits to print (default 10).")
+    parser.add_argument(
+        "--require-evidence",
+        action="store_true",
+        help="Only show entries that carry a verified identifier (evidence_status=literature_verified with evidence_refs).",
+    )
     return parser.parse_args(argv)
 
 
@@ -1160,7 +1199,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {error}", file=sys.stderr)
         return 2
 
-    index = Index(payloads)
+    index = Index(payloads, require_evidence=args.require_evidence)
     did_something = False
     empty_library = not index.domains
 
@@ -1228,7 +1267,7 @@ def main(argv: list[str] | None = None) -> int:
             user_made = [d for d in index.domains if d.get("role") == "user_defined"]
             print("Available domains / 可选身体部位：")
             for i, domain in enumerate(index.domains, 1):
-                print(f"  {i}) {render_domain_line(domain)}")
+                print(f"  {i}) {render_domain_line(domain, index)}")
             if shipped:
                 print()
                 print(
@@ -1282,7 +1321,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"选择建议：{domain.get('selection_hint_zh', '')}")
             for i, process in enumerate(index.iter_processes(domain), 1):
                 print()
-                block = render_process_block(domain, process, verbose=False)
+                block = render_process_block(domain, process, verbose=False, index=index)
                 first, *rest = block.splitlines()
                 print(f"  {i}) {first}")
                 for line in rest:
@@ -1338,7 +1377,7 @@ def main(argv: list[str] | None = None) -> int:
             for hit in hits[: max(1, args.limit)]:
                 print("  " + render_hit(hit))
                 if hit["kind"] == "process":
-                    for enzyme in hit["process"].get("enzymes") or []:
+                    for enzyme in index.iter_enzymes(hit["domain"], hit["process"]):
                         print(
                             f"        -> {enzyme['id']:<38} EC {enzyme.get('ec') or '无':<9} "
                             f"entry_point={enzyme.get('entry_point')}"
@@ -1417,11 +1456,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"hint : {domain.get('selection_hint_zh', '')}")
             for process in index.iter_processes(domain):
                 print()
-                print(render_process_block(domain, process, verbose=True))
+                print(render_process_block(domain, process, verbose=True, index=index))
         elif resolved["kind"] == "process":
-            print(render_process_block(resolved["domain"], resolved["process"], verbose=True))
+            print(render_process_block(resolved["domain"], resolved["process"], verbose=True, index=index))
         else:
-            print(render_process_block(resolved["domain"], resolved["process"], verbose=True))
+            print(render_process_block(resolved["domain"], resolved["process"], verbose=True, index=index))
 
     if args.export_tsv:
         did_something = True
@@ -1449,6 +1488,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.interactive:
         did_something = True
         return run_interactive(index, args.output_dir, args.target_id)
+
+    if args.require_evidence and index.quarantined:
+        unique = {e.get("id", ""): e for e in index.quarantined if e.get("id")}
+        print()
+        print(
+            f"已隔离 {len(unique)} 个条目：没有已验证文献（evidence_status != literature_verified "
+            "或 evidence_refs 为空）。"
+        )
+        print("这些条目仍然存在于库文件中，只是不进入菜单。要让它们可用：")
+        print("  1) 跑 literature-evidence 拿到真实 PMID/DOI；")
+        print("  2) 把 evidence_status 升为 literature_verified 并写入 evidence_refs；")
+        print(f"  3) 再跑本次命令（{args.library_dir}）。")
+        print("去掉 --require-evidence 可看到全部条目，但那些条目只是策展先验，不是证据。")
 
     if not did_something:
         print(

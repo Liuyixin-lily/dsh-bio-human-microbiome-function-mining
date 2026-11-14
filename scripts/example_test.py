@@ -1349,6 +1349,125 @@ def main() -> int:
             assert sources[key] == "missing", (key, sources[key])
         assert "按 0 计入" in (no_lib_out / "ranking_report.md").read_text(encoding="utf-8")
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        browse = SCRIPTS / "browse_target_library.py"
+
+        # Without an evidence gate the shipped library advertises its full content.
+        plain = subprocess.run(
+            [sys.executable, str(browse), "--list-domains"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "10 processes, 19 enzyme targets" in plain
+
+        # With the gate, an entry must carry a verified identifier to be selectable.
+        gated = subprocess.run(
+            [sys.executable, str(browse), "--require-evidence", "--list-domains"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "0 processes, 0 enzyme targets" in gated
+        assert "已隔离" in gated
+        # and the gate must be honest about why the menu is now empty
+        assert "literature-evidence" in gated
+
+        # One evidenced entry is enough to open its process
+        lib = tmp / "lib"
+        lib.mkdir()
+        (lib / "demo.json").write_text(
+            json.dumps(
+                {
+                    "library_version": "0.1.0",
+                    "domain": {
+                        "id": "demo",
+                        "name_zh": "示例",
+                        "name_en": "Demo",
+                        "content_status": "starter",
+                        "role": "user_defined",
+                        "keywords_zh": ["示例"],
+                        "keywords_en": ["demo"],
+                        "niche_summary_zh": "synthetic",
+                        "selection_hint_zh": "synthetic",
+                        "focus_taxa": [
+                            {"taxon": "Examplebacterium testii", "name_zh": "示例杆菌",
+                             "role_zh": "placeholder", "attention": "medium"}
+                        ],
+                        "processes": [
+                            {
+                                "id": "demo_process",
+                                "name_zh": "示例过程",
+                                "name_en": "Demo process",
+                                "keywords_zh": ["示例过程"],
+                                "keywords_en": ["demo process"],
+                                "why_it_matters_zh": "placeholder",
+                                "host_context_zh": "placeholder",
+                                "microbe_effect_zh": "placeholder",
+                                "key_taxa": ["Examplebacterium testii"],
+                                "enzymes": [
+                                    {
+                                        "id": "demo_evidenced",
+                                        "enzyme_name_zh": "已证实酶",
+                                        "enzyme_name_en": "evidenced enzyme",
+                                        "gene_symbols": [],
+                                        "ec": "3.1.1.3",
+                                        "ec_confidence": "full",
+                                        "reaction_zh": "a + H2O -> b",
+                                        "substrate_zh": "a",
+                                        "product_zh": "b",
+                                        "cofactor": "",
+                                        "fold_hint": "",
+                                        "known_microbial_examples": [],
+                                        "entry_point": "ec",
+                                        "dark_matter": False,
+                                        "priority": "medium",
+                                        "evidence_status": "literature_verified",
+                                        "evidence_refs": ["PMID:12345678"],
+                                        "provenance_note_zh": "placeholder",
+                                        "validation_note_zh": "placeholder",
+                                    },
+                                    {
+                                        "id": "demo_unevidenced",
+                                        "enzyme_name_zh": "未证实酶",
+                                        "enzyme_name_en": "unevidenced enzyme",
+                                        "gene_symbols": [],
+                                        "ec": "3.1.1.3",
+                                        "ec_confidence": "full",
+                                        "reaction_zh": "a + H2O -> b",
+                                        "substrate_zh": "a",
+                                        "product_zh": "b",
+                                        "cofactor": "",
+                                        "fold_hint": "",
+                                        "known_microbial_examples": [],
+                                        "entry_point": "ec",
+                                        "dark_matter": False,
+                                        "priority": "medium",
+                                        "evidence_status": "curated_prior",
+                                        "evidence_refs": [],
+                                        "provenance_note_zh": "placeholder",
+                                        "validation_note_zh": "placeholder",
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        gated_demo = subprocess.run(
+            [sys.executable, str(browse), "--library-dir", str(lib),
+             "--require-evidence", "--list-processes", "demo"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "demo_evidenced" in gated_demo
+        assert "demo_unevidenced" not in gated_demo
+
+        ungated_demo = subprocess.run(
+            [sys.executable, str(browse), "--library-dir", str(lib), "--list-processes", "demo"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "demo_unevidenced" in ungated_demo
+
     print("example test passed")
     return 0
 

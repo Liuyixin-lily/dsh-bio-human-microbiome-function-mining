@@ -19,6 +19,37 @@ python3 scripts/browse_target_library.py --library-dir /tmp/empty --list-domains
 
 路由脚本也会区分两种"没有命中"：`library: not configured`（没配库）与 `library: MISS at this site`（配了库但这个部位没覆盖）。
 
+## 一个条目要「能用」需要什么
+
+`--require-evidence` 把这件事变成可执行的门槛：只有 `evidence_status: literature_verified`
+且 `evidence_refs` 非空的条目才进入菜单。用这个标准衡量，当前随插件提供的库是：
+
+```bash
+python3 scripts/browse_target_library.py --require-evidence --list-domains
+# gut   0 processes, 0 enzyme targets
+# skin  0 processes, 0 enzyme targets
+# 已隔离 27 个条目
+```
+
+**27 条全部被隔离，可用条目为 0。** 这不是 bug，是诚实的度量：库里的内容都是
+`curated_prior`，一条引用也没有。
+
+一个真正"能用"的条目应该长这样（每格都必须有来源）：
+
+| 字段 | 内容 | 必须来自 |
+| --- | --- | --- |
+| 用户会怎么问 | 口语关键词（油脂分泌 / 出油 / 油性皮肤） | 用户语言，可以是策展 |
+| 这个部位有什么生理过程 | 过程名 + 一句话说明 | 综述/教科书，**带引用** |
+| 过程 → 酶 | 酶名 + EC + 反应式 | IUBMB / Rhea / BRENDA（可自动查，不靠记忆） |
+| 哪些菌带这个酶 | 物种 + 依据 | 文献（verified）或你自己的基因组筛查结果 |
+| 是否暗物质 | `dark_matter` | 由"有无 EC + 有无已表征代表酶"判定，不由印象判定 |
+| 值不值得先做 | 优先级/评分 | 排序器（`score_target_priorities.py --auto-score`），不写死在库里 |
+| 怎么验证 | 可证伪实验 | 由目标反应决定 |
+| 证据 | `evidence_refs` | 真实 PMID/DOI。没有就不要声称有 |
+
+结论：**库里的"知识"部分必须来自检索，不能被写入。** 库能长期提供的是结构（三层索引）、
+命名与 EC 词汇、以及给排序器的输入事实——这些不靠记忆也成立。
+
 ## 为什么只有两个部位
 
 必须先说清楚：`skin.json` 和 `gut.json` 是**示例参考域**（`role: shipped_example`），不是人体微生物组的覆盖范围。
