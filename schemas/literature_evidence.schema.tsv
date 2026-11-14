@@ -1,0 +1,35 @@
+# Required columns for literature_evidence.tsv
+
+candidate_id
+protein_accession
+evidence_type
+reference_type
+reference_id
+verified
+
+# Optional but recommended
+
+organism_or_strain
+title
+first_author
+journal
+year
+finding
+source_search
+notes
+
+# Notes
+
+- One row per retrieved record. `reference_id` must be an identifier that was actually
+  retrieved; never write a PMID/DOI from memory.
+- `evidence_type` is one of: direct_functional_evidence, related_assay, catalytic_residue,
+  review, no_evidence.
+- `reference_type` is one of: PMID, DOI, URL, manual.
+- `verified` is `yes` or `no`. Only `yes` rows count as evidence downstream: the
+  pre-screening ranker derives site_evidence_score and disease_relevance_score from
+  verified records alone, and unverified rows never raise a score.
+- A `no_evidence` row is legitimate and useful — it records that a search was performed
+  and found nothing usable. It establishes nothing about function.
+- `title`, `journal`, `year` and `finding` were the fields missing from the earlier
+  contract; they are recommended here because triaging on titles alone has produced a
+  false "no evidence" verdict before.

@@ -1993,6 +1993,76 @@ def main() -> int:
         assert provenance["download_manifest_rows"] == 1189
         assert provenance["columns_used"]["genome_id"] is None
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        intake = SCRIPTS / "intake_environment.py"
+        validate = SCRIPTS / "validate_schema.py"
+
+        # the three newly-covered tables must satisfy their own schemas
+        lit_dir = tmp / "lit"
+        lit_dir.mkdir()
+        lit = lit_dir / "literature_evidence.tsv"
+        lit.write_text(
+            "candidate_id\tprotein_accession\tevidence_type\treference_type\treference_id\tverified\n"
+            "WP_1\tWP_1\tdirect_functional_evidence\tPMID\t12345678\tyes\n"
+            "WP_2\tWP_2\tno_evidence\tmanual\t\tyes\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(validate), "--schema",
+             str(ROOT / "schemas" / "literature_evidence.schema.tsv"), "--tsv", str(lit)],
+            check=True, capture_output=True,
+        )
+
+        taxa_out = tmp / "taxa"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "import_taxon_list.py"),
+             "--list", str(ROOT / "resources" / "taxa" / "gmps_download_manifest.csv"),
+             "--site", "gut", "--output-dir", str(taxa_out)],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            [sys.executable, str(validate), "--schema",
+             str(ROOT / "schemas" / "taxa_registry.schema.tsv"),
+             "--tsv", str(taxa_out / "gut_taxa_registry.tsv")],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            [sys.executable, str(validate), "--schema",
+             str(ROOT / "schemas" / "taxa_download_manifest.schema.tsv"),
+             "--tsv", str(taxa_out / "gut_download_manifest.tsv")],
+            check=True, capture_output=True,
+        )
+
+        # SSH probe: an unreachable host must fail fast and say why, without hanging
+        env = tmp / "env_ssh.json"
+        env.write_text(json.dumps({
+            "execution": {"host": "127.0.0.1", "user": "nobody", "access": "ssh",
+                          "allow_local_execution": True},
+        }), encoding="utf-8")
+        report = tmp / "ssh.md"
+        subprocess.run(
+            [sys.executable, str(intake), "--probe", "--config", str(env),
+             "--check-ssh", "--output-report", str(report)],
+            check=True, capture_output=True, timeout=60,
+        )
+        text = report.read_text(encoding="utf-8")
+        assert "远程执行主机：不可达" in text
+        assert "TCP" in text
+
+        # and --check-ssh must be inert when access is not ssh
+        env2 = tmp / "env_local.json"
+        env2.write_text(json.dumps({
+            "execution": {"host": "127.0.0.1", "access": "local", "allow_local_execution": True},
+        }), encoding="utf-8")
+        report2 = tmp / "local.md"
+        subprocess.run(
+            [sys.executable, str(intake), "--probe", "--config", str(env2),
+             "--check-ssh", "--output-report", str(report2)],
+            check=True, capture_output=True, timeout=60,
+        )
+        assert "远程执行主机" not in report2.read_text(encoding="utf-8")
+
     print("example test passed")
     return 0
 

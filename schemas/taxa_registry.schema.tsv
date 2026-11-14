@@ -1,0 +1,35 @@
+# Required columns for <site>_taxa_registry.tsv
+
+taxon_id
+genus
+species
+display_name
+
+# Optional but recommended
+
+domain
+core_tier
+recommended_strain_count
+key_evidence_pmids
+key_evidence_dois
+rationale
+site_presence_score
+metabolic_plausibility_score
+genome_availability_score
+disease_site_relevance_score
+experimental_accessibility_score
+
+# Notes
+
+- Produced by `scripts/import_taxon_list.py` and consumed by
+  `scripts/score_target_priorities.py --taxa`.
+- This is a taxon list, not a target library entry: it carries no physiological process
+  and no enzyme.
+- `site_presence_score` may come from measured site abundance (High 5 / Medium 4 /
+  Low 3 / Scarce 2). When abundance was not measured it stays EMPTY — unmeasured is not
+  absent, and scoring it 0 would fabricate a negative.
+- The five `*_score` columns are the same 0..5 inputs the ranker uses; leaving most of
+  them empty is expected for a bare taxon list, and the ranker will report that the
+  resulting order is nearly a tie rather than presenting a ranking it cannot support.
+- `taxon_id` should be a stable slug of the binomial so registry rows can be joined
+  across runs.

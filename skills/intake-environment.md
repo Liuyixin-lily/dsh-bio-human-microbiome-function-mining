@@ -86,6 +86,19 @@ Two rules that matter:
   `execution.allow_local_execution` is not `true`, produce a command list instead of
   running anything, no matter how ready the tools look.
 
+When `execution.access` is `ssh`, also verify the host itself:
+
+```bash
+python3 scripts/intake_environment.py --probe --config environment.json \
+    --check-ssh --output-card environment_card.json --output-report environment_report.md
+```
+
+`--check-ssh` does two things, because they fail differently: a TCP connect proves the
+port is open, then a `BatchMode=yes` ssh proves the credentials already work without a
+password prompt. It never prompts, never retries with a password and stores no
+credentials. A host that is unreachable, or reachable but requiring interactive
+authentication, is reported as such before any workflow is planned.
+
 Add `--check-network` when the plan touches a downloader (AlphaFold DB, PDB, NCBI,
 Hugging Face). If a host is unreachable, do not start a step that would auto-download.
 

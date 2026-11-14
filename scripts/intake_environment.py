@@ -248,6 +248,56 @@ def probe_path(kind: str, value: Any) -> dict[str, Any]:
     return {"status": "ready", "path": str(path), "bytes": path.stat().st_size}
 
 
+def probe_ssh(host: str, port: int = 22, user: str | None = None,
+              run_command: bool = False, timeout: float = 6.0) -> dict[str, Any]:
+    """Check whether the declared execution host is actually reachable.
+
+    Two levels, because they fail differently: a TCP connect proves the port is open,
+    while a BatchMode ssh proves the credentials already work without a password. Never
+    prompts, never stores credentials, and never retries with a password.
+    """
+    result: dict[str, Any] = {"host": host, "port": port, "user": user, "tcp": False}
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            result["tcp"] = True
+    except OSError as exc:
+        result["detail"] = f"TCP {host}:{port} 不可达: {exc}"
+        result["reachable"] = False
+        return result
+
+    if not run_command:
+        result["reachable"] = True
+        result["detail"] = f"TCP {host}:{port} 可连接（未测试登录）"
+        return result
+
+    target = f"{user}@{host}" if user else host
+    try:
+        proc = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={int(timeout)}",
+             "-o", "StrictHostKeyChecking=accept-new", target, "true"],
+            capture_output=True, text=True, timeout=timeout + 10,
+        )
+    except FileNotFoundError:
+        result["reachable"] = True
+        result["detail"] = "TCP 可连接，但本机没有 ssh 客户端，未测试登录"
+        return result
+    except subprocess.TimeoutExpired:
+        result["reachable"] = True
+        result["detail"] = "TCP 可连接，但 ssh 登录超时（可能需要密码或跳板机）"
+        return result
+    result["reachable"] = proc.returncode == 0
+    result["ssh_exit"] = proc.returncode
+    if proc.returncode == 0:
+        result["detail"] = f"ssh {target} 免密登录成功"
+    else:
+        message = (proc.stderr or "").strip().splitlines()
+        result["detail"] = (
+            "TCP 可连接，但 BatchMode 登录失败（交互式密码或密钥未配置）"
+            + (f": {message[-1][:120]}" if message else "")
+        )
+    return result
+
+
 def probe_network(host: str, timeout: float = 4.0) -> dict[str, Any]:
     parsed = urlparse(host if "://" in host else f"//{host}")
     target = parsed.hostname or host
@@ -275,7 +325,7 @@ STATUS_LABEL = {
 }
 
 
-def probe_config(cfg: dict[str, Any], check_network: bool) -> dict[str, Any]:
+def probe_config(cfg: dict[str, Any], check_network: bool, check_ssh: bool = False) -> dict[str, Any]:
     execu = cfg.get("execution") or {}
     card: dict[str, Any] = {
         "execution": {
@@ -323,6 +373,16 @@ def probe_config(cfg: dict[str, Any], check_network: bool) -> dict[str, Any]:
         card["data"][key] = probe_path("dir", (cfg.get("data") or {}).get(key))
     card["data"]["target_structure"] = probe_path("file", (cfg.get("data") or {}).get("target_structure"))
 
+    host = (execu.get("host") or "").strip()
+    access = (execu.get("access") or "").strip().lower()
+    if check_ssh and host and access == "ssh":
+        card["execution"]["ssh"] = probe_ssh(
+            host,
+            port=int(execu.get("ssh_port") or 22),
+            user=execu.get("user"),
+            run_command=True,
+        )
+
     constraints = cfg.get("constraints") or {}
     card["constraints"] = {
         "network": constraints.get("network", "unknown"),
@@ -355,6 +415,12 @@ def render_report(card: dict[str, Any]) -> str:
     for key in ("host", "access", "cpu_cores", "memory_gb", "gpu", "scheduler", "shared_machine"):
         value = execu.get(key)
         lines.append(f"| {key} | {value if value not in (None, '') else '—'} |")
+    ssh = execu.get("ssh")
+    if ssh:
+        state = "可达" if ssh.get("reachable") else "不可达"
+        lines.append("")
+        lines.append(f"**远程执行主机：{state}。** {ssh.get('detail', '')}")
+        lines.append("")
     wd = execu.get("workdir") or {}
     lines.append(f"| workdir | {wd.get('path') or '—'} ({STATUS_LABEL.get(wd.get('status'), wd.get('status'))}) |")
     lines.append("")
@@ -640,6 +706,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-report", type=Path, default=None, help="Where --probe writes environment_report.md.")
     parser.add_argument("--check-network", action="store_true", help="Also probe network reachability (off by default).")
     parser.add_argument(
+        "--check-ssh",
+        action="store_true",
+        help="When execution.access is 'ssh', test that the host is reachable and that BatchMode ssh works.",
+    )
+    parser.add_argument(
         "--emit-config",
         type=Path,
         default=None,
@@ -692,7 +763,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: config not found: {args.config}", file=sys.stderr)
         return 2
     cfg = json.loads(args.config.read_text(encoding="utf-8"))
-    card = probe_config(cfg, args.check_network)
+    card = probe_config(cfg, args.check_network, args.check_ssh)
     report = render_report(card)
 
     if args.output_card:

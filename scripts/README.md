@@ -32,7 +32,9 @@ Available scripts:
   fragment that `project.json` expects, writing a path only for `ready` tools and
   `enabled: false` for the rest, so the environment is not typed twice. `--audit-paths DIR`
   fails when the tree contains a real home directory or private IP address, which keeps
-  one user's paths out of a plugin other people install.
+  one user's paths out of a plugin other people install. `--check-ssh` verifies a declared
+  remote host: a TCP connect first, then a BatchMode ssh so "port open" is not mistaken for
+  "login works" — no prompts, no credentials stored.
 - `import_taxon_list.py`: converts a curated per-site microbe list (taxon + genome id +
   site abundance) into a taxa registry for `score_target_priorities.py`, a plain
   accession list for genome download, a separate list of MAG/bin ids that are not NCBI

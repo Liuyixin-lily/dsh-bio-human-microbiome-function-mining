@@ -15,6 +15,14 @@ must follow these schemas when writing new task files.
 - `candidate_signal_peptides.schema.tsv`: SignalP cleavage prediction output
   used to build `candidate_mature_proteins.faa`.
 - `combined_candidates.schema.tsv`: final integrated candidate ranking.
+- `literature_evidence.schema.tsv`: retrieved literature records. Only `verified=yes`
+  rows count as evidence downstream; `no_evidence` rows record a search that found
+  nothing usable.
+- `taxa_registry.schema.tsv`: a per-site taxon list (no process, no enzyme) feeding
+  `score_target_priorities.py --taxa`. Unmeasured abundance leaves `site_presence_score`
+  empty rather than scoring it 0.
+- `taxa_download_manifest.schema.tsv`: per-species download URLs, for sources like GMPS
+  that package by species and ship no GCF/GCA accession.
 - `enzyme_priority_ranking.schema.tsv`: pre-screening ranking of candidate enzyme
   targets, from human-assigned 0-5 scores. `score_basis` marks it as judgement.
 - `taxa_priority_ranking.schema.tsv`: pre-screening ranking of candidate taxa,

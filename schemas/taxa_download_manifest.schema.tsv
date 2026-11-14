@@ -1,0 +1,20 @@
+# Required columns for <site>_download_manifest.tsv
+
+taxon
+url
+
+# Optional but recommended
+
+archive
+
+# Notes
+
+- Produced by `scripts/import_taxon_list.py` when the source list carries a download URL
+  or a `wget ... -O <name>` command (for example the GMPS per-species manifest).
+- `url` must be the bare URL; the `wget` prefix and `-O` flag are parsed out, so this
+  column can be fed to a downloader without shell rewriting.
+- `archive` is the suggested local filename taken from the source command. It may be
+  empty when the source gives only a URL.
+- A manifest is an alternative to genome accessions: GMPS packages per species and ships
+  no GCF/GCA, so download-by-URL is the only route for that source. Record the source
+  repository and checksum in the accompanying provenance file.
