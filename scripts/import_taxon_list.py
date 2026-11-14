@@ -156,7 +156,7 @@ def build_rows(
             continue
         seen.add(taxon)
 
-        genome_id = (row.get(genome_col) or "").strip()
+        genome_id = (row.get(genome_col) or "").strip() if genome_col else ""
         if ACCESSION_RE.match(genome_id):
             if genome_id not in accessions:
                 accessions.append(genome_id)
@@ -164,7 +164,7 @@ def build_rows(
             unresolved.append({"taxon": taxon, "genome_id": genome_id})
             stats["unresolved"] += 1
 
-        raw_abundance = (row.get(abundance_col) or "").strip() or default_abundance
+        raw_abundance = ((row.get(abundance_col) or "").strip() if abundance_col else "") or default_abundance
         level, score = parse_abundance(raw_abundance)
         if score is None:
             stats["no_abundance"] += 1
@@ -208,6 +208,20 @@ def write_tsv(path: Path, rows: list[dict[str, str]], fields: list[str]) -> None
             writer.writerow({field: row.get(field, "") for field in fields})
 
 
+WGET_RE = re.compile(r"^\s*wget\s+(\S+)(?:\s+-O\s+(\S+))?\s*$")
+
+
+def parse_download_cell(raw: str) -> tuple[str, str]:
+    """Return (url, suggested_filename) from a URL or a `wget ... -O name` command."""
+    text = (raw or "").strip()
+    if not text:
+        return "", ""
+    match = WGET_RE.match(text)
+    if match:
+        return match.group(1), (match.group(2) or "")
+    return text, ""
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Convert a curated per-site microbe list into taxa registry, accession list and provenance.",
@@ -216,8 +230,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--site", required=True, help="Body site id, e.g. oral or skin.")
     parser.add_argument("--output-dir", type=Path, required=True, help="Where to write the outputs.")
     parser.add_argument("--taxon-col", default=None, help="Override the taxon column name.")
-    parser.add_argument("--genome-col", default=None, help="Override the genome id column name.")
-    parser.add_argument("--abundance-col", default=None, help="Override the abundance column name.")
+    parser.add_argument("--genome-col", default=None, help="Override the genome id column name (optional).")
+    parser.add_argument("--abundance-col", default=None, help="Override the abundance column name (optional).")
+    parser.add_argument("--download-col", default=None,
+                        help="Column holding a download URL or `wget ... -O name` command (optional).")
+    parser.add_argument("--inspect", action="store_true",
+                        help="Show the columns and the mapping that would be inferred; write nothing.")
     parser.add_argument(
         "--default-abundance",
         default="",
@@ -237,18 +255,62 @@ def main(argv: list[str] | None = None) -> int:
         print("error: the list has no header row", file=sys.stderr)
         return 2
     taxon_col = args.taxon_col or pick_column(
-        headers, ["taxon", "display_name", "species", "organism"], "the taxon name"
+        headers, ["taxon", "display_name", "species", "organism", "bacteria/host species"], "the taxon name"
     )
-    genome_col = args.genome_col or pick_column(
-        headers, ["genome_id", "assembly", "accession", "genome"], "the genome id"
+
+    def optional_column(explicit: str | None, candidates: list[str]) -> str:
+        """A column that may legitimately be absent (GMPS has no accession or abundance)."""
+        if explicit:
+            if explicit not in headers:
+                raise SystemExit(
+                    f"error: requested column not in the file: {explicit!r}; available: {', '.join(headers)}"
+                )
+            return explicit
+        lowered = {header.strip().lower(): header for header in headers}
+        for candidate in candidates:
+            for header in headers:
+                if header.strip().lower() == candidate.lower():
+                    return header
+        for candidate in candidates:
+            for low, header in lowered.items():
+                if candidate.lower() in low:
+                    return header
+        return ""
+
+    genome_col = optional_column(args.genome_col, ["genome_id", "assembly", "accession", "genome"])
+    abundance_col = optional_column(
+        args.abundance_col, ["abundance", "hmt_primary_body_site_w_abundance", "body_site"]
     )
-    abundance_col = args.abundance_col or pick_column(
-        headers, ["abundance", "hmt_primary_body_site_w_abundance", "body_site"], "the abundance"
-    )
+    download_col = optional_column(args.download_col, ["download link", "download", "url", "link"])
+
+    if args.inspect:
+        print(f"file      : {args.list}")
+        print(f"delimiter : {delimiter!r}")
+        print(f"rows      : {len(rows)}")
+        print("columns   : " + ", ".join(repr(h) for h in headers))
+        print()
+        for role, column in (
+            ("物种名", taxon_col),
+            ("装配号", genome_col),
+            ("位点丰度", abundance_col),
+            ("下载链接", download_col),
+        ):
+            print(f"  {role:6}: {column or '（文件中没有）'}")
+        print()
+        print("缺少装配号时仍是可用名单：能出物种清单与下载清单，但没有 GCF/GCA。")
+        print("缺少丰度时 site_presence_score 保持空白（不当作 0 分）。")
+        return 0
 
     registry, accessions, unresolved, stats = build_rows(
         rows, taxon_col, genome_col, abundance_col, args.site, args.default_abundance
     )
+    manifest: list[dict[str, str]] = []
+    if download_col:
+        for row in rows:
+            taxon = (row.get(taxon_col) or "").strip()
+            url, filename = parse_download_cell(row.get(download_col) or "")
+            if taxon and url:
+                manifest.append({"taxon": taxon, "url": url, "archive": filename})
 
     out = args.output_dir
     registry_path = out / f"{args.site}_taxa_registry.tsv"
@@ -261,6 +323,9 @@ def main(argv: list[str] | None = None) -> int:
     accession_path.write_text("".join(a + "\n" for a in accessions), encoding="utf-8")
     if unresolved:
         write_tsv(unresolved_path, unresolved, ["taxon", "genome_id"])
+    manifest_path = out / f"{args.site}_download_manifest.tsv"
+    if manifest:
+        write_tsv(manifest_path, manifest, ["taxon", "url", "archive"])
 
     write_provenance = {
         "source": "user-provided curated per-site microbe list",
@@ -270,9 +335,12 @@ def main(argv: list[str] | None = None) -> int:
         "delimiter": delimiter,
         "columns_used": {
             "taxon": taxon_col,
-            "genome_id": genome_col,
-            "abundance": abundance_col,
+            "genome_id": genome_col or None,
+            "abundance": abundance_col or None,
+            "download": download_col or None,
         },
+        "download_manifest_rows": len(manifest),
+        "has_assembly_accessions": bool(accessions),
         "counts": stats,
         "accessions_written": len(accessions),
         "abundance_mapping": {
@@ -293,6 +361,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"物种 {len(registry)} 个；其中 {stats['scored']} 个有丰度可打分，"
           f"{stats['no_abundance']} 个丰度缺失（保持空白，不当作 0 分）")
     print(f"可下载装配号 {len(accessions)} 个 -> {accession_path}")
+    if manifest:
+        print(f"逐物种下载链接 {len(manifest)} 条 -> {manifest_path}")
+    if not genome_col:
+        print("note: 这个文件没有装配号列 —— 出不了 GCF/GCA 清单，但物种清单与下载清单仍可用",
+              file=sys.stderr)
+    if not abundance_col:
+        print("note: 没有丰度列 —— site_presence_score 全部留空（不当作 0 分）", file=sys.stderr)
     if unresolved:
         print(f"MAG/bin 等非 NCBI 装配号 {len(unresolved)} 个 -> {unresolved_path}"
               "（需要走基因组组装/下载的单独流程）", file=sys.stderr)

@@ -1947,6 +1947,52 @@ def main() -> int:
         report = (ranked / "ranking_report.md").read_text(encoding="utf-8")
         assert "这份排名几乎是并列的" in report
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        taxa_import = SCRIPTS / "import_taxon_list.py"
+        gmps_csv = ROOT / "resources" / "taxa" / "gmps_download_manifest.csv"
+
+        # GMPS-style manifest: species + per-species wget command, no accession, no abundance
+        inspected = subprocess.run(
+            [sys.executable, str(taxa_import), "--list", str(gmps_csv),
+             "--site", "gut", "--output-dir", str(tmp), "--inspect"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "装配号   : （文件中没有）" in inspected
+        assert "位点丰度  : （文件中没有）" in inspected
+        assert "下载链接  : Download link" in inspected
+        assert not list(tmp.glob("*.tsv"))
+
+        out = tmp / "gut"
+        result = subprocess.run(
+            [sys.executable, str(taxa_import), "--list", str(gmps_csv),
+             "--site", "gut", "--output-dir", str(out)],
+            check=True, capture_output=True, text=True,
+        )
+        # it must say plainly that there are no accessions and no abundance
+        assert "没有装配号列" in result.stderr
+        assert "没有丰度列" in result.stderr
+
+        with (out / "gut_taxa_registry.tsv").open("r", encoding="utf-8") as handle:
+            registry = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(registry) == 1047
+        assert all(row["site_presence_score"] == "" for row in registry)
+
+        with (out / "gut_download_manifest.tsv").open("r", encoding="utf-8") as handle:
+            manifest = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(manifest) == 1189
+        first = manifest[0]
+        assert first["url"].startswith("https://gmpsdb.cn/api/download/")
+        assert first["archive"].endswith(".tar.gz")
+        # the wget prefix and -O flag must not leak into the parsed fields
+        assert "wget" not in first["url"] and "-O" not in first["url"]
+
+        assert (out / "gut_genome_accessions.txt").read_text(encoding="utf-8") == ""
+        provenance = json.loads((out / "gut_taxa_list.provenance.json").read_text(encoding="utf-8"))
+        assert provenance["has_assembly_accessions"] is False
+        assert provenance["download_manifest_rows"] == 1189
+        assert provenance["columns_used"]["genome_id"] is None
+
     print("example test passed")
     return 0
 

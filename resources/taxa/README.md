@@ -21,6 +21,35 @@ and no enzyme. What they give the plugin is the three things the library lacks:
 
 **注意皮肤名单的偏斜**：257 个物种里 206 个是 *Scarce*——这是一份"已知皮肤微生物"普查名单，不是"优势菌"名单。用它做 `site_presence` 时，高频菌自然会排到前面，但别把 Scarce 理解成"不重要"。
 
+## GMPS：同一套格式的第三份名单（肠道）
+
+`gmps_download_manifest.csv` 来自 GMPS 代码仓库（[BinhongLiu/GMPS](https://github.com/BinhongLiu/GMPS/tree/GMPS_v1)，MIT）的 `wget_links_download.csv`，取回日期 2026-11-14，sha256 前缀 `3e5399ef`。
+
+| 项 | 内容 |
+| --- | --- |
+| 行数 | 1,189（Bacteria 968 / Prophage 176 / Phage 42 / All 3） |
+| 唯一物种 | 1,047 |
+| 列 | `Index`, `Bacteria/Host species`, `Download link` |
+| **装配号** | **没有** —— GMPS 是按物种打包，不是按 GCF/GCA |
+| 下载方式 | 每行一条 `wget https://gmpsdb.cn/api/download/<类型>/<id>/download/ -O <文件名>` |
+
+所以它回答你的问题：**能出物种名单，出不了 GCF/GCA 清单。**
+
+```bash
+python3 scripts/import_taxon_list.py --list resources/taxa/gmps_download_manifest.csv \
+    --site gut --output-dir outputs/taxa            # 先加 --inspect 看列
+```
+
+产出：
+- `gut_taxa_registry.tsv` — 1,047 个物种；**`site_presence_score` 全空**（没有丰度列，按规则不当作 0 分）
+- `gut_download_manifest.tsv` — 1,189 条 `物种 / url / 归档文件名`
+- `gut_genome_accessions.txt` — 空文件（没有装配号）
+
+那 GCF/GCA 到底能不能拿到？`GMPS_genomes_metadata.zip`（197 KB）的字段我**没能验证**：Dryad 那份是同行评审私有分享，脚本取回被 403 挡住。如果确实要装配号，两条路：
+
+1. 手动从 <https://www.gmpsdb.cn/home> 或 Dryad 分享页下载 metadata，`--inspect` 看有没有 accession 列，再用 `--genome-col` 指过去；
+2. 直接用物种名走 `genome-search`（`--source gut`）反查 GCF/GCA —— 这是插件已有的能力，不依赖 GMPS。
+
 ## 来源与责任
 
 - 这两份名单由用户提供（2026-11-14），字段结构类似 HOMD / 人体微生物组参考库的导出。
