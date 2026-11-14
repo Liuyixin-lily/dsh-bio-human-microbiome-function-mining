@@ -186,7 +186,7 @@ def fetch_source_annotation(row: dict[str, str]) -> str:
 
 
 def target_context(project: dict[str, Any]) -> str:
-    card = project.get("target_function_card") or {}
+    card = project_card(project)
     pieces = []
     if card.get("enzyme_name"):
         pieces.append(card["enzyme_name"])
@@ -227,7 +227,7 @@ def hypothesis_statement(row: dict[str, str], project: dict[str, Any], target: s
 
 
 def card_summary(project: dict[str, Any]) -> str:
-    card = project.get("target_function_card") or {}
+    card = project_card(project)
     if card.get("enzyme_name"):
         return card["enzyme_name"]
     if card.get("ec"):
@@ -409,6 +409,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def project_card(project: dict, project_path: Path | None = None) -> dict:
+    """The card may be inline (a dict) or a path relative to project.json (a string).
+
+    Every project generated from a card file stores the path, so treating it as a dict crashed
+    with "'str' object has no attribute 'get'" on the documented workflow.
+    """
+    card = project.get("target_function_card") or {}
+    if isinstance(card, str):
+        candidates_path = [Path(card)]
+        if project_path is not None:
+            candidates_path.insert(0, project_path.parent / card)
+        for candidate in candidates_path:
+            if candidate.is_file():
+                try:
+                    return json.loads(candidate.read_text(encoding="utf-8"))
+                except Exception:
+                    return {}
+        return {}
+    if isinstance(card, dict):
+        return card
+    return {}
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     rows = read_tsv(args.scored)
@@ -429,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
 
     summary_rows: list[dict[str, str]] = []
     final_rows: list[dict[str, str]] = []
-    target_ec = str((project.get("target_function_card") or {}).get("ec") or "").strip()
+    target_ec = str(project_card(project, Path(args.project) if args.project else None).get("ec") or "").strip()
     hypothesis_rows: list[dict[str, str]] = []
     for row in rows:
         acc = row.get("protein_accession") or row.get("candidate_id") or ""
@@ -516,6 +539,33 @@ def main(argv: list[str] | None = None) -> int:
                     "mature_protein_fasta": mature_fasta if ev.get("is_secreted") == "Yes" else "",
                 }
             )
+
+    # One row per candidate protein. A protein hit by several templates produced one row per
+    # template, so the table showed the same accession repeatedly (24 rows for 4 proteins), which
+    # reads as 24 candidates. Keep the best-ranked row per accession.
+    deduped: list[dict[str, str]] = []
+    seen: dict[str, dict[str, str]] = {}
+    for row in final_rows:
+        accession = (row.get("protein_accession") or "").strip()
+        if not accession:
+            deduped.append(row)
+            continue
+        current = seen.get(accession)
+        if current is None:
+            seen[accession] = row
+            deduped.append(row)
+            continue
+        try:
+            better = float(row.get("overall_score") or 0) > float(current.get("overall_score") or 0)
+        except (TypeError, ValueError):
+            better = False
+        if better:
+            deduped[deduped.index(current)] = row
+            seen[accession] = row
+    collapsed = len(final_rows) - len(deduped)
+    final_rows = deduped
+    if collapsed:
+        print(f"note: collapsed {collapsed} duplicate template alignment(s); one row per protein")
 
     summary_path = args.outdir / "high_confidence_candidate_summary.tsv"
     final_path = args.outdir / "final_target_candidates.tsv"

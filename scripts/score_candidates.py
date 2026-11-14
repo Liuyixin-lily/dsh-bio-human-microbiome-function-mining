@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import json
 import sys
 from pathlib import Path
@@ -220,6 +221,28 @@ def fedkea_target_match(row: dict[str, str], target_ecs: set[str]) -> bool:
     return normalized in target_ecs
 
 
+def name_variants(name: str) -> list[str]:
+    """'alcohol dehydrogenase (NAD+)' must also match an annotation that omits the cofactor.
+
+    The parenthetical is provenance, not identity: AdhP is annotated "alcohol dehydrogenase AdhP"
+    and carries no '(NAD+)'. Comparing the raw string made SEQUENCE_ANNOTATION_CONFIRMED
+    unreachable on the documented workflow.
+    """
+    base = (name or "").strip().lower()
+    if not base:
+        return []
+    variants = [base]
+    without_parens = re.sub(r"\([^)]*\)", " ", base)
+    without_parens = " ".join(without_parens.split())
+    if without_parens and without_parens not in variants:
+        variants.append(without_parens)
+    # a family-level name before any comma, e.g. 'alcohol dehydrogenase, class III'
+    head = without_parens.split(",")[0].strip()
+    if head and head not in variants:
+        variants.append(head)
+    return [v for v in variants if len(v) >= 4]
+
+
 def annotation_matches_target(row: dict[str, str], target_ecs: set[str], target_names: set[str]) -> bool:
     source_ec = (row.get("source_ec_number", "") or "").strip()
     if target_ecs and source_ec:
@@ -235,8 +258,10 @@ def annotation_matches_target(row: dict[str, str], target_ecs: set[str], target_
             row.get("annotation", ""),
         ]
         haystack = " ".join(part.lower() for part in text_parts if part).strip()
-        if haystack and any(name in haystack for name in target_names):
-            return True
+        if haystack:
+            for name in target_names:
+                if any(variant in haystack for variant in name_variants(name)):
+                    return True
     return False
 
 
@@ -409,6 +434,12 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         project = json.loads(args.project.read_text(encoding="utf-8"))
         card = project.get("target_function_card") or {}
+        # project.json may inline the card (a dict) or point at it (a string path). Treating the
+        # path as a dict crashed with "'str' object has no attribute 'get'" on the documented
+        # workflow, because every project built from a card file stores the path.
+        if isinstance(card, str):
+            card_path = (args.project.parent / card).resolve()
+            card = json.loads(card_path.read_text(encoding="utf-8")) if card_path.is_file() else {}
         if not card and project.get("target_card_file"):
             card_path = (args.project.parent / project["target_card_file"]).resolve()
             if card_path.is_file():

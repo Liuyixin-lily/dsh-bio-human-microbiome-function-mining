@@ -160,6 +160,137 @@ def merge_evidence(paths: list[Path], target: Path) -> Path:
     return target
 
 
+def select_candidate(outdir: Path, target_id: str) -> dict[str, str]:
+    """Read the chosen row back out of the tables the previous run produced."""
+    for name in ("candidate_enzymes.tsv", "recommended_enzymes.tsv"):
+        path = outdir / "candidates" / name
+        if not path.is_file():
+            continue
+        import csv
+
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle, delimiter="\t"):
+                if row.get("target_id") == target_id:
+                    return row
+    raise SystemExit(
+        f"error: {target_id!r} is not in {outdir / 'candidates'}; run without --select first, "
+        "then pick a target_id from candidate_enzymes.tsv"
+    )
+
+
+def find_source_annotation(proteome: Path | None) -> Path | None:
+    """A GenBank/GFF beside the proteome carries the product names the fast path needs."""
+    if proteome is None:
+        return None
+    # a symlinked proteome points at the real genome directory, where the GenBank/GFF lives;
+    # globbing next to the symlink finds nothing
+    directory = Path(proteome).resolve().parent
+    stem = proteome.name.split("_protein")[0].split(".")[0]
+    patterns = [f"{stem}*_genomic.gbff", f"{stem}*.gbff", f"{stem}*_genomic.gff", f"{stem}*.gff",
+                "*.gbff", "*.gff"]
+    for pattern in patterns:
+        for candidate in sorted(directory.glob(pattern)):
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def run_entry_a(args, outdir: Path, ref_fasta: Path | None) -> int:
+    """The handoff: a converged EC becomes a card, templates, a screen, and scored candidates."""
+    task = outdir / "task"
+    task.mkdir(parents=True, exist_ok=True)
+    card = task / "target_function_card.json"
+    if not card.is_file():
+        run(
+            [sys.executable, str(SCRIPT_DIR / "build_target_function_card.py"),
+             "--output", str(card), "--input-source", "ec", "--ec", args.ec,
+             "--enzyme-name", args.enzyme_name or args.topic,
+             "--notes", f"由入口 B 收敛而来：{args.topic}"],
+            "build card",
+        )
+        print(f"card: {card}")
+    refs = ref_fasta or (outdir / "reference" / "reference_enzymes.faa")
+    if ref_fasta is None and not refs.is_file():
+        refs.parent.mkdir(parents=True, exist_ok=True)
+        run(
+            [sys.executable, str(SCRIPT_DIR / "fetch_reference_enzymes.py"),
+             "--ec", args.ec, "--output", str(refs.parent / "reference_enzyme_set.tsv"),
+             "--fasta-output", str(refs), "--provenance-output", str(refs.parent / "provenance.json")],
+            "fetch references",
+        )
+        count = sum(1 for line in refs.read_text(encoding="utf-8").splitlines() if line.startswith(">"))
+        print(f"reference templates: {count} -> {refs}")
+    if args.proteome is None:
+        print("note: --proteome not given; stopping after the card and templates. "
+              "Pass the candidate proteome FASTA to run the screen.", file=sys.stderr)
+        return 0
+    project = outdir / "project.json"
+    project.write_text(
+        json.dumps({
+            "project_name": outdir.name,
+            "target_function_card": str(card.relative_to(outdir)),
+        }, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    screening = outdir / "screening"
+    run(
+        [sys.executable, str(SCRIPT_DIR / "run_diamond.py"), "--project", str(project),
+         "--query", str(refs), "--db", str(args.proteome), "--cluster-identity", "1.0",
+         "--outdir", str(screening), "--identity", "20", "--coverage", "0.7",
+         "--evalue", "1e-5", "--threads", str(args.threads)],
+        "screening",
+    )
+    # The fast path compares the candidate's OWN annotation with the target activity, so the
+    # annotation has to be joined in from the genome's GenBank/GFF before scoring. Without this the
+    # screen produces candidates that can never reach SEQUENCE_ANNOTATION_CONFIRMED.
+    candidates_tsv = screening / "sequence_candidates.tsv"
+    annotated = screening / "sequence_candidates.annotated.tsv"
+    source = find_source_annotation(args.proteome)
+    if source is not None:
+        annotations = screening / "source_annotations.tsv"
+        run(
+            [sys.executable, str(SCRIPT_DIR / "parse_source_annotations.py"),
+             "--faa", str(args.proteome), "--gbff", str(source), "--output", str(annotations)],
+            "source annotations",
+        )
+        merged = run(
+            [sys.executable, str(SCRIPT_DIR / "merge_source_annotations.py"),
+             "--candidates", str(candidates_tsv), "--annotations", str(annotations),
+             "--output", str(annotated)],
+            "merge annotations",
+        )
+        print(merged.stdout.strip())
+        candidates_tsv = annotated
+    else:
+        print(
+            "note: no GenBank/GFF next to the proteome, so no source annotation is available; the "
+            "fast path (SEQUENCE_ANNOTATION_CONFIRMED) cannot fire and candidates stay sequence-only.",
+            file=sys.stderr,
+        )
+
+    scored = screening / "scored_candidates.tsv"
+    run(
+        [sys.executable, str(SCRIPT_DIR / "score_candidates.py"),
+         "--input", str(candidates_tsv), "--project", str(project),
+         "--target-ec", args.ec, "--target-name", args.enzyme_name or args.topic,
+         "--output", str(scored)],
+        "score",
+    )
+    final = outdir / "final"
+    run(
+        [sys.executable, str(SCRIPT_DIR / "summarize_candidates.py"),
+         "--scored", str(scored), "--project", str(project), "--outdir", str(final)],
+        "summarize",
+    )
+    table = final / "final_target_candidates.tsv"
+    if table.is_file():
+        lines = table.read_text(encoding="utf-8").strip().split("\n")
+        print(f"final candidates: {table} ({max(0, len(lines) - 1)} rows)")
+        for line in lines[:6]:
+            print(line[:200])
+    return 0
+
+
 def print_table(path: Path, columns: tuple[str, ...], title: str) -> None:
     if not path.is_file():
         print(f"=== {title}：没有达到推荐门槛的条目 ===")
@@ -196,10 +327,48 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-discovery", action="store_true",
                         help="Do not run the literature route even when the library misses.")
     parser.add_argument("--dry-run", action="store_true", help="Show the plan, run nothing.")
+    parser.add_argument("--ec", default="", help="Converged EC number. Turns the handoff to entry A on.")
+    parser.add_argument("--select", default="",
+                        help="Pick a candidate by target_id from the previous run's candidate tables "
+                             "and continue with entry A. This is the documented handoff: B ranks, the "
+                             "user selects, A executes.")
+    parser.add_argument("--select-taxon", default="",
+                        help="Restrict the screening to this taxon_id's proteome (needs --proteome "
+                             "or a resolvable local path).")
+    parser.add_argument("--enzyme-name", default="", help="Enzyme name for the card (defaults to the topic).")
+    parser.add_argument("--proteome", type=Path, default=None,
+                        help="Candidate proteome FASTA for the screening step.")
+    parser.add_argument("--reference-fasta", type=Path, default=None,
+                        help="Reuse an existing reference enzyme FASTA instead of fetching one.")
+    parser.add_argument("--threads", type=int, default=16)
     args = parser.parse_args(argv)
 
     outdir = args.output_dir
     outdir.mkdir(parents=True, exist_ok=True)
+
+    # The handoff: B produced the ranking, the user picked one row, A executes it. Nothing is
+    # re-derived here — the EC and name come from the row the user chose.
+    if args.select:
+        chosen = select_candidate(outdir, args.select)
+        args.ec = (chosen.get("ec") or "").strip()
+        args.enzyme_name = (chosen.get("name") or args.topic).strip()
+        print(f"selected: {args.select}  {chosen.get('name','')}")
+        print(f"  ec          : {args.ec or '—'}")
+        print(f"  evidence    : {chosen.get('evidence_status','')} {chosen.get('evidence_refs','')}")
+        if not args.ec:
+            print()
+            print("ASK THE USER: 这一条没有 EC，只有家族名。")
+            print("  入口 A 需要 EC 或反应式才能筛（同族不同 EC 的底物/辅因子不同）。")
+            print("  给出 EC 后重跑：")
+            print(f"    python3 scripts/run_entry_b.py --topic {json.dumps(args.topic, ensure_ascii=False)} "
+                  f"--site {args.site} --select {args.select} --ec <EC> "
+                  f"--proteome <候选蛋白组>.faa --output-dir {outdir}")
+            return 2
+        if args.dry_run:
+            print(f"plan: 入口 A（建档 -> 取模板 -> 筛选 -> 评分 -> 汇总）使用 EC {args.ec}")
+            return 0
+        args.reference_fasta = args.reference_fasta
+        return run_entry_a(args, outdir, args.reference_fasta)
 
     print(f"topic: {args.topic}")
     print(f"site : {args.site}")
@@ -227,7 +396,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"library domains in play: {domains or '—'}")
 
     if args.dry_run:
-        print("plan: seed registries -> discover literature -> score --auto-score -> shortlist")
+        plan = "seed registries -> discover literature -> score --auto-score -> shortlist"
+        if args.ec:
+            plan += f" -> 交棒入口 A（EC {args.ec}：建档 -> 取模板 -> 筛选 -> 评分 -> 汇总）"
+        print(f"plan: {plan}")
         return 0
 
     registries: list[Path] = []
@@ -298,6 +470,12 @@ def main(argv: list[str] | None = None) -> int:
     result = run(cmd, "shortlist")
     print(result.stdout.strip())
 
+    if args.ec:
+        print()
+        print(f"收敛到 EC {args.ec}：交棒给入口 A")
+        ref = args.reference_fasta
+        return run_entry_a(args, outdir, ref)
+
     print()
     print_table(outdir / "candidates" / "recommended_enzymes.tsv",
                 ("rank", "name", "ec", "priority_score", "scored_components", "evidence_status"),
@@ -323,6 +501,11 @@ def main(argv: list[str] | None = None) -> int:
                   f"--site {args.site} --output-dir {outdir / 'taxa'}")
     print()
     print(f"完整表：{outdir / 'candidates'}")
+    print()
+    print("选好之后接入口 A（把 <target_id> 换成表里的 id）：")
+    print(f"  python3 scripts/run_entry_b.py --topic {json.dumps(args.topic, ensure_ascii=False)} "
+          f"--site {args.site} --select <target_id> --proteome <候选蛋白组>.faa "
+          f"--output-dir {outdir}")
     return 0
 
 

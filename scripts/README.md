@@ -72,6 +72,10 @@ Available scripts:
   reference actually supports (including "this is only a prediction" or "the evidence is from
   another body site"), stored verbatim in `provenance_note_zh`. `curated_prior` may also carry
   refs, so retrieval stays visible while the gate still quarantines the entry.
+- `merge_source_annotations.py`: fills the empty `annotation` column of a candidate table from
+  `parse_source_annotations.py` output, keyed on accession; never overwrites an existing value.
+  Needed because `parse_sequence_hits.py` cannot know product names (the FASTA carries accessions
+  only), and the fast path is a comparison against the candidate's own annotation.
 - `run_entry_b.py`: entry B in one command. Only a focus phrase is required: it searches the
   library menu, seeds registries from the matching domain when covered, runs literature discovery
   when not (a CJK topic is mapped through a fixed domain-term table to an English query; if nothing

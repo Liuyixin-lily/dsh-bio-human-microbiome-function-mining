@@ -3457,6 +3457,45 @@ def main() -> int:
         assert len(lines) == 3, lines  # header + 111 + 222, not the duplicate 111
         assert "\t111\t" in merged.read_text(encoding="utf-8")
 
+        # project.json may store the card as a path string; score_candidates must resolve it
+        card_file = tmp / "card.json"
+        card_file.write_text(json.dumps({
+            "target_id": "t", "enzyme_name": "alcohol dehydrogenase (NAD+)", "ec": "1.1.1.1",
+            "reaction": "alcohol + NAD+ = aldehyde + NADH", "substrate": "alcohol",
+            "product": "aldehyde", "input_source": "ec",
+        }), encoding="utf-8")
+        project = tmp / "project.json"
+        project.write_text(json.dumps({"target_function_card": "card.json"}), encoding="utf-8")
+        candidates = tmp / "cands.tsv"
+        candidates.write_text(
+            "candidate_id\tprotein_accession\tassembly_accession\torganism_or_strain\t"
+            "annotation\tevidence_class\tpident\tquery_coverage\tevalue\tbitscore\ttool\ttool_version\n"
+            "WP_1\tWP_1\tGCA_1\tStaphylococcus epidermidis\talcohol dehydrogenase AdhP\t"
+            "sequence_supported\t100\t100\t1e-200\t500\tdiamond\t2.1.11\n",
+            encoding="utf-8",
+        )
+        scored_out = tmp / "scored.tsv"
+        scored = subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_candidates.py"), "--input", str(candidates),
+             "--project", str(project), "--output", str(scored_out)],
+            capture_output=True, text=True,
+        )
+        assert scored.returncode == 0, scored.stderr
+        assert "Traceback" not in scored.stderr
+        assert scored_out.is_file()
+
+        # and summarize_candidates must resolve the same path-string card
+        final_out = tmp / "final"
+        summarized = subprocess.run(
+            [sys.executable, str(SCRIPTS / "summarize_candidates.py"),
+             "--scored", str(scored_out), "--project", str(project),
+             "--outdir", str(final_out)],
+            capture_output=True, text=True,
+        )
+        assert summarized.returncode == 0, summarized.stderr
+        assert "Traceback" not in summarized.stderr
+        assert (final_out / "final_target_candidates.tsv").is_file()
+
         # a domain that does not exist is a clean error, not a traceback
         bad = subprocess.run(
             [sys.executable, str(SCRIPTS / "run_entry_b.py"), "--topic", "x", "--site", "skin",
@@ -3547,6 +3586,59 @@ def main() -> int:
         )
         assert asked.returncode in (1, 2), asked.stdout
         assert "ASK THE USER" in asked.stderr or "no enzyme registry" in asked.stderr
+
+    # the fast path compares names: a parenthetical cofactor must not block a real match
+    sc_spec = importlib.util.spec_from_file_location("score_candidates", SCRIPTS / "score_candidates.py")
+    sc = importlib.util.module_from_spec(sc_spec)
+    assert sc_spec.loader is not None
+    sc_spec.loader.exec_module(sc)
+    assert sc.name_variants("alcohol dehydrogenase (NAD+)")[0] == "alcohol dehydrogenase (nad+)"
+    assert "alcohol dehydrogenase" in sc.name_variants("alcohol dehydrogenase (NAD+)")
+    assert sc.annotation_matches_target(
+        {"annotation": "MULTISPECIES: alcohol dehydrogenase AdhP"},
+        set(), {"alcohol dehydrogenase (nad+)"},
+    )
+    # a different enzyme must not match on the family word alone
+    assert not sc.annotation_matches_target(
+        {"annotation": "glucose 6-phosphate dehydrogenase"}, set(), {"alcohol dehydrogenase (nad+)"},
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # source annotation merge fills blanks and never overwrites
+        cands = tmp / "cands.tsv"
+        cands.write_text(
+            "candidate_id\tprotein_accession\tannotation\n"
+            "WP_1\tWP_1\t\n"
+            "WP_2\tWP_2\tkept as is\n",
+            encoding="utf-8",
+        )
+        anns = tmp / "anns.tsv"
+        anns.write_text(
+            "protein_accession\tproduct\n"
+            "WP_1\talcohol dehydrogenase AdhP\n"
+            "WP_2\tsomething else\n",
+            encoding="utf-8",
+        )
+        out = tmp / "merged.tsv"
+        merged = subprocess.run(
+            [sys.executable, str(SCRIPTS / "merge_source_annotations.py"),
+             "--candidates", str(cands), "--annotations", str(anns), "--output", str(out)],
+            capture_output=True, text=True,
+        )
+        assert merged.returncode == 0, merged.stderr
+        rows = {r["candidate_id"]: r for r in csv.DictReader(out.open("r", encoding="utf-8"), delimiter="\t")}
+        assert rows["WP_1"]["annotation"] == "alcohol dehydrogenase AdhP"
+        assert rows["WP_2"]["annotation"] == "kept as is"
+        # an annotations file without a usable column is a clean error, not a silent no-op
+        bad_anns = tmp / "bad.tsv"
+        bad_anns.write_text("foo\tbar\nbaz\tqux\n", encoding="utf-8")
+        bad = subprocess.run(
+            [sys.executable, str(SCRIPTS / "merge_source_annotations.py"),
+             "--candidates", str(cands), "--annotations", str(bad_anns), "--output", str(tmp / "x.tsv")],
+            capture_output=True, text=True,
+        )
+        assert bad.returncode != 0 and "accession column" in bad.stderr
 
     print("example test passed")
     return 0

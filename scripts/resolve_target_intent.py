@@ -207,9 +207,16 @@ ENZYME_FAMILY_TERMS = (
     "水解酶", "裂解酶", "脱羧酶", "脱氨酶", "合成酶", "转移酶", "氧化酶",
     "还原酶", "蛋白酶", "肽酶", "脂肪酶", "酯酶", "糖苷酶", "硫酸酯酶",
     "磷酸酶", "激酶", "转氨酶", "脱水酶", "异构酶", "连接酶",
+    "脱氢酶", "醇脱氢酶", "醛脱氢酶", "加氧酶", "单加氧酶", "双加氧酶",
+    "偶氮还原酶", "硝基还原酶", "葡萄糖醛酸苷酶", "环氧化物水解酶", "磺基转移酶",
+    "乙酰转移酶", "甲基转移酶", "氧化还原酶", "谷胱甘肽转移酶",
     "lipase", "protease", "peptidase", "hydrolase", "lyase", "decarboxylase",
     "transferase", "oxidase", "reductase", "kinase", "phosphatase", "esterase",
     "glycosidase", "sulfatase", "dehydratase", "isomerase",
+    "dehydrogenase", "alcohol dehydrogenase", "aldehyde dehydrogenase",
+    "oxygenase", "monooxygenase", "dioxygenase", "azoreductase", "nitroreductase",
+    "glucuronidase", "epoxide hydrolase", "sulfotransferase", "acetyltransferase",
+    "methyltransferase", "oxidoreductase", "glutathione transferase",
 )
 
 
@@ -468,6 +475,49 @@ def plan_route(detected: dict[str, Any], coverage: dict[str, Any]) -> dict[str, 
         return {"entry": "A", "confidence": "high", "reason_zh": "问题里含底物-产物反应式。",
                 "steps": steps,
                 "missing": [] if site_hit else ["候选基因组 / 数据来源"]}
+
+    # 2b. an enzyme FAMILY name without an EC or a reaction is a focus point, not a target.
+    # "alcohol dehydrogenase in S. epidermidis" names what to look for, not which activity:
+    # EC 1.1.1.1, 1.1.1.2, 1.1.1.4 and the zinc-dependent family all differ. Entry B converges first.
+    if enzymes and not ecs and not detected["reaction_marker"]:
+        family = "、".join(enzymes[:3])
+        taxon_text = f"，菌是 {'、'.join(taxa[:2])}" if taxa else ""
+        return {
+            # B 不是终点：它把"关注点"收敛成一个 EC 之后就交给 A。标签写出来，避免把
+            # "还没有目标" 误读成 "不需要建档/筛选"。
+            "entry": "B→A",
+            "confidence": "medium",
+            "reason_zh": (
+                f"问题里给的是酶家族名（{family}）{taxon_text}，没有 EC / 反应 / 序列，"
+                "所以是关注点而不是目标：同一个家族名对应多个 EC 与多种折叠。"
+            ),
+            "steps": [
+                _step(
+                    "先收敛：一个家族名通常对应多个 EC（底物与辅因子不同），需要你定一个。",
+                    "# 需要你确认：该家族按 IUBMB 对应哪个 EC（ExplorEnz 可查），"
+                    "或直接给出一个反应式；插件不替你选 EC。",
+                    ["一个 EC 号，或一个反应式"],
+                ),
+                _step(
+                    "收敛后建档（入口 A 的动作），把酶名、EC、反应写进卡片。",
+                    "python3 scripts/build_target_function_card.py --input-source ec --ec <EC> "
+                    "--enzyme-name \"<酶名>\" --output outputs/task/target_function_card.json",
+                ),
+                _step(
+                    "按卡片筛候选基因组（序列通道），命中后再谈结构。",
+                    "python3 scripts/run_diamond.py --project project.json "
+                    "--query outputs/reference/reference_enzyme_set.faa --db <候选蛋白组>.faa "
+                    "--outdir outputs/screening",
+                    ["候选基因组蛋白组（或让 genome-search 先给候选装配）"],
+                ),
+                _step(
+                    "同族多候选时先排序，再让你挑先做哪个。",
+                    "python3 scripts/score_target_priorities.py --seed-from-library library/<domain>.json "
+                    "--output outputs/task/priorities",
+                ),
+            ],
+            "missing": ["一个 EC 号或一个反应式"],
+        }
 
     # 3. taxon named -> site-generic genome route, plus library if it happens to cover it
     if taxa:

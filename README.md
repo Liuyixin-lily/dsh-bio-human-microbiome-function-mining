@@ -199,6 +199,23 @@ python3 scripts/browse_target_library.py --validate
 
 ---
 
+## B → A：选完候选后交棒 / after the ranking, hand off to entry A
+
+入口 B 出排序表，你选一条，然后用同一个命令交棒给入口 A（建档 → 取模板 → 筛选 → 评分 → 汇总）：
+
+```bash
+# 第一次：只出候选清单
+python3 scripts/run_entry_b.py --topic "Staphylococcus epidermidis 的醇脱氢酶" --site skin \
+    --output-dir outputs/task/adh
+
+# 选好 target_id 之后：交棒入口 A（用 --select）
+python3 scripts/run_entry_b.py --topic "Staphylococcus epidermidis 的醇脱氢酶" --site skin \
+    --select <target_id> --ec 1.1.1.1 --proteome <候选蛋白组>.faa \
+    --output-dir outputs/task/adh
+```
+
+`--select` 只从上一轮的表里读那一行的名称/EC/证据，不重新推导；若该行没有 EC，它会停下来要你给 EC（同族不同 EC 底物不同）。
+
 ## Entry B in one command / 入口 B 一条命令
 
 只给关注点，剩下按固定路线走完：
