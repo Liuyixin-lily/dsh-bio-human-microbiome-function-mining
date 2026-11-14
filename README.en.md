@@ -90,10 +90,12 @@ domain (body site)  ->  process (physiological process)  ->  enzyme (the actual 
 
 Users rarely know which enzyme they want; they know a phenotype ("skin metabolism", "oily skin", "body odour"). The library is what catches that phrasing: it lists `process` entries first, then the `enzyme` targets inside a process. Each target carries its EC number plus an EC confidence level, reaction, substrate/product, fold hint, known microbial examples, a recommended workflow **entry point** (`reaction` / `ec` / `sequence`), a `dark_matter` flag, a priority, an honest provenance note, and one experiment that would falsify the proposed function.
 
-| Library file | Content |
-| --- | --- |
-| `library/skin.json` | Skin, `curated`: 10 processes / 19 enzyme targets (sebum lipolysis, ceramide homeostasis, surface acidification, ureolysis, thioalcohol body odour, amino-acid volatiles, nitrate-NO, hyaluronan degradation, Malassezia lipid dependence, lantibiotic competition) |
-| `library/gut.json` | Gut, `starter`: 5 processes / 8 enzyme targets (bile salt deconjugation, secondary bile acids, TMA, butyrate, tryptophan-indole) |
+| Library file | Content | role |
+| --- | --- | --- |
+| `library/skin.json` | Skin, `curated`: 10 processes / 19 enzyme targets (sebum lipolysis, ceramide homeostasis, surface acidification, ureolysis, thioalcohol body odour, amino-acid volatiles, nitrate-NO, hyaluronan degradation, Malassezia lipid dependence, lantibiotic competition) | `shipped_example` |
+| `library/gut.json` | Gut, `starter`: 5 processes / 8 enzyme targets (bile salt deconjugation, secondary bile acids, TMA, butyrate, tryptophan-indole) | `shipped_example` |
+
+**Those two domains are reference examples, not a coverage claim.** They are skin and gut because the plugin grew out of those two projects, not because of any coverage argument. The per-site capability is generic: target cards, `genome-search` (seven built-in site vocabularies), sequence/structure/annotation/literature evidence are all site-agnostic — only the *menu* of "which enzymes are worth screening at this site" is limited. `--list-domains` prints the same reminder.
 
 ```bash
 # which body sites are available

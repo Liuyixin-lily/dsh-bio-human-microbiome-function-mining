@@ -1,5 +1,30 @@
 # Target library / 目标库
 
+## 为什么只有两个部位
+
+必须先说清楚：`skin.json` 和 `gut.json` 是**示例参考域**（`role: shipped_example`），不是人体微生物组的覆盖范围。
+
+它们之所以是这两个部位，没有覆盖性论证——皮肤来自最初的"表皮葡萄球菌是否有神经酰胺/磷酸胆碱相关酶"问题，肠道来自已有的肠道工作。换句话说，这反映的是一个课题组的调研范围，不是一个人体微生物组靶点全集。
+
+**插件能做的人体部位远多于两个。** 按部位做的能力是通用的：
+
+| 环节 | 是否受库限制 |
+| --- | --- |
+| 目标建档（EC / 反应 / 序列） | 不受限，任何部位都行 |
+| 按部位挑基因组（genome-search） | 不受限，内置 skin / oral / gut / respiratory / urogenital / blood / environment |
+| 序列、结构、注释、文献证据 | 不受限 |
+| **"这个部位有哪些酶值得筛"的菜单** | **受库限制** |
+
+所以库只是一份**菜单**，不是能力边界。三种情况分开处理：
+
+1. **用户能说出目标** → 走入口 A，`library/` 完全不参与。
+2. **用户知道部位、说不出目标** → 库没覆盖时不要硬编，先用 `resolve_target_intent.py` 把问题route到文献检索与收敛步骤；或者先用 `genome-search --source <部位>` 把该部位的基因组和注释拿到手，再在有真实序列的基础上选靶点。
+3. **用户要长期在这个部位工作** → 用 `build_library_domain.py` 生成一个 `role: user_defined` 的域。生成域必须 `content_status: starter`，每个酶的 `evidence_refs` 强制为空，写盘前要过真实校验。
+
+如果你希望库里出现更多部位，正确做法不是让我凭记忆补条目，而是先跑 `literature-evidence` 把该部位的关键酶查实，再用 spec 生成——这样条目带 `provenance_source`，而不是"看起来像真的"。
+
+---
+
 这是一个**可浏览、可搜索、可选择**的靶点库，用来把用户模糊的自然语言兴趣变成可执行的筛选目标。
 
 > 它是**可选入口**，不是必经步骤。用户已经能说出酶名 / EC 号 / 底物-产物反应 / 一段序列时，直接走 `build-target-function-card` 建卡片，不要绕到这里。只有在用户说不出目标、只知道关注什么的时候才用库。
@@ -14,10 +39,11 @@ domain（身体部位 / 生态位）
 
 ## 文件
 
-| 文件 | 内容 |
-| --- | --- |
-| `skin.json` | 皮肤域，`content_status: curated`，10 个 process / 19 个酶目标 |
-| `gut.json` | 肠道域，`content_status: starter`，5 个 process / 8 个酶目标 |
+| 文件 | 内容 | role |
+| --- | --- | --- |
+| `skin.json` | 皮肤，10 个 process / 19 个酶目标 | `shipped_example` |
+| `gut.json` | 肠道，5 个 process / 8 个酶目标 | `shipped_example` |
+| 你自己生成的 `<site>.json` | 任意部位 | `user_defined`（由生成器自动写入） |
 | `../schemas/target_library.schema.json` | 库文件的 JSON Schema 契约 |
 
 `starter` 表示“只覆盖最常被问到的几条轴，别当完整清单用”。新增身体部位就新增一个 `<domain>.json`，不需要改代码。

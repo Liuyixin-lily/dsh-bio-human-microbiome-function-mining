@@ -119,6 +119,13 @@
               "type": "string"
             }
           }
+        },
+        "role": {
+          "enum": [
+            "shipped_example",
+            "user_defined"
+          ],
+          "description": "shipped_example = a reference domain that ships with the plugin to show the shape of a target and give a zero-config start; it is NOT a coverage claim. user_defined = a domain someone added for their own body site."
         }
       }
     },

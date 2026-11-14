@@ -416,6 +416,20 @@ def main() -> int:
             ).stdout
         )
         assert {d["id"] for d in domains} >= {"skin", "gut"}
+        # the shipped domains are reference examples, not a coverage claim
+        assert all(d["role"] == "shipped_example" for d in domains if d["id"] in {"skin", "gut"})
+
+        # the CLI must say so out loud, and must point at the library-free routes
+        banner = subprocess.run(
+            [sys.executable, str(browse), "--list-domains"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        assert "示例参考域" in banner
+        assert "不是人体微生物组的覆盖范围" in banner
+        assert "genome-search" in banner
+        assert "build_library_domain.py" in banner
 
         # natural-language keyword search must resolve a user phrase to a process
         hits = json.loads(
@@ -689,6 +703,7 @@ def main() -> int:
         payload = json.loads(built.read_text(encoding="utf-8"))
         # the honesty invariants are enforced by the builder, not by convention
         assert payload["domain"]["content_status"] == "starter"
+        assert payload["domain"]["role"] == "user_defined"
         assert payload["domain"]["expansion"]["method"] == "generated_from_spec"
         built_enzyme = payload["domain"]["processes"][0]["enzymes"][0]
         assert built_enzyme["evidence_status"] == "curated_prior"
@@ -721,6 +736,19 @@ def main() -> int:
         )
         assert bad.returncode == 1
         assert "generated from a spec must stay content_status='starter'" in bad.stderr
+
+        # a generated domain also may not relabel itself as a shipped example
+        tampered2 = json.loads(json.dumps(payload))
+        tampered2["domain"]["role"] = "shipped_example"
+        (built_dir / "bad2.json").write_text(json.dumps(tampered2, ensure_ascii=False), encoding="utf-8")
+        bad2 = subprocess.run(
+            [sys.executable, str(browse), "--library-dir", str(built_dir), "--validate"],
+            capture_output=True,
+            text=True,
+        )
+        assert bad2.returncode == 1
+        assert "must be role='user_defined'" in bad2.stderr
+        (built_dir / "bad2.json").unlink()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)

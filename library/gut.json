@@ -469,6 +469,7 @@
     "expansion": {
       "method": "manual_curation",
       "note_zh": "手工策展的种子清单，只覆盖最常被问到的 5 条代谢轴。"
-    }
+    },
+    "role": "shipped_example"
   }
 }

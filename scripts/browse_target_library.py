@@ -57,6 +57,7 @@ ENUM_PRIORITY = {"high", "medium", "low"}
 ENUM_EVIDENCE = {"curated_prior", "literature_verified"}
 ENUM_ATTENTION = {"high", "medium", "low"}
 ENUM_CONTENT_STATUS = {"curated", "starter"}
+ENUM_DOMAIN_ROLE = {"shipped_example", "user_defined"}
 PROVENANCE_SOURCES = (
     "user_supplied",
     "iubmb_enzyme",
@@ -233,6 +234,9 @@ def validate_library(payloads: list[dict[str, Any]]) -> list[str]:
             errors,
         )
 
+        if domain.get("role") is not None:
+            _check_enum(domain.get("role"), ENUM_DOMAIN_ROLE, source, "domain.role", errors)
+
         expansion = domain.get("expansion")
         generated = isinstance(expansion, dict) and expansion.get("method") == "generated_from_spec"
         if expansion is not None:
@@ -247,6 +251,11 @@ def validate_library(payloads: list[dict[str, Any]]) -> list[str]:
                     "domain.expansion.method",
                     errors,
                 )
+                if generated and domain.get("role") == "shipped_example":
+                    errors.append(
+                        f"{source}: a domain generated from a spec must be role='user_defined'; "
+                        "only the domains shipped with the plugin are reference examples"
+                    )
                 if generated and domain.get("content_status") != "starter":
                     errors.append(
                         f"{source}: a domain generated from a spec must stay content_status='starter'; "
@@ -672,9 +681,11 @@ def fmt_keywords(items: list[str], limit: int = 8) -> str:
 def render_domain_line(domain: dict[str, Any]) -> str:
     n_process = len(domain.get("processes") or [])
     n_enzyme = sum(len(p.get("enzymes") or []) for p in domain.get("processes") or [])
+    role = domain.get("role")
+    role_tag = "" if role in (None, "shipped_example") else f" [{role}]"
     return (
         f"{domain['id']:<8} {domain['name_zh']} / {domain['name_en']} "
-        f"[{domain.get('content_status')}]  {n_process} processes, {n_enzyme} enzyme targets"
+        f"[{domain.get('content_status')}]{role_tag}  {n_process} processes, {n_enzyme} enzyme targets"
     )
 
 
@@ -1178,6 +1189,7 @@ def main(argv: list[str] | None = None) -> int:
                             "name_zh": d["name_zh"],
                             "name_en": d["name_en"],
                             "content_status": d.get("content_status"),
+                            "role": d.get("role", "shipped_example"),
                             "processes": [p["id"] for p in d.get("processes") or []],
                         }
                         for d in index.domains
@@ -1187,9 +1199,28 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         else:
+            shipped = [d for d in index.domains if d.get("role", "shipped_example") == "shipped_example"]
+            user_made = [d for d in index.domains if d.get("role") == "user_defined"]
             print("Available domains / 可选身体部位：")
             for i, domain in enumerate(index.domains, 1):
                 print(f"  {i}) {render_domain_line(domain)}")
+            if shipped:
+                print()
+                print(
+                    f"注意：其中 {len(shipped)} 个域（{', '.join(d['id'] for d in shipped)}）是随插件提供的"
+                    "示例参考域，用来展示一个靶点应该长什么样，"
+                    "不是人体微生物组的覆盖范围。"
+                )
+                print(
+                    "      其他部位（口腔 / 阴道 / 呼吸道 …）不需要库也能做：给出 EC/反应/序列即可走入口 A，"
+                    "再用 genome-search 的 --source 挑该部位基因组。"
+                )
+                print(
+                    "      想在这个部位长期工作，用 build_library_domain.py 生成一个 user_defined 域；"
+                    "列表里 user_defined 的域会单独标注。"
+                )
+            if user_made:
+                print(f"      你自己添加的域：{', '.join(d['id'] for d in user_made)}")
 
     if args.list_processes:
         did_something = True

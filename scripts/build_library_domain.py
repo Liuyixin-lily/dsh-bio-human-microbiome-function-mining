@@ -279,6 +279,8 @@ def build_payload(spec: dict[str, Any], spec_path: Path, version: str | None) ->
         processes.append(proc)
 
     domain["content_status"] = "starter"
+    # a generated domain is someone's own body site, not a shipped reference example
+    domain["role"] = "user_defined"
     domain["focus_taxa"] = normalised_taxa
     domain["processes"] = processes
     domain["expansion"] = {
