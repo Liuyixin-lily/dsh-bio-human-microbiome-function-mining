@@ -45,12 +45,35 @@ human_microbiome_function_mining/
 
 ---
 
-## Before anything runs
+## Two ways in
+
+The plugin has **two peer entries**. Which one you take depends only on what the
+user already has; neither is preferred and neither runs first.
+
+| What the user has | Which entry | Key skill |
+| --- | --- | --- |
+| **A nameable target**: enzyme name, EC number, substrate-product reaction, or a sequence | **Entry A · explicit card** (start here directly, no library step) | `build-target-function-card` |
+| **Only an interest**: a physiological process, a phenotype, a body site, or "which microbes are worth looking at?" | **Entry B · pick from the target library** (the library opens up the three levels for the user) | `browse-target-library` |
+
+Both converge at `target_function_card.json`; everything after that is identical.
+They also compose: pick with entry B, then review the fields with entry A. **When
+the target is already known, do not detour through the library** — it adds a step
+and buys nothing.
+
+---
+
+## Before anything runs (after the target is known)
+
+**The order is: settle the target first, then ask only for what that target needs.** A card-only task should not trigger questions about Bakta or DEER; asking for a server and a database before knowing the target makes the user pay for paths that will never be used.
 
 The plugin bundles no heavy tools, so "can this actually run?" has to be asked, not assumed. The costliest failures in a real project were all environmental: a tool invoked by absolute path without its conda env on `PATH` (`foldseek: command not found`), another needing `PYTHONPATH`, a third hanging while trying to fetch a checkpoint from Hugging Face on a machine with no network, Bakta unable to start because `BAKTA_DB_FULL` was unset, and a shared box already running 146 processes from someone else's project.
 
 ```bash
-python3 scripts/intake_environment.py --ask
+# scope the questionnaire to the task: card touches no external software at all
+python3 scripts/intake_environment.py --ask --task card
+python3 scripts/intake_environment.py --ask --task screening     # DIAMOND + CD-HIT only
+python3 scripts/intake_environment.py --ask --task structure     # plus US-align
+python3 scripts/intake_environment.py --ask                      # full six groups, when needed
 python3 scripts/intake_environment.py --init --output environment.json
 python3 scripts/intake_environment.py --probe --config environment.json \
     --output-card environment_card.json --output-report environment_report.md
@@ -90,23 +113,6 @@ disabled because deduplication is mandatory. A tool whose declared env path is m
 keeps its `env` block so the user can fix it, but is not enabled.
 
 Two hard rules: **a path is not a working tool** (no version means `unverified`, because the real problem usually only appears at run time), and **permission is separate from capability** (if `allow_local_execution` is not true, produce commands only, however ready the tools look). `--check-network` probes NCBI / RCSB / Hugging Face before any auto-downloading step.
-
-## Two ways in
-
-The plugin has **two peer entries**. Which one you take depends only on what the
-user already has; neither is preferred and neither runs first.
-
-| What the user has | Which entry | Key skill |
-| --- | --- | --- |
-| **A nameable target**: enzyme name, EC number, substrate-product reaction, or a sequence | **Entry A · explicit card** (start here directly, no library step) | `build-target-function-card` |
-| **Only an interest**: a physiological process, a phenotype, a body site, or "which microbes are worth looking at?" | **Entry B · pick from the target library** (the library opens up the three levels for the user) | `browse-target-library` |
-
-Both converge at `target_function_card.json`; everything after that is identical.
-They also compose: pick with entry B, then review the fields with entry A. **When
-the target is already known, do not detour through the library** — it adds a step
-and buys nothing.
-
----
 
 ## Skills
 

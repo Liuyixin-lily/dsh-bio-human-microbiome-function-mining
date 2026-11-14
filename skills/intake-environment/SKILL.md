@@ -10,9 +10,30 @@ metadata:
 
 # Intake Environment
 
-Load this skill **before running any tool**, on every new task. It is the step that
-answers "can I actually run this, and am I allowed to?" — as opposed to
-`preflight_inputs.py`, which answers "are the task inputs present?".
+Load this skill **before running any tool**, on every new task. It answers "can I actually
+run this, and am I allowed to?" — as opposed to `preflight_inputs.py`, which answers "are
+the task inputs present?".
+
+**It comes after the target, not before it.** Settle what is being screened (entry A with an
+EC / reaction / sequence, or entry B from the library) first, then scope the questionnaire to
+what that target needs:
+
+```bash
+python3 scripts/intake_environment.py --ask --task card        # no external software at all
+python3 scripts/intake_environment.py --ask --task screening   # DIAMOND + CD-HIT
+python3 scripts/intake_environment.py --ask --task structure   # + US-align, structure source
+python3 scripts/intake_environment.py --ask                    # full six groups
+python3 scripts/intake_environment.py --ask --task full        # everything incl. Bakta/FedKEA/DEER
+```
+
+Asking for a server, a Bakta database and a DEER checkpoint before knowing whether the task
+touches a genome makes the user answer questions about paths that will never be used. Two
+orders are easy to confuse:
+
+- **conversation order**: target first, then the environment needed for it;
+- **execution order**: nothing runs until the environment is verified.
+
+Scope only the *conversation*. The execution rule never relaxes.
 
 ## Why this exists
 

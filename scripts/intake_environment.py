@@ -72,6 +72,76 @@ DATABASES = [
     ("GMPS_SPECIES_MAP", "GMPS 分卷-物种对照表"),
 ]
 
+# The questionnaire is scoped by what the task actually needs. Asking about Bakta
+# before knowing whether any genome is involved is noise, and asking about DEER before
+# knowing whether US-align suffices is worse than noise.
+TASK_PROFILES: dict[str, dict[str, Any]] = {
+    "card": {
+        "label": "只建目标卡片 / build the target card only",
+        "groups": ("execution", "data"),
+        "note": "不需要任何外部软件；只要目标定义清楚就能建卡。",
+    },
+    "screening": {
+        "label": "序列筛选 / sequence screening",
+        "groups": ("execution", "data", "tools_core", "network"),
+        "note": "需要 DIAMOND + CD-HIT；若没有现成候选蛋白组，还要基因组来源。",
+    },
+    "structure": {
+        "label": "序列 + 结构筛选 / sequence plus structure",
+        "groups": ("execution", "data", "tools_core", "tools_structure", "network"),
+        "note": "在序列筛选之上加 US-align；候选没有结构时还要 PDB/AFDB 或建模工具。",
+    },
+    "full": {
+        "label": "完整流程 / full workflow",
+        "groups": ("execution", "tools_all", "databases", "data", "network"),
+        "note": "全部工具与数据库：注释、酶学预测、结构检索、文献。",
+    },
+}
+
+GROUP_LABEL = {
+    "execution": "执行位置与许可",
+    "data": "数据路径",
+    "tools_core": "序列筛选工具",
+    "tools_structure": "结构工具",
+    "tools_all": "全部外部软件",
+    "databases": "数据库",
+    "network": "网络与资源约束",
+}
+
+GROUP_TEXT = {
+    "execution": """1. 在哪里跑？
+   - 本机，还是远程服务器（host / 用户名 / 端口）？
+   - 是否允许我这边直接连上去执行？还是只能我给命令、你来跑、把结果拿回来？
+   - 工作目录（可写）是哪个？""",
+    "data": """数据路径
+   - 目标序列 / 目标结构模板（有就给绝对路径，没有就说没有）
+   - 候选蛋白 FASTA（或候选基因组 .faa/.gbff、结构目录）
+   - 这些文件在哪个机器上？""",
+    "tools_core": """2. 序列筛选工具（有就给绝对路径，没有就说没有）
+   DIAMOND、CD-HIT
+   - 是否依赖 conda 环境或特殊环境变量？""",
+    "tools_structure": """3. 结构工具
+   US-align（必需）；DEER（只在 US-align 候选不足时才用）
+   - 候选结构从哪来：已有的 PDB/AFDB 文件、还是要现场预测（ESMFold / 同源建模）？
+   - 若用 DEER：checkpoint 与脚本路径？""",
+    "tools_all": """4. 全部外部软件（有就给绝对路径）
+   DIAMOND / CD-HIT / US-align / DEER / FedKEA / Bakta / SignalP / ESMFold
+   - 每个是否需要 conda 环境或环境变量？
+     （已知坑：FedKEA 调裸 `python` 需 PATH + LD_LIBRARY_PATH；SignalP 需 PYTHONPATH；
+       DEER 需 PATH + PYTHONPATH，且无外网时必须离线）""",
+    "databases": """5. 数据库
+   - Bakta：全库还是轻库，路径？
+   - AlphaFold DB / PDB：本地镜像还是按需下载？
+   - FedKEA 权重 / DEER checkpoint 在哪？
+   - GMPS（可选，仅肠道）：注释表/结构卷路径？""",
+    "network": """6. 约束
+   - 这台机器能联网吗？（NCBI / RCSB / HuggingFace）
+   - 磁盘配额、单任务时限、有没有不能碰的目录？""",
+}
+
+PERMISSION_QUESTION = "另外请明确一句：**你允许我在本机直接执行脚本，还是所有命令都由你手动运行？**"
+
+
 QUESTIONNAIRE = """\
 在跑任何流程之前，请先回答下面 6 组问题。不知道的直接说“不知道”——我不会替你猜，
 也不会假设某个软件已经装好。（回答后我会写进 environment.json 并逐项验证。）
@@ -691,6 +761,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--ask", action="store_true", help="Print the questionnaire to send to the user.")
+    parser.add_argument(
+        "--task",
+        choices=sorted(TASK_PROFILES),
+        default=None,
+        help="With --ask: scope the questionnaire to what this task needs (card / screening / structure / full).",
+    )
     mode.add_argument("--init", action="store_true", help="Write an environment.json skeleton.")
     mode.add_argument("--probe", action="store_true", help="Verify the environment described by --config.")
     mode.add_argument(
@@ -723,7 +799,26 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     if args.ask:
-        print(QUESTIONNAIRE)
+        if args.task is None:
+            print(QUESTIONNAIRE)
+            print()
+            print("（以上是完整问卷。先确定目标再问环境可以更省事：")
+            print("  --task card / screening / structure / full）")
+            return 0
+        profile = TASK_PROFILES[args.task]  # argparse restricts --task to these keys
+        print(f"本次任务范围：{profile['label']}")
+        print(f"说明：{profile['note']}")
+        print()
+        for group in profile["groups"]:
+            print(GROUP_TEXT[group])
+            print()
+        # never skipped, whatever the scope: this is the one answer that gates execution
+        print(PERMISSION_QUESTION)
+        print()
+        skipped = [g for g in GROUP_TEXT if g not in profile["groups"]]
+        if skipped:
+            print("这次不需要问：" + "、".join(GROUP_LABEL[g] for g in skipped))
+            print("（真要用到时再补问；不要预先索取用不上的路径。）")
         return 0
 
     if args.audit_paths is not None:

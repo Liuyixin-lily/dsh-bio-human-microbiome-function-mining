@@ -2063,6 +2063,50 @@ def main() -> int:
         )
         assert "远程执行主机" not in report2.read_text(encoding="utf-8")
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        intake = SCRIPTS / "intake_environment.py"
+
+        def ask(*extra: str) -> str:
+            return subprocess.run(
+                [sys.executable, str(intake), "--ask", *extra],
+                check=True, capture_output=True, text=True,
+            ).stdout
+
+        # the choice of target must come before the environment, so the questionnaire is
+        # scoped by task instead of asking for paths that will never be used
+        card_only = ask("--task", "card")
+        assert "本次任务范围：只建目标卡片" in card_only
+        assert "不需要任何外部软件" in card_only
+        for absent in ("Bakta", "DEER", "US-align", "DIAMOND", "GMPS"):
+            assert absent not in card_only, absent
+        assert "不需要问：序列筛选工具、结构工具、全部外部软件、数据库、网络与资源约束" in card_only
+
+        screening = ask("--task", "screening")
+        assert "DIAMOND" in screening and "CD-HIT" in screening
+        assert "Bakta" not in screening and "DEER" not in screening
+        assert "不需要问：结构工具、全部外部软件、数据库" in screening
+
+        structure = ask("--task", "structure")
+        assert "US-align" in structure
+        assert "DEER" in structure          # mentioned as the conditional fallback
+        assert "Bakta" not in structure
+
+        full = ask()
+        assert "Bakta" in full and "DEER" in full
+        assert "--task card / screening / structure / full" in full
+
+        # the execution rule never relaxes, whatever the scope
+        for text in (card_only, screening, structure, full):
+            assert "允许我在本机直接执行脚本" in text
+
+        broken = subprocess.run(
+            [sys.executable, str(intake), "--ask", "--task", "nope"],
+            capture_output=True, text=True,
+        )
+        assert broken.returncode == 2
+        assert "invalid choice" in broken.stderr
+
     print("example test passed")
     return 0
 

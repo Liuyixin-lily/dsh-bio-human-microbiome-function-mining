@@ -47,12 +47,32 @@ human_microbiome_function_mining/
 
 ---
 
-## Before anything runs / 先问环境
+## Two ways in / 两种进入方式
+
+插件有两条**并列**的入口，走哪条完全看用户手里已经有什么，没有先后、没有主次：
+
+| 用户手里有什么 | 走哪条 | 关键 skill |
+| --- | --- | --- |
+| **能说出目标**：酶名、EC 号、底物-产物反应、一段序列 | **入口 A · 显式建档**（直接开始，不经过目标库） | `build-target-function-card` |
+| **只知道关注点**：某个生理过程、表型、身体部位，或一句「都有哪些关注的菌」 | **入口 B · 从目标库选**（把三层摊开给用户挑） | `browse-target-library` |
+
+两条路在 `target_function_card.json` 汇合，之后的主流程完全一样。也可以叠加：入口 B 选完目标、用入口 A 复核字段。**已知目标时不要绕道目标库**——那是额外一步，没有收益。
+
+---
+
+## Before anything runs / 先问环境（但先定目标）
+
+**顺序是「先定目标、再按需问环境」。** 环境问卷要按任务裁剪——目标只是建卡片时，不问 Bakta、不问 DEER；不问清目标就问一圈服务器与数据库，是让用户为用不上的路径买单。
 
 插件不捆绑重型工具，所以「能不能跑」必须先问清楚，而不是假设。真实项目里最耗时的失败都属于这一类：工具用绝对路径调用但 conda 环境没进 PATH（`foldseek: command not found`）、另一个工具缺 `PYTHONPATH`、某个工具在**无外网**的机器上卡在连 HuggingFace 取 checkpoint、Bakta 因为 `BAKTA_DB_FULL` 没设而跑不起来、共享机器上已有 146 个别人的进程。
 
 ```bash
-python3 scripts/intake_environment.py --ask          # 发给用户的问卷（6 组）
+# 先按任务裁剪：card 不碰任何外部软件；screening 只要 DIAMOND/CD-HIT；structure 再加 US-align
+python3 scripts/intake_environment.py --ask --task card
+python3 scripts/intake_environment.py --ask --task screening
+python3 scripts/intake_environment.py --ask --task structure
+python3 scripts/intake_environment.py --ask          # 完整问卷（6 组），需要时再补问
+
 python3 scripts/intake_environment.py --init --output environment.json
 python3 scripts/intake_environment.py --probe --config environment.json \
     --output-card environment_card.json --output-report environment_report.md
@@ -83,19 +103,6 @@ python3 scripts/intake_environment.py --probe --config environment.json \
 规则同上：**只有 `ready` 的工具才写路径**，其余留空并 `enabled: false`；DIAMOND 就绪但 CD-HIT 缺失时 `sequence_screen` 仍为禁用（去冗余是强制步骤）；环境变量路径不存在的工具保留 `env` 便于修正但不算启用。
 
 两条硬规则：**路径存在 ≠ 能跑**（报不出版本就记 unverified，因为问题通常要到运行时才暴露）；**执行许可与能力是两件事**——`allow_local_execution` 不为 true 时，无论工具多齐都只产出命令清单。`--check-network` 可探测 NCBI / RCSB / HuggingFace 可达性，涉及自动下载的步骤必须先确认。
-
-## Two ways in / 两种进入方式
-
-插件有两条**并列**的入口，走哪条完全看用户手里已经有什么，没有先后、没有主次：
-
-| 用户手里有什么 | 走哪条 | 关键 skill |
-| --- | --- | --- |
-| **能说出目标**：酶名、EC 号、底物-产物反应、一段序列 | **入口 A · 显式建档**（直接开始，不经过目标库） | `build-target-function-card` |
-| **只知道关注点**：某个生理过程、表型、身体部位，或一句「都有哪些关注的菌」 | **入口 B · 从目标库选**（把三层摊开给用户挑） | `browse-target-library` |
-
-两条路在 `target_function_card.json` 汇合，之后的主流程完全一样。也可以叠加：入口 B 选完目标、用入口 A 复核字段。**已知目标时不要绕道目标库**——那是额外一步，没有收益。
-
----
 
 ## Skills / 技能
 

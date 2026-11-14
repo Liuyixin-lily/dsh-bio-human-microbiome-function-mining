@@ -22,12 +22,16 @@ pwd && ls -la && ls -la data/ 2>/dev/null
 - 没有输入文件：告诉用户需要放什么文件，不要猜路径。
 - 有文件：先 `head -n 5` 看格式，不要整体读进上下文。
 
-## 1b. 跑任何工具之前：先问环境（必做）
+## 1b. 跑任何工具之前：先问环境（但先定目标）
 
-不要假设软件已装好、不要假设能联网、不要假设允许本机执行。先发这一份问卷：
+不要假设软件已装好、不要假设能联网、不要假设允许本机执行。**但顺序是先定目标、再按需问环境**：
+只是建卡片时不问 Bakta、不问 DEER，否则等于让用户回答用不上的路径。按任务裁剪：
 
 ```bash
-python3 scripts/intake_environment.py --ask
+python3 scripts/intake_environment.py --ask --task card        # 只建卡：不需要任何外部软件
+python3 scripts/intake_environment.py --ask --task screening   # DIAMOND + CD-HIT
+python3 scripts/intake_environment.py --ask --task structure   # 再加 US-align
+python3 scripts/intake_environment.py --ask                    # 完整问卷
 ```
 
 六组问题：在哪跑（本机 / 远程 host / 你手动跑）、机器资源、外部软件绝对路径与
