@@ -48,6 +48,13 @@ Available scripts:
   are left to the user, with the missing cells named and the flag that would derive
   each one. Registries written for the original
   skin-only `select-candidate` skill are accepted as-is.
+- `import_gmps.py`: brings the external GMPS gut structure database into the pipeline —
+  locates which of the ~130 GB species tarballs a taxon list actually needs, and adapts an
+  exported structural-search result or annotation table into
+  `structural_candidates.tsv` / `source_feature_annotations.tsv`. Column meaning must be
+  declared with `--map` (ambiguous names are deliberately not auto-mapped), a missing
+  similarity metric is a hard error rather than an invented score, unconsumed columns are
+  reported, and every output gets a provenance sidecar. See `references/gmps.md`.
 - `build_cro_work_order.py`: writes a vendor-facing contract-research work order
   from the target card, the candidate table, the hypotheses table and a candidate
   FASTA — a quotable module table (`M1` gene synthesis ... `M10` data/biosafety),

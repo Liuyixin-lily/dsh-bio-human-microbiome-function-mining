@@ -1724,6 +1724,96 @@ def main() -> int:
         )
         assert ok.returncode == 0, ok.stderr
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        gmps = SCRIPTS / "import_gmps.py"
+
+        # species-map locator: only the needed tarball parts, and unmatched taxa reported
+        species = tmp / "species.txt"
+        species.write_text(
+            "bacteria_1.tar.gz\nAkkermansia muciniphila\nBacteroides uniformis\n"
+            "bacteria_2.tar.gz\nFaecalibacterium prausnitzii\n",
+            encoding="utf-8",
+        )
+        located = subprocess.run(
+            [sys.executable, str(gmps), "--species-map", str(species),
+             "--taxa", "Akkermansia muciniphila,Roseburia intestinalis"],
+            check=True, capture_output=True, text=True,
+        )
+        assert "bacteria_1.tar.gz" in located.stdout
+        assert "bacteria_2.tar.gz" not in located.stdout
+        assert "Roseburia intestinalis" in located.stderr
+
+        # structural import: explicit mapping, bidirectional TM policy, provenance
+        hits = tmp / "hits.tsv"
+        hits.write_text(
+            "query\tspecies\ttm1\ttm2\tplddt\n"
+            "WP_1\tAkkermansia muciniphila\t0.86\t0.99\t92.1\n"
+            "WP_2\tFaecalibacterium prausnitzii\t0.51\t0.48\t88.0\n",
+            encoding="utf-8",
+        )
+        out = tmp / "structural.tsv"
+        subprocess.run(
+            [sys.executable, str(gmps), "--hits", str(hits),
+             "--map", "query=protein_accession,species=organism_or_strain,tm1=tm_score_1,tm2=tm_score_2,plddt=plddt_mean",
+             "--tool-version", "GMPS_v1 (test)", "--output", str(out)],
+            check=True, capture_output=True,
+        )
+        with out.open("r", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        assert rows[0]["protein_accession"] == "WP_1"
+        assert rows[0]["structure_support"] == "1"
+        assert rows[1]["structure_support"] == "0"   # TM2 below the bidirectional threshold
+        assert rows[0]["tool"] == "GMPS"
+        provenance = json.loads((tmp / "structural.provenance.json").read_text(encoding="utf-8"))
+        assert provenance["rows_in"] == 2 and provenance["rows_out"] == 2
+        assert provenance["column_mapping"]["protein_accession"] == "query"
+        assert len(provenance["source_sha256"]) == 64
+        assert provenance["tm_threshold"] == 0.5
+
+        # no similarity metric -> refuse rather than invent a score
+        bad = tmp / "bad.tsv"
+        bad.write_text("id\tnote\nA\tx\n", encoding="utf-8")
+        refused = subprocess.run(
+            [sys.executable, str(gmps), "--hits", str(bad),
+             "--map", "id=protein_accession", "--output", str(tmp / "x.tsv")],
+            capture_output=True, text=True,
+        )
+        assert refused.returncode == 2
+        assert "相似度指标" in refused.stderr
+        assert not (tmp / "x.tsv").exists()
+
+        # annotation import: unknown columns are named, not silently dropped
+        ann = tmp / "ann.tsv"
+        ann.write_text(
+            "protein\tproduct\tec\tdram_category\n"
+            "WP_1\tsphingomyelin phosphodiesterase\t3.1.4.12\tmetabolism\n",
+            encoding="utf-8",
+        )
+        ann_out = tmp / "source_feature_annotations.tsv"
+        result = subprocess.run(
+            [sys.executable, str(gmps), "--annotation", str(ann),
+             "--map", "protein=protein_accession", "--source-file", "bacteria_final_annotation.tsv",
+             "--annotation-source", "DRAM", "--output", str(ann_out)],
+            check=True, capture_output=True, text=True,
+        )
+        assert "dram_category" in result.stderr
+        with ann_out.open("r", encoding="utf-8") as handle:
+            ann_rows = list(csv.DictReader(handle, delimiter="\t"))
+        assert ann_rows[0]["ec_number"] == "3.1.4.12"
+        assert ann_rows[0]["annotation_source"] == "DRAM"
+
+        # both outputs must satisfy the plugin's own schemas
+        for schema_name, table in (
+            ("structural_candidates.schema.tsv", out),
+            ("source_feature_annotations.schema.tsv", ann_out),
+        ):
+            subprocess.run(
+                [sys.executable, str(SCRIPTS / "validate_schema.py"),
+                 "--schema", str(ROOT / "schemas" / schema_name), "--tsv", str(table)],
+                check=True, capture_output=True,
+            )
+
     print("example test passed")
     return 0
 

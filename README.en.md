@@ -288,6 +288,17 @@ Priority policy used by `score_candidates.py`:
 
 ---
 
+## External data sources
+
+`references/gmps.md` documents GMPS (Human Gut Microbial Protein Structure database: ~2.7M AlphaFold2 structures over 968 gut bacterial and 1,255 phage genomes). It is not a target library — it is a **gut-only** candidate pool and structural evidence source:
+
+```bash
+python3 scripts/import_gmps.py --species-map bacteria_N.tar.gz_Species.txt --taxa "Akkermansia muciniphila"
+python3 scripts/import_gmps.py --hits gmps_export.tsv --map "query=protein_accession,tm1=tm_score_1" --dry-run --output outputs/task/structural_candidates.gmps.tsv
+```
+
+Three limits: **gut only** (no skin or oral, so the body-site dimension is still the library's job); the structures are **AlphaFold2 predictions**, not experimental; and a structural hit is not a function. The importer requires an explicit column mapping, refuses to run without a similarity metric, names any column it did not import, and writes provenance (source file + sha256 + mapping + declared version).
+
 ## Tool execution boundary
 
 The plugin does not silently download or install DIAMOND, CD-HIT, US-align, DEER, FedKEA, or Bakta.

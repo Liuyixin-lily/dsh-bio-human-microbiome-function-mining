@@ -295,6 +295,19 @@ Priority policy used by `score_candidates.py`:
 
 ---
 
+## External data sources / 外部数据库
+
+`references/gmps.md` 记录了 GMPS（Human Gut Microbial Protein Structure database，约 270 万 AlphaFold2 结构、968 个肠道细菌 + 1,255 个噬菌体基因组）的用法。它不是目标库，而是**肠道**的候选池与结构证据来源：
+
+```bash
+# 只下载需要的分卷，避免盲拉 130 GB
+python3 scripts/import_gmps.py --species-map bacteria_N.tar.gz_Species.txt --taxa "Akkermansia muciniphila"
+# 把 GMPS 结构检索导出接进候选表（先 dry-run 确认列映射）
+python3 scripts/import_gmps.py --hits gmps_export.tsv --map "query=protein_accession,tm1=tm_score_1" --dry-run --output outputs/task/structural_candidates.gmps.tsv
+```
+
+三条边界：**只有肠道**（没有皮肤/口腔，部位维度仍由目标库负责）；**结构是 AlphaFold2 预测**，不是实验结构；**结构命中不等于功能**。导入脚本要求列映射显式声明、缺相似度指标直接拒绝、未导入的列会被点名，产物带 provenance（源文件 + sha256 + 映射 + 声明版本）。
+
 ## Tool execution boundary / 工具执行边界
 
 The plugin does not silently download or install DIAMOND, CD-HIT, US-align, DEER, FedKEA, or Bakta.

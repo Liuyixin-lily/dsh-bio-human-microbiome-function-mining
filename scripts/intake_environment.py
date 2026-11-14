@@ -67,6 +67,9 @@ DATABASES = [
     ("UNIPROT_FASTA", "UniProt / Swiss-Prot FASTA"),
     ("DEER_CKPT", "DEER checkpoint"),
     ("FEDKEA_HOME", "FedKEA 安装目录"),
+    ("GMPS_ROOT", "GMPS 结构数据（按物种分卷，肠道）"),
+    ("GMPS_ANNOTATION", "GMPS 注释表（bacteria_final_annotation）"),
+    ("GMPS_SPECIES_MAP", "GMPS 分卷-物种对照表"),
 ]
 
 QUESTIONNAIRE = """\
@@ -302,6 +305,9 @@ def probe_config(cfg: dict[str, Any], check_network: bool) -> dict[str, Any]:
         "UNIPROT_FASTA": "file",
         "DEER_CKPT": "file",
         "FEDKEA_HOME": "dir",
+        "GMPS_ROOT": "dir",
+        "GMPS_ANNOTATION": "file",
+        "GMPS_SPECIES_MAP": "file",
     }
     for name, _label in DATABASES:
         value = (cfg.get("databases") or {}).get(name)
