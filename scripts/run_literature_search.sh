@@ -183,9 +183,18 @@ fi
 
 RESOLVE=0
 ARGS=()
+HAS_MAILTO=0
 for a in "$@"; do
   if [ "$a" = "--resolve" ]; then RESOLVE=1; else ARGS+=("$a"); fi
+  [ "$a" = "--mailto" ] && HAS_MAILTO=1
 done
+
+# OpenAlex rate-limits anonymous callers (HTTP 429) and returns 200 straight away once a
+# contact address is supplied: the same query that failed with 429 succeeded with --mailto.
+# Send a default so the literature route does not look broken; OPENALEX_MAILTO overrides it.
+if [ "$HAS_MAILTO" -eq 0 ]; then
+  ARGS+=("--mailto" "${OPENALEX_MAILTO:-human-microbiome-plugin@users.noreply.github.com}")
+fi
 
 RAW="$("$PY_BIN" "$SEARCH_PY" "${ARGS[@]}" 2>&1)" || {
   echo "$RAW" >&2

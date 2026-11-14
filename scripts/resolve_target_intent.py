@@ -307,7 +307,22 @@ def library_coverage(
             "domains": [],
         }
     index = Index(payloads)
+    # A domain is "at this site" when it describes the same body site, not when its id looks
+    # familiar. A second skin domain (skin_xenobiotic) is on-site; comparing ids alone silently
+    # filed six skin processes under "a DIFFERENT body site".
     wanted = set(source_ids or [])
+    site_labels: set[str] = set()
+    if wanted:
+        for dom in index.domains:
+            if not isinstance(dom, dict):
+                continue
+            # on-site means "describes the same body site", so a user-defined skin domain counts
+            if str(dom.get("id") or "") in wanted or any(
+                sid in str(dom.get("id") or "") for sid in wanted
+            ):
+                for key in ("name_zh", "name_en"):
+                    if dom.get(key):
+                        site_labels.add(str(dom[key]).strip().lower())
     same_site: list[dict[str, Any]] = []
     other_site: list[dict[str, Any]] = []
     taxon_hits: list[dict[str, Any]] = []
@@ -344,7 +359,15 @@ def library_coverage(
         if entry["kind"] == "domain":
             weak_hits.append({**entry, "reason": "只命中部位名，没有过程/酶覆盖"})
             continue
-        if not wanted or entry["domain"] in wanted:
+        hit_domain = next(
+            (d for d in index.domains if isinstance(d, dict) and d.get("id") == entry["domain"]), None
+        )
+        hit_labels: set[str] = set()
+        if hit_domain:
+            for key in ("name_zh", "name_en"):
+                if hit_domain.get(key):
+                    hit_labels.add(str(hit_domain[key]).strip().lower())
+        if not wanted or entry["domain"] in wanted or (site_labels & hit_labels):
             same_site.append(entry)
         else:
             other_site.append(entry)
@@ -360,6 +383,21 @@ def library_coverage(
         "weak_hit_count": len(weak_hits),
         "weak_hits": weak_hits[:5],
     }
+
+
+def _is_starter(domain_id: str) -> bool:
+    try:
+        sys.path.insert(0, str(SCRIPT_DIR))
+        from browse_target_library import Index, load_library  # noqa: PLC0415
+
+        payloads, _errors = load_library(Path(DEFAULT_LIBRARY_DIR))
+        for payload in payloads:
+            dom = payload.get("domain") or {}
+            if dom.get("id") == domain_id:
+                return str(dom.get("content_status") or "") == "starter"
+    except Exception:
+        return False
+    return False
 
 
 def _hit_command(hit: dict[str, Any]) -> str:
@@ -606,6 +644,12 @@ def render_text(result: dict[str, Any]) -> str:
         top = cov["hits"][0]
         where = top["enzyme"] or top["process"] or top["domain"]
         lines.append(f"library: HIT x{cov['hit_count']} (top: {top['kind']} {where})")
+    starter_hits = [h for h in (cov.get("hits") or []) if _is_starter(h["domain"])]
+    if starter_hits:
+        lines.append(
+            f"library: 其中 {len(starter_hits)} 条命中来自 starter 域（content_status=starter）——"
+            "类别可用，但条目没有逐条证据；加 --require-evidence 会被隔离，使用前需补证据。"
+        )
     else:
         lines.append(
             "library: 这个主题未被覆盖"

@@ -1,0 +1,366 @@
+{
+  "library_version": "0.1.0",
+  "reviewed_on": "2026-11-15",
+  "domain": {
+    "id": "skin_xenobiotic",
+    "name_zh": "皮肤",
+    "name_en": "Skin",
+    "content_status": "starter",
+    "role": "user_defined",
+    "expansion": {
+      "method": "generated_from_spec",
+      "generated_by": "scripts/build_library_domain.py",
+      "spec_file": "specs/skin_xenobiotic.spec.json",
+      "generated_on": "2026-11-15",
+      "note_zh": "由 spec 机械生成，未经文献审计；evidence_refs 为空，需由 literature-evidence 复核后补。"
+    },
+    "keywords_zh": [
+      "外源物质",
+      "外源物质代谢",
+      "异生物质",
+      "药物代谢",
+      "防腐剂",
+      "偶氮染料",
+      "多环芳烃",
+      "香料",
+      "化妆品",
+      "酯酶",
+      "偶氮还原酶",
+      "葡萄糖醛酸苷酶",
+      "皮肤",
+      "外源性物质",
+      "外源性物质代谢",
+      "外源代谢"
+    ],
+    "keywords_en": [
+      "xenobiotic",
+      "xenobiotic metabolism",
+      "drug metabolism",
+      "preservative",
+      "paraben",
+      "azo dye",
+      "polycyclic aromatic hydrocarbon",
+      "fragrance",
+      "cosmetics",
+      "esterase",
+      "azoreductase",
+      "glucuronidase",
+      "skin",
+      "xenobiotics"
+    ],
+    "niche_summary_zh": "皮肤是外源物暴露的第一界面（化妆品、药物、污染物）。该域把外源物质代谢拆成防腐剂水解、偶氮染料还原、多环芳烃氧化、药物去结合、环氧化物水解、香料氧化六类。",
+    "selection_hint_zh": "这是 starter 域：类别可用于发起筛选，但每个酶都还没有具体候选蛋白与逐条证据。要正式使用，先从某一类收敛到一个反应/EC，再走入口 A 建档。",
+    "focus_taxa": [
+      {
+        "taxon": "Cutibacterium acnes",
+        "name_zh": "痤疮丙酸杆菌",
+        "role_zh": "毛囊优势菌，脂质丰富微环境；多种外源物在此处与菌群接触。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Staphylococcus epidermidis",
+        "name_zh": "表皮葡萄球菌",
+        "role_zh": "皮肤优势共生菌，酯酶/水解酶活性报道较多。",
+        "attention": "high"
+      },
+      {
+        "taxon": "Staphylococcus aureus",
+        "name_zh": "金黄色葡萄球菌",
+        "role_zh": "机会致病菌，暴露于皮肤外源物。",
+        "attention": "medium"
+      }
+    ],
+    "processes": [
+      {
+        "id": "skin_preservative_ester_hydrolysis",
+        "name_zh": "化妆品防腐剂（对羟基苯甲酸酯类）酯水解",
+        "name_en": "Preservative (paraben) ester hydrolysis",
+        "keywords_zh": [
+          "防腐剂",
+          "对羟基苯甲酸酯",
+          "化妆品",
+          "酯酶",
+          "外源物质",
+          "外源性物质"
+        ],
+        "keywords_en": [
+          "preservative",
+          "paraben",
+          "cosmetics",
+          "esterase",
+          "xenobiotic"
+        ],
+        "why_it_matters_zh": "对羟基苯甲酸酯是最常见的化妆品防腐剂；皮肤菌群酯酶可将其水解为对羟基苯甲酸，改变暴露剂量与致敏风险。",
+        "host_context_zh": "宿主皮肤酯酶与菌源酯酶叠加作用于同一底物。",
+        "microbe_effect_zh": "水解酯键，降低母体化合物浓度并产生代谢产物。",
+        "key_taxa": [
+          "Staphylococcus epidermidis",
+          "Cutibacterium acnes"
+        ],
+        "enzymes": [
+          {
+            "gene_symbols": [],
+            "ec": "",
+            "ec_confidence": "none",
+            "cofactor": "",
+            "fold_hint": "",
+            "known_microbial_examples": [],
+            "entry_point": "reaction",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "id": "skin_paraben_esterase",
+            "enzyme_name_zh": "对羟基苯甲酸酯酯酶",
+            "enzyme_name_en": "paraben esterase",
+            "reaction_zh": "对羟基苯甲酸酯 + H2O -> 对羟基苯甲酸 + 醇",
+            "substrate_zh": "对羟基苯甲酸酯",
+            "product_zh": "对羟基苯甲酸 + 醇",
+            "provenance_source": "literature",
+            "provenance_note_zh": "SkinBug 把化妆品成分列为皮肤菌群可代谢的外源物；本条目只声明'该类别存在菌源酯酶活性'，未指定具体酶。",
+            "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
+          }
+        ]
+      },
+      {
+        "id": "skin_azo_dye_reduction",
+        "name_zh": "偶氮染料还原裂解",
+        "name_en": "Azo dye reductive cleavage",
+        "keywords_zh": [
+          "偶氮染料",
+          "偶氮还原酶",
+          "食品色素",
+          "外源物质",
+          "外源性物质"
+        ],
+        "keywords_en": [
+          "azo dye",
+          "azoreductase",
+          "food colourant",
+          "xenobiotic"
+        ],
+        "why_it_matters_zh": "偶氮键还原裂解会释放芳香胺；菌源偶氮还原酶决定这类染料在皮肤表面的去向。",
+        "host_context_zh": "宿主也有偶氮还原活性，但菌源酶在局部浓度上可能占优。",
+        "microbe_effect_zh": "还原裂解偶氮键，生成芳香胺类产物。",
+        "key_taxa": [
+          "Staphylococcus aureus",
+          "Cutibacterium acnes"
+        ],
+        "enzymes": [
+          {
+            "gene_symbols": [],
+            "ec": "",
+            "ec_confidence": "none",
+            "cofactor": "",
+            "fold_hint": "",
+            "known_microbial_examples": [],
+            "entry_point": "reaction",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "id": "skin_azoreductase",
+            "enzyme_name_zh": "偶氮还原酶",
+            "enzyme_name_en": "azoreductase",
+            "reaction_zh": "R-N=N-R' + 2H -> R-NH2 + R'-NH2",
+            "substrate_zh": "偶氮染料",
+            "product_zh": "芳香胺",
+            "provenance_source": "literature",
+            "provenance_note_zh": "肠菌偶氮还原酶已有明确研究；皮肤菌群中的对应活性证据较弱，标为待验证。",
+            "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
+          }
+        ]
+      },
+      {
+        "id": "skin_pah_oxidation",
+        "name_zh": "多环芳烃（空气污染）氧化",
+        "name_en": "Polycyclic aromatic hydrocarbon oxidation",
+        "keywords_zh": [
+          "多环芳烃",
+          "空气污染",
+          "加氧酶",
+          "外源物质",
+          "外源性物质"
+        ],
+        "keywords_en": [
+          "polycyclic aromatic hydrocarbon",
+          "PAH",
+          "air pollution",
+          "oxygenase"
+        ],
+        "why_it_matters_zh": "皮肤直接暴露于空气颗粒物中的多环芳烃；菌源加氧酶可能参与其初始氧化。",
+        "host_context_zh": "宿主 CYP 与外源代谢酶是主要途径，菌源途径是叠加项。",
+        "microbe_effect_zh": "环氧化或羟基化，生成更易结合/排出的产物。",
+        "key_taxa": [
+          "Cutibacterium acnes"
+        ],
+        "enzymes": [
+          {
+            "gene_symbols": [],
+            "ec": "",
+            "ec_confidence": "none",
+            "cofactor": "",
+            "fold_hint": "",
+            "known_microbial_examples": [],
+            "entry_point": "reaction",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "id": "skin_pah_oxygenase",
+            "enzyme_name_zh": "多环芳烃加氧酶",
+            "enzyme_name_en": "PAH ring-hydroxylating oxygenase",
+            "reaction_zh": "PAH + O2 + 2H -> 羟基化 PAH",
+            "substrate_zh": "多环芳烃",
+            "product_zh": "羟基化产物",
+            "provenance_source": "literature",
+            "provenance_note_zh": "细菌降解 PAH 的酶学在环境微生物中成熟；皮肤菌群中的贡献尚无定论。",
+            "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
+          }
+        ]
+      },
+      {
+        "id": "skin_drug_glucuronide_hydrolysis",
+        "name_zh": "药物/结合型代谢物的糖苷水解",
+        "name_en": "Hydrolysis of drug glucuronides",
+        "keywords_zh": [
+          "药物代谢",
+          "葡萄糖醛酸苷酶",
+          "结合型代谢物",
+          "外源物质",
+          "外源性物质"
+        ],
+        "keywords_en": [
+          "drug metabolism",
+          "glucuronidase",
+          "glucuronide",
+          "xenobiotic"
+        ],
+        "why_it_matters_zh": "β-葡萄糖醛酸苷酶可把宿主已结合的药物/激素代谢物重新水解为活性形式，是菌群影响药物暴露的经典机制。",
+        "host_context_zh": "宿主在肝脏做葡萄糖醛酸化，菌源酶在局部去结合。",
+        "microbe_effect_zh": "水解 β-葡萄糖醛酸苷键，释放苷元。",
+        "key_taxa": [
+          "Staphylococcus epidermidis"
+        ],
+        "enzymes": [
+          {
+            "gene_symbols": [],
+            "ec": "3.2.1.31",
+            "ec_confidence": "full",
+            "cofactor": "",
+            "fold_hint": "",
+            "known_microbial_examples": [],
+            "entry_point": "reaction",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "id": "skin_beta_glucuronidase",
+            "enzyme_name_zh": "β-葡萄糖醛酸苷酶",
+            "enzyme_name_en": "beta-glucuronidase",
+            "reaction_zh": "β-D-葡萄糖醛酸苷 + H2O -> 醇/酚 + D-葡萄糖醛酸",
+            "substrate_zh": "β-葡萄糖醛酸苷",
+            "product_zh": "苷元 + 葡萄糖醛酸",
+            "provenance_source": "literature",
+            "provenance_note_zh": "EC 3.2.1.31 取自 IUBMB；菌源酶在药物去结合中的作用由 31186074 与 36099474 综述支持。",
+            "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
+          }
+        ]
+      },
+      {
+        "id": "skin_epoxide_detox",
+        "name_zh": "环氧化物水解（解毒）",
+        "name_en": "Epoxide hydrolysis (detoxification)",
+        "keywords_zh": [
+          "环氧化物水解酶",
+          "解毒",
+          "外源物质",
+          "外源性物质"
+        ],
+        "keywords_en": [
+          "epoxide hydrolase",
+          "detoxification",
+          "xenobiotic"
+        ],
+        "why_it_matters_zh": "环氧化物是多种外源物与氧化脂质的活性中间体；环氧化物水解酶把它们转为二醇。",
+        "host_context_zh": "宿主微粒体/可溶性环氧化物水解酶是主要途径。",
+        "microbe_effect_zh": "水解环氧化物为邻二醇，降低反应性。",
+        "key_taxa": [
+          "Cutibacterium acnes"
+        ],
+        "enzymes": [
+          {
+            "gene_symbols": [],
+            "ec": "",
+            "ec_confidence": "none",
+            "cofactor": "",
+            "fold_hint": "",
+            "known_microbial_examples": [],
+            "entry_point": "reaction",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "id": "skin_epoxide_hydrolase",
+            "enzyme_name_zh": "环氧化物水解酶",
+            "enzyme_name_en": "epoxide hydrolase",
+            "reaction_zh": "环氧化物 + H2O -> 邻二醇",
+            "substrate_zh": "环氧化物",
+            "product_zh": "邻二醇",
+            "provenance_source": "literature",
+            "provenance_note_zh": "宿主酶学综述为 19340413；菌源同源酶的存在与贡献待验证。",
+            "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
+          }
+        ]
+      },
+      {
+        "id": "skin_fragrance_terpene_oxidation",
+        "name_zh": "香料/萜类氧化修饰",
+        "name_en": "Fragrance and terpene oxidation",
+        "keywords_zh": [
+          "香料",
+          "萜类",
+          "香精",
+          "外源物质",
+          "外源性物质"
+        ],
+        "keywords_en": [
+          "fragrance",
+          "terpene",
+          "flavour",
+          "xenobiotic"
+        ],
+        "why_it_matters_zh": "香料成分在皮肤表面可被氧化为致敏性更强的产物；菌源氧化还原酶可能参与。",
+        "host_context_zh": "空气氧化与宿主酶共同作用。",
+        "microbe_effect_zh": "醇/醛互变或环氧化，改变致敏潜力。",
+        "key_taxa": [
+          "Staphylococcus epidermidis"
+        ],
+        "enzymes": [
+          {
+            "gene_symbols": [],
+            "ec": "",
+            "ec_confidence": "none",
+            "cofactor": "",
+            "fold_hint": "",
+            "known_microbial_examples": [],
+            "entry_point": "reaction",
+            "dark_matter": false,
+            "priority": "medium",
+            "evidence_status": "curated_prior",
+            "evidence_refs": [],
+            "id": "skin_terpene_oxidase",
+            "enzyme_name_zh": "萜类氧化酶",
+            "enzyme_name_en": "terpene oxidase",
+            "reaction_zh": "萜类醇 -> 萜类醛/酸",
+            "substrate_zh": "萜类醇",
+            "product_zh": "萜类醛/酸",
+            "provenance_source": "literature",
+            "provenance_note_zh": "SkinBug 把香料/化妆品成分纳入可代谢外源物；具体酶未点名。",
+            "validation_note_zh": "以对应底物做全菌或重组酶体外反应，LC-MS/HPLC 检测产物；野生株与基因缺失株对照。"
+          }
+        ]
+      }
+    ]
+  }
+}

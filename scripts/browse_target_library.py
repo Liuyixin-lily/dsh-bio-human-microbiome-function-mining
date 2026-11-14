@@ -781,6 +781,16 @@ def looks_like_navigation(query: str) -> bool:
     return any(token in lowered for token in META_TOKENS_EN)
 
 
+def _staging_summary(path: Path) -> int:
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from record_query import load_staging  # noqa: PLC0415
+
+        return len((load_staging(path).get("queries") or []))
+    except Exception:
+        return 0
+
+
 def render_navigation(index: "Index", query: str) -> str:
     wants_taxa = "菌" in query or "taxa" in query.lower() or "microbe" in query.lower()
     wants_process = any(t in query for t in ("过程", "代谢", "酶")) or "process" in query.lower()
@@ -1184,6 +1194,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Flatten the whole library into one tab-separated table for review.",
     )
     actions.add_argument("--validate", action="store_true", help="Audit library content and cross-references.")
+    actions.add_argument(
+        "--list-staging",
+        action="store_true",
+        help="Show the query staging area (questions asked before; never library content).",
+    )
+    parser.add_argument(
+        "--staging",
+        type=Path,
+        default=Path("library/_staging/queries.json"),
+        help="Staging JSON of recorded queries (default library/_staging/queries.json).",
+    )
 
     parser.add_argument("--output-dir", type=Path, default=None, help="Directory for generated card files.")
     parser.add_argument("--target-id", default=None, help="Override target_id in the generated card.")
@@ -1199,6 +1220,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.list_staging:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from record_query import list_entries, load_staging  # noqa: PLC0415
+
+        list_entries(load_staging(args.staging))
+        print()
+        print("说明：staging 是用户查询记录（curated_prior、无 evidence_refs），正式库不会读取。")
+        print("      要进库：record_query.py --promote --evidence-refs ... 然后 build_library_domain --build。")
+        return 0
+
     payloads, load_errors = load_library(args.library_dir)
     if load_errors:
         for error in load_errors:
@@ -1367,6 +1398,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"         python3 scripts/build_target_function_card.py --output outputs/task/target_function_card.json ...")
             print(f"      3) 想长期覆盖这个方向就生成一个 starter 域：")
             print(f"         python3 scripts/build_library_domain.py --init --domain <id> --output specs/<id>.json")
+            staged = _staging_summary(args.staging)
+            if staged:
+                print()
+                print(f"      另外：staging 里有 {staged} 条查询记录（未验证，不算库内容），用 --list-staging 查看。")
             print("      库里目前覆盖这些方向（--list-processes <domain> 看全部）：")
             for domain in index.domains:
                 sample: list[str] = []

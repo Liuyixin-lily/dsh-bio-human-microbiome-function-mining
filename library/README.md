@@ -1,3 +1,39 @@
+
+## 现在库里有几个域
+
+| 文件 | 域 id | 状态 | 内容 |
+| --- | --- | --- | --- |
+| `skin.json` | `skin` | `curated` / `shipped_example` | 1 个过程（角质层鞘磷脂水解）、1 个酶 EC 3.1.4.12、4 条 PMID |
+| `skin_xenobiotic.json` | `skin_xenobiotic` | `starter` / `user_defined` | 6 个外源物质代谢类别、6 个酶，**均无逐条证据** |
+
+`skin_xenobiotic` 是"皮肤外源物质代谢"这个模糊问题被路由到 escalate 之后，用检索到的文献
+（SkinBug, PMID 33385118；外源代谢综述 26972811 / 31186074 / 36099474）搭出来的 starter 域。
+它把"外源物质代谢"拆成可筛选的六类（防腐剂水解、偶氮染料还原、多环芳烃氧化、药物去结合、
+环氧化物水解、香料氧化），但每个酶都还没有候选蛋白，也大多没有 EC。
+
+`--require-evidence` 下它会被整体隔离（0 过程 / 0 酶）——这是正确行为，不是缺陷。
+
+## 用户查询怎么进库（staging）
+
+查询不等于证据，所以不直接写进 `library/`：
+
+```bash
+# 记录（同一句话再问会累加 times_asked，并入新酶）
+python3 scripts/record_query.py --query "皮肤外源性物质代谢" --site skin \
+    --enzyme esterase --enzyme azoreductase --taxon "Cutibacterium acnes"
+
+# 查看（browse 也能看）
+python3 scripts/record_query.py --list
+python3 scripts/browse_target_library.py --list-staging
+
+# 提升：必须有证据，且 spec 里的 evidence_refs 仍为空（build_library_domain 拒绝 spec 带标识符），
+# 检索到的标识符写进同名 .evidence.json 与 provenance 说明
+python3 scripts/record_query.py --promote <id> --domain skin_xenobiotic \
+    --evidence-refs "PMID:33385118" --output specs/skin_xenobiotic.promoted.json
+```
+
+`library/_staging/` 在 `.gitignore` 里：它是用户自己的查询史，不随插件分发。
+
 # Target library / 目标库
 
 这是一个**可浏览、可搜索、可选择**的靶点索引，用来把用户模糊的自然语言兴趣变成可执行的筛选目标。

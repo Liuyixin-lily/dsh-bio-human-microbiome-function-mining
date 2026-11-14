@@ -66,6 +66,14 @@ Available scripts:
   `--no-structures`) a template PDB per entry taken from UniProt's PDB cross-references,
   because US-align cannot run against a FASTA. `--dry-run` prints the planned queries;
   NCBI Protein is only a labelled fallback when UniProt returns nothing.
+- `record_query.py`: records what the user asked into `library/_staging/queries.json` (dedup by
+  query+site, `times_asked` increments, new enzyme names are merged). A query is not evidence, so
+  entries stay `curated_prior` with empty `evidence_refs` and the library never reads them.
+  `--promote` requires real PMID/DOI identifiers and writes a domain spec whose `evidence_refs`
+  stay empty (the builder rejects identifiers in a starter spec) plus an `.evidence.json` sidecar
+  and a prose attribution.
+- `run_literature_search.sh` now sends a default OpenAlex `mailto` (polite pool): the same query
+  that returned HTTP 429 anonymously succeeds immediately with it. `OPENALEX_MAILTO` overrides.
 - `import_gmps.py`: brings the external GMPS gut structure database into the pipeline —
   locates which of the ~130 GB species tarballs a taxon list actually needs, and adapts an
   exported structural-search result or annotation table into

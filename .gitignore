@@ -8,3 +8,5 @@ config.tools.json
 __pycache__/
 *.pyc
 .DS_Store
+# per-user query history (record_query.py); not plugin content
+library/_staging/
