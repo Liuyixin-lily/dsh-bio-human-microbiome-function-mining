@@ -7,20 +7,24 @@ language: mixed
 category: protocol
 ---
 
-# Screen Sequence Candidates
+# Sequence Mapping
 
-Use this skill when the workflow needs sequence-based screening of candidate
-enzymes against a human microbiome pan-proteome. This skill covers CD-HIT
-deduplication and DIAMOND sequence search, then keeps high-confidence hits for
-downstream structural screening or candidate scoring. CD-HIT identity defaults
-to 100% for single-genome datasets and 95% for multi-genome pan-proteomes.
+Use this skill when the user wants sequence-based screening of candidate enzymes,
+especially the Phase 3 DIAMOND screening step from a microbiome enzyme-mining
+pipeline.
+
+## Purpose
+
+Run DIAMOND sequence search for a template host enzyme against a pan-proteome,
+then keep high-confidence hits for downstream structural screening, catalytic
+residue mapping, or candidate ranking.
 
 ## Inputs
 
 Required inputs:
 
-- Query FASTA containing the target host enzyme protein sequence.
-- A candidate proteome FASTA to search, or a prebuilt DIAMOND database.
+- Query FASTA containing the host enzyme protein sequence.
+- A pan-proteome FASTA to search, or a prebuilt DIAMOND database.
 
 Optional inputs:
 
@@ -30,17 +34,30 @@ Optional inputs:
 
 ## Run the workflow
 
-The core runner is `scripts/run_diamond.py`, which performs CD-HIT
-deduplication before building the DIAMOND database and screening. Set
-`tools.sequence_screen.cdhit_identity` in `project.json` or pass
-`--cluster-identity` to override.
+The core runner is `scripts/run_diamond_screening.sh` and the wrapper is
+`scripts/run_diamond.py`.
 
-```bash
-python3 human_microbiome_function_mining/scripts/run_diamond.py \
-  --project project.json
-```
+## CD-HIT deduplication
 
-Or use the shell helper for a more direct invocation:
+Before building a DIAMOND database, deduplicate the candidate proteome with
+CD-HIT. The default identity is:
+
+- 100% when each organism is represented by a single genome.
+- 95% when the candidate set is a multi-genome pan-proteome.
+
+Set `tools.sequence_screen.cdhit_identity` in `project.json` or pass
+`--cluster-identity` to `scripts/run_diamond.py` to override. Pass
+`--cluster-identity 0` to skip CD-HIT when the input FASTA is already
+non-redundant.
+
+The `--query` is the **template sequence file**, not a single target protein: it should hold
+the host templates and the microbial templates together (see `fetch_reference_enzymes.py`,
+which writes `reference_enzyme_set.tsv` with an `evidence` and a `template_group` column).
+Screening with one group alone cannot distinguish "this microbial protein is the same class of
+enzyme" from "it resembles a human enzyme", and a set of distant templates can make a proteome
+that does carry the enzyme come back empty.
+
+Build a DIAMOND database and screen in one step:
 
 ```bash
 bash human_microbiome_function_mining/skills/screen-sequence-candidates/scripts/run_diamond_screening.sh \
@@ -52,7 +69,14 @@ bash human_microbiome_function_mining/skills/screen-sequence-candidates/scripts/
   --threads 16
 ```
 
-Use a prebuilt database with `--dmnd`.
+Or use a prebuilt database:
+
+```bash
+bash human_microbiome_function_mining/skills/screen-sequence-candidates/scripts/run_diamond_screening.sh \
+  --query host_enzyme.faa \
+  --dmnd panproteome.dmnd \
+  --outdir sequence_screening
+```
 
 ## Default thresholds
 
@@ -64,8 +88,8 @@ Use a prebuilt database with `--dmnd`.
 | `--threads` | `SLURM_CPUS_PER_TASK` or `8` | Threads for build and search |
 | `--max-target-seqs` | `50000` | Max alignments returned per query |
 
-The pipeline rule is to keep hits with identity `>= 0.2` and query coverage
-`>= 0.7`, unless the user overrides these thresholds.
+The pipeline-level rule from the parent workflow is to keep hits with identity
+`>= 0.2` and coverage `>= 0.7`.
 
 ## Outputs
 
@@ -85,8 +109,5 @@ The pipeline rule is to keep hits with identity `>= 0.2` and query coverage
   `--dmnd` database.
 - The downstream pipeline uses these hits as sequence evidence before structural
   alignment.
-- If the DIAMOND executable or database is not accessible from the current
-  terminal, give the user the exact command and wait for returned output.
 
-Detailed reference notes are in
-`skills/screen-sequence-candidates/references/diamond_screening.md`.
+Detailed reference notes are in `references/diamond_screening.md`.
