@@ -119,3 +119,71 @@ to bounded parallel curl downloads. Both paths use resumable transfers.
 - After decompression, verify each complete species folder has `genomic.fna`,
   `protein.faa`, `genomic.ffn`, `genomic.gbff`, and `genomic.gff`, with no
   `.gz` or `.tmp` residue.
+
+## References
+
+- [scripts/build_gcf_list.py](scripts/build_gcf_list.py): species/taxon to `GCF`/`GCA` accession-list builder.
+- [scripts/build_download_links.py](scripts/build_download_links.py): accession list to NCBI URL builder with parallel complete-file preflight.
+- [scripts/download_genomes.py](scripts/download_genomes.py): downloader with parallel retries, resume, gzip validation, species folders, and decompression.
+
+### Slow-summary fallback
+
+For a remote-server run, first try the normal `--download-summary` flow. If the server-to-NCBI transfer is stalled or clearly slow, stop that command and transfer a complete summary from the local machine instead:
+
+```bash
+# Run locally. For a mixed list, fetch both summaries.
+curl -fL --retry 5 --retry-delay 5 --connect-timeout 30 \
+  -o /tmp/ncbi_assembly_summary_refseq.txt \
+  https://ftp.ncbi.nlm.nih.gov/genomes/refseq/bacteria/assembly_summary.txt
+
+curl -fL --retry 5 --retry-delay 5 --connect-timeout 30 \
+  -o /tmp/ncbi_assembly_summary_genbank.txt \
+  https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt
+```
+
+Confirm that each local file is non-empty and ends cleanly before uploading. Then transfer the complete files to the server:
+
+```bash
+scp -o ConnectTimeout=30 /tmp/ncbi_assembly_summary_refseq.txt \
+  user@server:/work/ncbi_assembly_summary_refseq.txt
+scp -o ConnectTimeout=30 /tmp/ncbi_assembly_summary_genbank.txt \
+  user@server:/work/ncbi_assembly_summary_genbank.txt
+```
+
+On the server, use the explicit `--assembly-summary` form and omit `--download-summary` so the builder does not retry the slow NCBI transfer:
+
+```bash
+python3 scripts/build_download_links.py \
+  --gcf accessions.tsv \
+  --assembly-summary ncbi_assembly_summary_refseq.txt \
+  --assembly-summary ncbi_assembly_summary_genbank.txt \
+  --out download_urls.txt \
+  --skipped download_skipped_accessions.txt
+```
+
+Provide summaries in RefSeq-then-GenBank order for mixed lists. For a single-source list, provide only the matching summary and replace `bacteria` with the correct biological group when downloading locally.
+
+For a mixed `GCF`/`GCA` list with summaries already available, use the offline-summary form in RefSeq-then-GenBank order:
+
+```bash
+python3 scripts/build_download_links.py \
+  --gcf accessions.tsv \
+  --assembly-summary ncbi_assembly_summary_refseq.txt \
+  --assembly-summary ncbi_assembly_summary_genbank.txt \
+  --out download_urls.txt \
+  --skipped download_skipped_accessions.txt
+```
+
+The default requested file set is exactly:
+
+```text
+*_genomic.fna.gz
+*_protein.faa.gz
+*_cds_from_genomic.fna.gz
+*_genomic.gbff.gz
+*_genomic.gff.gz
+```
+
+Before writing the URL list, the builder checks that every requested file exists for each accession. If an accession lacks any one of the requested files, the entire accession is skipped so no partial folder is created. The accession and missing file names are recorded in `download_skipped_accessions.txt`. This is the default behavior; `--allow-incomplete-accessions` exists only as an explicit override.
+
+Use `--files` when the user requests a different file set. The same all-or-none preflight applies to that requested set.

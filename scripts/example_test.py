@@ -3742,6 +3742,19 @@ def main() -> int:
         assert "no candidate passed the screening thresholds" in checked.stdout
         assert "complete" in checked.stdout
 
+    # one skill doc per skill: the runtime loads skills/<name>.md, so a second SKILL.md under
+    # skills/<name>/ is a copy that will drift. Assets (scripts/, references/) may stay.
+    flat = {p.stem for p in (ROOT / "skills").glob("*.md")}
+    assert flat, "no skill docs found"
+    for directory in (ROOT / "skills").iterdir():
+        if not directory.is_dir():
+            continue
+        assert not (directory / "SKILL.md").exists(), (
+            f"{directory.name}/SKILL.md duplicates skills/{directory.name}.md; "
+            "the runtime only reads the flat copy"
+        )
+        assert directory.name in flat, f"{directory.name}/ has assets but no skills/{directory.name}.md"
+
     print("example test passed")
     return 0
 

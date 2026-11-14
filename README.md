@@ -231,7 +231,6 @@ python3 scripts/browse_target_library.py --validate
 
 ```bash
 python3 scripts/check_deliverables.py --project-dir <项目目录>
-python3 scripts/check_skill_copies.py   # 检查两份 skill 副本是否已经漂移
 ```
 
 它逐项报 ok / EMPTY / MISS，并对缺的项给出生成命令；四个示例里曾有三个卡在不同阶段，

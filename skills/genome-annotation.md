@@ -78,3 +78,23 @@ Alternatively pass `--db-path PATH` for a custom Bakta database path.
   returned annotation output.
 - Do not invent annotation fields. Preserve the original Bakta output paths and
   tool version.
+
+## Bakta Command Constraints
+
+- `--prefix` and `--locus-tag` only accept 1 to 24 characters in `A-Za-z0-9_.-`.
+- Genome filenames are often longer or contain invalid characters, so do not pass raw filenames as prefix/locus tag. Build short tags like `SPEC_0001` with `--prefix-tag`.
+- If using a conda-installed Bakta, prefer the absolute `bakta` binary path and export the environment `bin` directory on `PATH`, or helper tools such as `tRNAscan-SE` may not be found.
+- The full database runs much slower and performs deeper annotation than the light database. For very large batches, prefer serial mode unless the user asks for speed-up.
+
+## Configuration
+
+Set these environment variables before running the helper:
+
+| Variable | Use |
+| --- | --- |
+| `BAKTA_BIN_DIR` | Directory containing the `bakta` executable |
+| `BAKTA_DB_FULL` | Path to the Bakta full database |
+| `BAKTA_DB_LIGHT` | Path to the Bakta light database |
+
+Alternatively pass `--db-path PATH` for a custom Bakta database path. See
+`references/server-paths.md` for setup examples.
