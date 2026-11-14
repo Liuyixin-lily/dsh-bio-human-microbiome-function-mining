@@ -118,6 +118,28 @@ python3 scripts/import_gmps.py --hits gmps_export.tsv \
 
 粗筛只回答"注释里出现了这个功能"。`source_feature_annotations` 是**自动注释**，不是实验证据；它和插件其他证据一样，必须经过序列/结构/文献三层才算候选。别把"注释命中"写成"该菌有这个基因"以外的结论。
 
+## 能否像口腔/皮肤名单那样出一份「物种 + 装配号」清单？
+
+**物种名单：能。装配号：不能（至少当前公开文件里没有）。**
+
+GMPS 按**物种**打包，不按装配号组织：
+
+| 来源 | 内容 | 有没有 GCF/GCA |
+| --- | --- | --- |
+| `wget_links_download.csv`（GitHub，已随插件放在 `resources/taxa/gmps_download_manifest.csv`） | 1,189 行：Bacteria 968 / Prophage 176 / Phage 42 / All 3；1,047 个唯一物种；逐物种 `wget` 链接 | **没有** |
+| `bacteria_N.tar.gz_Species.txt`（Dryad） | 物种 → 分卷对照 | 没有 |
+| `GMPS_genomes_metadata.zip`（Dryad，197 KB） | 968 个细菌 + 1,255 个噬菌体基因组的 metadata | **未验证**：Dryad 分享链接需要浏览器会话，脚本取回是 403 |
+
+```bash
+# 物种名单 + 逐物种下载清单（不需要装配号）
+python3 scripts/import_taxon_list.py --list resources/taxa/gmps_download_manifest.csv \
+    --site gut --output-dir outputs/taxa
+```
+
+产出 `gut_taxa_registry.tsv`（1,047 物种，`site_presence_score` 全空——没有丰度就不打分）、`gut_download_manifest.tsv`（物种 / url / 归档名）、空的 `gut_genome_accessions.txt`。
+
+要 GCF/GCA 的两条路：手动下载 metadata 后 `--inspect` 看有没有 accession 列；或者直接用物种名走 `genome-search --source gut` 反查。
+
 ## 三条硬边界
 
 1. **只有肠道。** 968 个细菌基因组 + 噬菌体，没有皮肤、口腔、阴道。它对"部位"这个维度没有任何帮助——那正是目标库存在的原因。
