@@ -1,6 +1,5 @@
 # Required columns for enzyme_priority_ranking.tsv
 
-rank
 target_id
 name
 site_process
@@ -20,6 +19,8 @@ score_sources
 
 # Optional but recommended
 
+rank
+selection_status
 gene
 uniprot
 ec
@@ -41,7 +42,13 @@ notes
 - `gene`, `uniprot` and `ec` are optional on purpose: a dark-matter target may
   have no gene symbol, no characterized accession and no EC number, and an
   empty cell there is information, not a defect.
+- `selection_status` is `ranked` or `insufficient_evidence`. The latter means the row was
+  withheld by `--require-min-criteria` / `--require-min-evidence` and carries no rank; it
+  stays in the table so the output does not look more complete than the evidence allows.
 - A ranking is not evidence. Never write a functional conclusion from it.
 - `score_sources` records, per component, whether the value was `manual`, derived
   by a named rubric (`auto:library`, `auto:reference_enzymes`, `auto:genome_search`),
   or `missing` (counted as 0). It is the audit trail for the scores themselves.
+- `rank` is empty exactly when `selection_status` is `insufficient_evidence` (the row
+  was withheld by an evidence gate). It is therefore optional: a withheld table has no
+  meaningful rank to write, and a required-but-empty cell would make validation noisy.

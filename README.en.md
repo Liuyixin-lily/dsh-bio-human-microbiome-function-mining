@@ -208,6 +208,27 @@ One deliberate behaviour: **a hit in a different body site does not count as cov
 
 ---
 
+## Evidence gates
+
+The ranker will happily produce an order from very little evidence. Two gates stop that:
+
+```bash
+python3 scripts/score_target_priorities.py --taxa outputs/taxa/oral_taxa_registry.tsv \
+    --site oral --auto-score --allow-missing-scores \
+    --require-min-criteria 3 --output outputs/task/priorities
+```
+
+| flag | meaning |
+| --- | --- |
+| `--require-min-criteria N` | at least N components carry a value (judgement counts) |
+| `--require-min-evidence N` | at least N components are **data-derived** (`auto:*` only, so judgement cannot satisfy it) |
+
+They answer different questions: the first stops "almost blank but ranked", the second stops
+"ranked entirely by opinion". A withheld row keeps no `rank`, is never `selected`, and stays in
+the table — hiding it would make the output look more complete than the evidence — with the
+reason written to `withheld_rows.tsv`. If nothing passes, the script says the evidence is
+insufficient to order anything rather than emitting a quietly empty ranking.
+
 ## CRO work order
 
 `experimental_design.md` is the minimum experiment list for people who will run the bench work themselves. A user who is not a molecular biologist and simply wants to hand the work to a company (gene synthesis, expression, purification, enzyme assays) needs something else: **a work order that can be quoted and executed**.

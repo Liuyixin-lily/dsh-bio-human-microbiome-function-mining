@@ -2107,6 +2107,86 @@ def main() -> int:
         assert broken.returncode == 2
         assert "invalid choice" in broken.stderr
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        ranker = SCRIPTS / "score_target_priorities.py"
+
+        registry = tmp / "taxa.tsv"
+        header = "taxon_id\tgenus\tspecies\tdisplay_name\tsite_presence_score\tgenome_availability_score\n"
+        rows = [
+            "a\tAlpha\talpha\tAlpha alpha\t5\t4",   # 2 backed
+            "b\tBeta\tbeta\tBeta beta\t4\t",        # 1 backed
+            "c\tGamma\tgamma\tGamma gamma\t3\t",    # 1 backed
+        ]
+        registry.write_text(header + "\n".join(rows) + "\n", encoding="utf-8")
+
+        def run(*flags: str) -> subprocess.CompletedProcess:
+            tag = "_".join(f.replace("-", "") for f in flags) if flags else "plain"
+            out = tmp / f"out_{tag}"
+            return subprocess.run(
+                [sys.executable, str(ranker), "--taxa", str(registry), "--site", "oral",
+                 "--allow-missing-scores", "--output", str(out), *flags],
+                capture_output=True, text=True,
+            )
+
+        # no gate: everything is ranked, in order
+        plain = run()
+        assert plain.returncode == 0, plain.stderr
+        with (tmp / "out_plain" / "taxa_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            plain_rows = list(csv.DictReader(handle, delimiter="\t"))
+        assert [r["rank"] for r in plain_rows] == ["1", "2", "3"]
+        assert all(r["selection_status"] in ("selected", "defer") for r in plain_rows)
+
+        # min-criteria 2: only the row with two backed components keeps a rank
+        gated = run("--require-min-criteria", "2")
+        assert gated.returncode == 0, gated.stderr
+        with (tmp / "out_requiremincriteria_2" / "taxa_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            gated_rows = list(csv.DictReader(handle, delimiter="\t"))
+        by_id = {r["taxon_id"]: r for r in gated_rows}
+        assert by_id["a"]["rank"] == "1"
+        assert by_id["b"]["rank"] == "" and by_id["c"]["rank"] == ""
+        assert by_id["b"]["selection_status"] == "insufficient_evidence"
+        assert by_id["b"]["selection_status"] != "selected"
+        # withheld rows stay in the table: hiding them would fake completeness
+        assert len(gated_rows) == 3
+        withheld = list(csv.DictReader(
+            (tmp / "out_requiremincriteria_2" / "withheld_rows.tsv").open("r", encoding="utf-8"),
+            delimiter="\t",
+        ))
+        assert {w["id"] for w in withheld} == {"b", "c"}
+        assert all("components have a value" in w["reason"] for w in withheld)
+        assert "2 required" in withheld[0]["reason"]
+
+        # min-evidence counts only data-derived components, so judgement cannot satisfy it:
+        # with no --auto-score and no sources, zero components are auto-derived
+        evidence_gate = run("--require-min-evidence", "1")
+        assert evidence_gate.returncode == 0, evidence_gate.stderr
+        with (tmp / "out_requireminevidence_1" / "taxa_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            ev_rows = list(csv.DictReader(handle, delimiter="\t"))
+        assert all(r["selection_status"] == "insufficient_evidence" for r in ev_rows)
+        assert all(r["rank"] == "" for r in ev_rows)
+        assert "没有一行满足证据门槛" in evidence_gate.stderr
+        ev_withheld = list(csv.DictReader(
+            (tmp / "out_requireminevidence_1" / "withheld_rows.tsv").open("r", encoding="utf-8"),
+            delimiter="\t",
+        ))
+        assert all("data-derived" in w["reason"] for w in ev_withheld)
+
+        # an empty ranking must say why instead of looking like a clean result
+        assert "证据不足以排序" in evidence_gate.stderr
+
+        # both ranking tables must still satisfy their schemas with withheld rows present
+        for schema, table in (
+            ("taxa_priority_ranking.schema.tsv", tmp / "out_requiremincriteria_2" / "taxa_priority_ranking.tsv"),
+            ("taxa_priority_ranking.schema.tsv", tmp / "out_plain" / "taxa_priority_ranking.tsv"),
+            ("withheld_rows.schema.tsv", tmp / "out_requiremincriteria_2" / "withheld_rows.tsv"),
+        ):
+            subprocess.run(
+                [sys.executable, str(SCRIPTS / "validate_schema.py"),
+                 "--schema", str(ROOT / "schemas" / schema), "--tsv", str(table)],
+                check=True, capture_output=True,
+            )
+
     print("example test passed")
     return 0
 

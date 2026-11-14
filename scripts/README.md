@@ -55,7 +55,12 @@ Available scripts:
   unverified or `no_evidence` rows; the few remaining scores have no data source and
   are left to the user, with the missing cells named and the flag that would derive
   each one. Registries written for the original
-  skin-only `select-candidate` skill are accepted as-is.
+  skin-only `select-candidate` skill are accepted as-is. Two evidence gates keep an
+  under-evidenced row from passing as a ranked result: `--require-min-criteria N` withholds
+  rows with fewer than N backed components, and `--require-min-evidence N` withholds rows
+  with fewer than N **data-derived** ones (`auto:*` only, so judgement alone cannot satisfy
+  it). Withheld rows keep an empty `rank`, are never `selected`, and are listed in
+  `withheld_rows.tsv` with the exact shortfall.
 - `import_gmps.py`: brings the external GMPS gut structure database into the pipeline —
   locates which of the ~130 GB species tarballs a taxon list actually needs, and adapts an
   exported structural-search result or annotation table into

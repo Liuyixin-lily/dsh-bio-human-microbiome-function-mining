@@ -1,6 +1,5 @@
 # Required columns for taxa_priority_ranking.tsv
 
-rank
 taxon_id
 genus
 species
@@ -18,6 +17,7 @@ score_sources
 
 # Optional but recommended
 
+rank
 domain
 core_tier
 recommended_strain_count
@@ -30,9 +30,11 @@ rationale
 - Produced by `scripts/score_target_priorities.py`. Ranks which taxa are worth
   downloading genomes for, before any screening happens.
 - `selection_status` is `selected` or `defer`, decided by the configured
-  threshold. The script refuses to run when the threshold is unreachable given
-  the weights and the 0..5 scale, because an "all defer" table looks like
-  "nothing is worth doing" rather than a config error.
+  threshold, or `insufficient_evidence` when the row was withheld by
+  `--require-min-criteria` / `--require-min-evidence`. A withheld row has an empty
+  `rank` and can never be `selected`, whatever its score. The script refuses to run when
+  the threshold is unreachable given the weights and the 0..5 scale, because an "all
+  defer" table looks like "nothing is worth doing" rather than a config error.
 - `selected_taxa.txt` (one `Genus species` per line) is written next to this table
   and can be passed straight to
   `skills/genome-search/scripts/genome_source_search.py taxa --input`.
@@ -40,3 +42,6 @@ rationale
   NOT verified by this script. Keep only identifiers you actually retrieved.
 - `selected` means "download this genome first", not "this taxon performs the
   function".
+- `rank` is empty exactly when `selection_status` is `insufficient_evidence` (the row
+  was withheld by an evidence gate). It is therefore optional: a withheld table has no
+  meaningful rank to write, and a required-but-empty cell would make validation noisy.

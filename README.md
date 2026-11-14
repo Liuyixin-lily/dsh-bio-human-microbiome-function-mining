@@ -199,6 +199,29 @@ python3 scripts/browse_target_library.py --validate
 
 ---
 
+## Evidence gate / 证据门槛
+
+排序器默认会在证据很少时照样给名次。两种门槛可以拦住这种行为：
+
+```bash
+python3 scripts/score_target_priorities.py --taxa outputs/taxa/oral_taxa_registry.tsv \
+    --site oral --auto-score --allow-missing-scores \
+    --require-min-criteria 3 --output outputs/task/priorities
+```
+
+| 参数 | 含义 |
+| --- | --- |
+| `--require-min-criteria N` | 至少 N 个分项有值（人工判断也算） |
+| `--require-min-evidence N` | 至少 N 个分项是**数据推导**的（只算 `auto:*`，人工判断不算） |
+
+两者意义不同：前者防"几乎空白也排名"，后者防"全靠主观打分排序"。被扣下的行**不给名次**、也永远不会是 `selected`，但仍留在表里（隐藏掉会让输出看起来比证据更完整），原因写进 `withheld_rows.tsv`：
+
+```
+taxa_priority_ranking  haemophilus_haemolyticus  只有 1/5 项有值（要求 3）
+```
+
+若无一行达标，脚本会明说「不是没有候选，而是证据不足以排序」，而不是输出一张空表。
+
 ## CRO work order / 外包实验工作单
 
 `experimental_design.md` 是给**自己做实验的人**看的最小实验清单。用户如果不懂分子生物学、只想把实验交给公司做（基因合成、表达纯化、酶活检测），需要的是另一种东西：**一份能直接询价和下单的工作单**。

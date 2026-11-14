@@ -110,6 +110,7 @@ ENZYME_OUT_FIELDS = [
     "known_score",
     "discovery_score",
     "priority_score",
+    "selection_status",
     "site_evidence_score",
     "disease_relevance_score",
     "biochemical_clarity_score",
@@ -605,6 +606,34 @@ def resolve_score(
 # ---------------------------------------------------------------------------
 
 
+def gate_row(
+    sources: dict[str, str],
+    min_criteria: int | None,
+    min_evidence: int | None,
+) -> tuple[bool, str]:
+    """Decide whether a row carries enough backing to be ranked at all.
+
+    Two separate questions, because conflating them is how a made-up score sneaks in:
+
+    - min_criteria: how many components have any value (manual judgement counts);
+    - min_evidence: how many components were DERIVED from data (auto:*), which is the
+      only kind of backing that is not just someone's opinion.
+    """
+    backed = sum(1 for source in sources.values() if source != "missing")
+    derived = sum(1 for source in sources.values() if source.startswith("auto:"))
+    if min_criteria is not None and backed < min_criteria:
+        return False, (
+            f"only {backed} of {len(sources)} components have a value "
+            f"({min_criteria} required)"
+        )
+    if min_evidence is not None and derived < min_evidence:
+        return False, (
+            f"only {derived} of {len(sources)} components are data-derived "
+            f"({min_evidence} required); the rest are judgement or missing"
+        )
+    return True, f"{backed}/{len(sources)} components backed, {derived} data-derived"
+
+
 def rank_enzymes(
     rows: list[dict[str, str]],
     enzyme_c: dict[str, float],
@@ -614,6 +643,9 @@ def rank_enzymes(
     site: str | None,
     problems: list[str],
     auto_scorer: AutoScorer | None = None,
+    min_criteria: int | None = None,
+    min_evidence: int | None = None,
+    withheld: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     policy = policy_string(enzyme_c, discovery_c, known_w, discovery_w)
     ranked: list[dict[str, Any]] = []
@@ -627,9 +659,22 @@ def rank_enzymes(
             values[key] = resolve_score(row, key, site, auto, sources, problems, where)
         known = sum(weight * values[key] for key, weight in enzyme_c.items())
         discovery = sum(weight * values[key] for key, weight in discovery_c.items())
+        passes, reason = gate_row(sources, min_criteria, min_evidence)
+        if not passes and withheld is not None:
+            withheld.append(
+                {
+                    "table": "enzyme_priority_ranking",
+                    "id": target_id,
+                    "name": cell(row, "name", site),
+                    "reason": reason,
+                    "priority_score": f"{known_w * known + discovery_w * discovery:.3f}",
+                }
+            )
         ranked.append(
             {
                 "target_id": target_id,
+                "selection_status": "ranked" if passes else "insufficient_evidence",
+                "_passes": passes,
                 "gene": cell(row, "gene", site),
                 "name": cell(row, "name", site),
                 "uniprot": cell(row, "uniprot", site),
@@ -645,10 +690,31 @@ def rank_enzymes(
                 **{key: f"{values[key]:.3f}" for key in values},
             }
         )
-    ranked.sort(key=lambda r: (-float(r["priority_score"]), str(r["target_id"])))
-    for i, row in enumerate(ranked, 1):
+    return _finalise_ranks(ranked)
+
+
+def _finalise_ranks(ranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rows that failed the gate keep no rank, so they cannot be read as ordered.
+
+    They stay in the table on purpose: hiding them would make the output look complete
+    when the evidence was not.
+    """
+    ranked.sort(
+        key=lambda r: (
+            -float(r["priority_score"]),
+            str(r.get("target_id") or r.get("taxon_id") or ""),
+        )
+    )
+    passing = [row for row in ranked if row.get("_passes", True)]
+    failing = [row for row in ranked if not row.get("_passes", True)]
+    ordered = passing + failing
+    for i, row in enumerate(passing, 1):
         row["rank"] = i
-    return ranked
+    for row in failing:
+        row["rank"] = ""
+    for row in ordered:
+        row.pop("_passes", None)
+    return ordered
 
 
 def rank_taxa(
@@ -659,6 +725,9 @@ def rank_taxa(
     problems: list[str],
     warnings: list[str],
     auto_scorer: AutoScorer | None = None,
+    min_criteria: int | None = None,
+    min_evidence: int | None = None,
+    withheld: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     policy = taxa_policy_string(taxa_w, threshold)
     ranked: list[dict[str, Any]] = []
@@ -686,16 +755,32 @@ def rank_taxa(
                 warnings.append(
                     f"{where}: '{doi}' does not look like a DOI; this script does not verify it"
                 )
+        passes, reason = gate_row(sources, min_criteria, min_evidence)
+        if not passes:
+            if withheld is not None:
+                withheld.append(
+                    {
+                        "table": "taxa_priority_ranking",
+                        "id": taxon_id,
+                        "name": f"{genus} {species}".strip(),
+                        "reason": reason,
+                        "priority_score": f"{total:.3f}",
+                    }
+                )
         ranked.append(
             {
                 "taxon_id": taxon_id,
+                "selection_status": (
+                    ("selected" if total >= threshold else "defer") if passes
+                    else "insufficient_evidence"
+                ),
+                "_passes": passes,
                 "genus": genus,
                 "species": species,
                 "display_name": cell(row, "display_name", site),
                 "domain": cell(row, "domain", site),
                 "core_tier": cell(row, "core_tier", site),
                 "priority_score": f"{total:.3f}",
-                "selection_status": "selected" if total >= threshold else "defer",
                 "recommended_strain_count": cell(row, "recommended_strain_count", site),
                 "key_evidence_pmids": pmids,
                 "key_evidence_dois": dois,
@@ -706,10 +791,7 @@ def rank_taxa(
                 **{key: f"{values[key]:.3f}" for key in values},
             }
         )
-    ranked.sort(key=lambda r: (-float(r["priority_score"]), str(r["taxon_id"])))
-    for i, row in enumerate(ranked, 1):
-        row["rank"] = i
-    return ranked
+    return _finalise_ranks(ranked)
 
 
 def _split_refs(value: str) -> list[str]:
@@ -915,6 +997,25 @@ def render_report(
             )
             lines.append("")
 
+    withheld_rows = [row for row in (enzyme_rows or []) + (taxa_rows or [])
+                     if row.get("selection_status") == "insufficient_evidence"]
+    if withheld_rows:
+        lines.append("## 因证据不足而被扣下的行")
+        lines.append("")
+        lines.append(
+            f"{len(withheld_rows)} 行的已填分项少于门槛，因此**不给名次**（rank 留空）。"
+            "它们仍留在表里：隐藏掉会让输出看起来完整，而证据其实不够。"
+        )
+        lines.append("")
+        lines.append("| 表 | 对象 |")
+        lines.append("| --- | --- |")
+        for row in withheld_rows[:20]:
+            label = row.get("taxon_id") or row.get("target_id")
+            lines.append(f"| {'taxa' if row.get('taxon_id') else 'enzyme'} | {label} |")
+        if len(withheld_rows) > 20:
+            lines.append(f"| ... | 还有 {len(withheld_rows) - 20} 行 |")
+        lines.append("")
+
     # A ranking where everyone ties is not a ranking; say so instead of implying order.
     for label, rows in (("菌株", taxa_rows), ("酶目标", enzyme_rows)):
         if len(rows) < 4:
@@ -978,6 +1079,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--auto-score",
         action="store_true",
         help="Derive the scores that are computable from plugin artifacts; leave the rest as gaps instead of guessing.",
+    )
+    parser.add_argument(
+        "--require-min-criteria",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Withhold rows with fewer than N backed components (manual judgement counts).",
+    )
+    parser.add_argument(
+        "--require-min-evidence",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Withhold rows with fewer than N DATA-DERIVED components (auto:* only, not judgement).",
     )
     parser.add_argument("--library", type=Path, default=None, help="library/<domain>.json providing per-enzyme facts for --auto-score.")
     parser.add_argument("--reference-enzymes", type=Path, default=None, help="reference_enzyme_set.tsv for sequence_structure_score.")
@@ -1049,6 +1164,7 @@ def main(argv: list[str] | None = None) -> int:
     problems: list[str] = []
     enzyme_rows: list[dict[str, Any]] = []
     taxa_rows: list[dict[str, Any]] = []
+    withheld: list[dict[str, str]] = []
 
     auto_scorer = None
     if args.auto_score:
@@ -1069,6 +1185,9 @@ def main(argv: list[str] | None = None) -> int:
             args.site,
             problems,
             auto_scorer,
+            args.require_min_criteria,
+            args.require_min_evidence,
+            withheld,
         )
 
     if args.taxa is not None:
@@ -1076,7 +1195,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: taxa registry not found: {args.taxa}", file=sys.stderr)
             return 2
         taxa_rows = rank_taxa(
-            read_tsv(args.taxa), taxa_w, threshold, args.site, problems, warnings, auto_scorer
+            read_tsv(args.taxa), taxa_w, threshold, args.site, problems, warnings, auto_scorer,
+            args.require_min_criteria, args.require_min_evidence, withheld,
         )
 
     missing = [p for p in problems if "cannot be derived" in p]
@@ -1112,9 +1232,26 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    if withheld:
+        write_tsv(
+            args.output / "withheld_rows.tsv",
+            withheld,
+            ["table", "id", "name", "reason", "priority_score"],
+        )
+
     if enzyme_rows:
         write_tsv(args.output / "enzyme_priority_ranking.tsv", enzyme_rows, ENZYME_OUT_FIELDS)
-        print(f"[enzyme] ranked {len(enzyme_rows)} row(s) -> {args.output / 'enzyme_priority_ranking.tsv'}")
+        ranked_n = sum(1 for row in enzyme_rows if row["selection_status"] == "ranked")
+        print(f"[enzyme] {ranked_n} of {len(enzyme_rows)} row(s) ranked -> {args.output / 'enzyme_priority_ranking.tsv'}")
+        if ranked_n < len(enzyme_rows):
+            print(f"[enzyme] {len(enzyme_rows) - ranked_n} withheld by the evidence gate; see withheld_rows.tsv",
+                  file=sys.stderr)
+        if ranked_n == 0:
+            print(
+                "warning: 没有一行满足证据门槛，enzyme ranking 里没有名次。"
+                "这不是「没有候选」，而是「证据不足以排序」——补齐证据或放宽门槛。",
+                file=sys.stderr,
+            )
     if taxa_rows:
         write_tsv(args.output / "taxa_priority_ranking.tsv", taxa_rows, TAXA_OUT_FIELDS)
         selected = [row for row in taxa_rows if row["selection_status"] == "selected"]
@@ -1123,7 +1260,17 @@ def main(argv: list[str] | None = None) -> int:
             "".join(f"{row['genus']} {row['species']}".strip() + "\n" for row in selected),
             encoding="utf-8",
         )
-        print(f"[taxa] ranked {len(taxa_rows)} row(s); {len(selected)} selected -> {args.output}")
+        ranked_n = sum(1 for row in taxa_rows if row["selection_status"] in ("selected", "defer"))
+        print(f"[taxa] {ranked_n} of {len(taxa_rows)} row(s) ranked; {len(selected)} selected -> {args.output}")
+        if ranked_n < len(taxa_rows):
+            print(f"[taxa] {len(taxa_rows) - ranked_n} withheld by the evidence gate; see withheld_rows.tsv",
+                  file=sys.stderr)
+        if ranked_n == 0:
+            print(
+                "warning: 没有一行满足证据门槛，ranking 里没有名次。"
+                "这不是「没有候选」，而是「证据不足以排序」——补齐证据或放宽门槛。",
+                file=sys.stderr,
+            )
 
     report = render_report(
         enzyme_rows,

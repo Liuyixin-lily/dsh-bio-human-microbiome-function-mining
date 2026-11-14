@@ -1,0 +1,21 @@
+# Required columns for withheld_rows.tsv
+
+table
+id
+reason
+
+# Optional but recommended
+
+name
+priority_score
+
+# Notes
+
+- Written by `scripts/score_target_priorities.py` when `--require-min-criteria` or
+  `--require-min-evidence` withholds at least one row.
+- `reason` names the actual shortfall, e.g. "only 1 of 5 components have a value
+  (3 required)" or "only 0 of 5 components are data-derived (2 required)".
+- `priority_score` is what the row would have scored. It is included so the withheld row
+  can be judged, not so it can be used as a ranking: the row carries no rank anywhere.
+- Withholding is not a verdict about the target. It says the evidence needed to order it
+  has not been collected yet.
