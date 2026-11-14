@@ -2649,6 +2649,61 @@ def main() -> int:
         assert rows[0]["candidate_id"] == "WP_011742975.1"
         assert "AF-A1A0S5" in rows[0]["prediction_pdb"]
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+
+        # A structural hit whose FedKEA EC differs from the target is a candidate to TEST,
+        # not an exclusion: the fold can be convergent or moonlighting, and FedKEA only predicts.
+        structural = tmp / "structural.tsv"
+        structural.write_text(
+            "candidate_id\ttemplate_id\ttm_score_1\ttm_score_2\ttm_score_mean\tstructure_support\n"
+            "WP_1\t3RBF\t0.66\t0.70\t0.68\t1\n",
+            encoding="utf-8",
+        )
+        fedkea = tmp / "fedkea.tsv"
+        fedkea.write_text(
+            "protein_accession\tfedkea_is_enzyme\tfedkea_final_result\tfedkea_ec_confidence\t"
+            "fedkea_accepted_name\n"
+            "WP_1\tTrue\t2.6.1.9\tHigh\thistidinol-phosphate transaminase\n",
+            encoding="utf-8",
+        )
+        project = tmp / "project.json"
+        project.write_text(json.dumps({
+            "project_name": "other_ec",
+            "target_function_card": {"target_id": "DDC", "ec": "4.1.1.28",
+                                     "enzyme_name": "aromatic L-amino acid decarboxylase"},
+        }), encoding="utf-8")
+        combined = tmp / "combined.tsv"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "merge_candidates.py"),
+             "--structural", str(structural), "--fedkea", str(fedkea),
+             "--project", str(project), "--output", str(combined)],
+            check=True, capture_output=True,
+        )
+        scored = subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_candidates.py"),
+             "--input", str(combined), "--output", str(tmp / "scored.tsv"),
+             "--project", str(project)],
+            capture_output=True, text=True,
+        )
+        assert "USALIGN_OTHER_EC" in scored.stderr
+        assert "NOT exclusions" in scored.stderr
+        assert "plan assays for the target reaction AND the FedKEA-predicted EC" in scored.stderr
+
+        # and the hypothesis table must recommend assaying both reactions
+        summary = subprocess.run(
+            [sys.executable, str(SCRIPTS / "summarize_candidates.py"),
+             "--scored", str(tmp / "scored.tsv"), "--project", str(project),
+             "--outdir", str(tmp / "out")],
+            capture_output=True, text=True,
+        )
+        assert summary.returncode == 0, summary.stderr
+        with (tmp / "out" / "experimental_hypotheses.tsv").open("r", encoding="utf-8") as handle:
+            hypotheses = list(csv.DictReader(handle, delimiter="\t"))
+        prediction = hypotheses[0]["testable_prediction"]
+        assert "side-by-side assay" in prediction
+        assert "4.1.1.28" in prediction and "2.6.1.9" in prediction
+
     print("example test passed")
     return 0
 

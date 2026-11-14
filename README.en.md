@@ -308,7 +308,7 @@ Priority policy used by `score_candidates.py`:
 1. `SEQUENCE_ANNOTATION_CONFIRMED`
 2. `USALIGN_TARGET_EC`
 3. `DEER_FEDKEA_CONFIRMED`
-4. `USALIGN_OTHER_EC`
+4. `USALIGN_OTHER_EC` (**not an exclusion**: structurally similar while FedKEA predicts another EC. A shared fold can carry convergent or moonlighting activity and FedKEA is only a prediction, so keep these candidates and assay the target reaction and the predicted EC reaction side by side)
 5. `USALIGN_NOT_ENZYME`
 6. `USALIGN_UNVALIDATED`
 7. `DEER_FALLBACK`

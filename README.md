@@ -317,7 +317,7 @@ Priority policy used by `score_candidates.py`:
 1. `SEQUENCE_ANNOTATION_CONFIRMED`
 2. `USALIGN_TARGET_EC`
 3. `DEER_FEDKEA_CONFIRMED`
-4. `USALIGN_OTHER_EC`
+4. `USALIGN_OTHER_EC`（**不是排除**：结构相似但 FedKEA 预测了其他 EC。共享折叠可以有趋同或兼职活性，FedKEA 也只是预测，所以这些候选要保留，并同时设计"目标反应"与"FedKEA 预测 EC 反应"的对照实验）
 5. `USALIGN_NOT_ENZYME`
 6. `USALIGN_UNVALIDATED`
 7. `DEER_FALLBACK`

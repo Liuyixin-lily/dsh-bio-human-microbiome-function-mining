@@ -457,6 +457,15 @@ def main(argv: list[str] | None = None) -> int:
             "USALIGN_OTHER_EC; SignalP adds secretion evidence but never changes the tier.",
             file=sys.stderr,
         )
+    other_ec = [row for row in scored if row.get("priority_tier") == "USALIGN_OTHER_EC"]
+    if other_ec:
+        print(
+            f"note: {len(other_ec)} candidate(s) are USALIGN_OTHER_EC: structurally similar to the "
+            "target with FedKEA predicting a different EC. They are NOT exclusions. A shared fold "
+            "can carry convergent or moonlighting activity, and FedKEA is a prediction, so keep "
+            "them and plan assays for the target reaction AND the FedKEA-predicted EC.",
+            file=sys.stderr,
+        )
     structural_without_fedkea = [
         row
         for row in scored

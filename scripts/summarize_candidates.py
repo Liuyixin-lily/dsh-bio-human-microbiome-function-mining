@@ -130,7 +130,11 @@ def validation_status(row: dict[str, str]) -> str:
     if rule == "DEER_FEDKEA_CONFIRMED":
         return "medium: DEER fallback candidate confirmed as enzyme by FedKEA"
     if rule == "USALIGN_OTHER_EC":
-        return "medium: US-align near-native but FedKEA non-target EC " + row.get("fedkea_final_result", "")
+        return (
+            "medium: US-align near-native; FedKEA predicts EC "
+            + row.get("fedkea_final_result", "")
+            + " instead of the target EC - retained as a candidate for experimental testing, not excluded"
+        )
     if rule == "USALIGN_NOT_ENZYME":
         return "low: US-align evidence but FedKEA predicts not an enzyme"
     if rule == "USALIGN_UNVALIDATED":
@@ -245,11 +249,24 @@ def mechanistic_model(row: dict[str, str], project: dict[str, Any]) -> str:
     return model
 
 
-def testable_prediction(row: dict[str, str]) -> str:
+def testable_prediction(row: dict[str, str], target_ec: str = "") -> str:
     rule = row.get("priority_rule", row.get("priority_tier", ""))
     if rule in ("SEQUENCE_ANNOTATION_CONFIRMED", "USALIGN_TARGET_EC"):
         return "Purified recombinant protein will catalyze the target reaction in vitro with detectable substrate depletion and product formation."
-    if rule in ("USALIGN_OTHER_EC", "DEER_FEDKEA_CONFIRMED"):
+    if rule == "USALIGN_OTHER_EC":
+        predicted = (row.get("fedkea_final_result", "") or "").strip()
+        target = (target_ec or row.get("target_ec", "") or "").strip()
+        parts = ["Purified recombinant protein will show enzyme activity in vitro"]
+        if predicted:
+            parts.append(f"and is expected to catalyse the FedKEA-predicted EC {predicted} reaction")
+        if target and predicted and target != predicted:
+            parts.append(
+                f"the decisive test is a side-by-side assay of the target EC {target} reaction and the "
+                f"predicted EC {predicted} reaction: shared fold does not mean shared function, and the "
+                "prediction does not settle it"
+            )
+        return "; ".join(parts) + "."
+    if rule == "DEER_FEDKEA_CONFIRMED":
         return "Purified recombinant protein will show enzyme activity in vitro; the EC assignment will be reconciled by substrate/product assays."
     if rule == "SEQUENCE_ONLY":
         return "Purified recombinant protein will fold into the predicted structure and will either support the target reaction or bind the target substrate."
@@ -403,6 +420,7 @@ def main(argv: list[str] | None = None) -> int:
 
     summary_rows: list[dict[str, str]] = []
     final_rows: list[dict[str, str]] = []
+    target_ec = str((project.get("target_function_card") or {}).get("ec") or "").strip()
     hypothesis_rows: list[dict[str, str]] = []
     for row in rows:
         acc = row.get("protein_accession") or row.get("candidate_id") or ""
@@ -440,7 +458,7 @@ def main(argv: list[str] | None = None) -> int:
                 "target_context": hyp_ctx,
                 "hypothesis_statement": hypothesis_statement(row, project, hyp_ctx),
                 "mechanistic_model": mechanistic_model(row, project),
-                "testable_prediction": testable_prediction(row),
+                "testable_prediction": testable_prediction(row, target_ec),
                 "critical_experiments": critical_experiments(row),
                 "falsification_criteria": falsification_criteria(row),
                 "ambient_hypothesis": ambient_hypothesis(row),
