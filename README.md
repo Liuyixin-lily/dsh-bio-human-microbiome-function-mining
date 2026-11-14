@@ -276,32 +276,30 @@ python3 scripts/build_cro_work_order.py \
 ## Core workflow / 核心流程
 
 ```text
-entry A (user can name it):  target enzyme / EC / substrate-product / sequence
+entry A (user can name it):  enzyme / EC / substrate-product / sequence
 entry B (user only knows):   vague interest "油脂分泌" / "皮肤屏障" / "体味"
                                -> browse-target-library: domain -> process -> enzyme
   (both entries converge here)
-  -> target_function_card.json
-  -> preflight check .faa/.ffn/.gbff and structure paths
-  -> optional genome-search / genome-download / genome-annotation
-  -> CD-HIT deduplication (100% for single-genome datasets; 95% for multi-genome pan-proteomes)
-  -> DIAMOND sequence screening
-  -> parse existing .faa/.gbff annotations
-  -> fast path: if sequence hit AND existing annotation match the target,
-     mark SEQUENCE_ANNOTATION_CONFIRMED and skip structure steps
-  -> otherwise check candidate structure files (PDB/CIF)
-  -> if structures missing, run bundled structure-prediction sub-skill
-  -> direct US-align against the reference target structure for all available candidate structures
-  -> DEER only as fallback for genomes with no US-align candidate or too few of them,
-     and when the merged sequence+structure candidate list has no qualifying candidate
-  -> optional SignalP cleavage prediction for final candidate proteins
-  -> optional catalytic-pocket, genome-context, and ecological evidence
-  -> optional FedKEA enzyme/EC evidence
-  -> literature-evidence audit (verified PMID/DOI evidence)
-  -> merge combined_candidates.tsv
-  -> explicit priority candidate ranking
-  -> falsifiable experimental hypotheses
-  -> experimental design
+  -> 模板序列文件（宿主模板 + 微生物模板，人工策展或 fetch_reference_enzymes.py 抓取，
+     只收有实验证据的 reviewed 条目，TrEMBL 的 "Inferred from homology" 不入模板）
+  -> CD-HIT 去冗余（单基因组 100%；同一物种多个 GCF 的 pan-proteome 95%）
+  -> DIAMOND 序列筛选（identity ≥ 0.2，query coverage ≥ 0.7，E ≤ 1e-5）
+  -> parse_source_annotations（.faa/.gbff 已有注释作为独立证据）
+  -> 【快速通道】序列命中 + 注释同向 -> SEQUENCE_ANNOTATION_CONFIRMED
+       -> 直接跳过结构分析，给出结果
+     （注释不匹配或无注释时才进入结构分析）
+  -> 询问用户：有没有候选菌的蛋白结构文件？
+       ├─ 没有 -> structure-prediction
+       │          （PDB 实验结构 > AlphaFold DB pLDDT ≥ 60 > 同源建模 > de novo）
+       └─ 有   -> 直接 US-align 全量（TM ≥ 0.5，双向）
+                   -> 合格候选不足、且用户同意时，才启用 DEER fallback
+  -> FedKEA（酶/EC 补充证据）/ SignalP（信号肽）
+  -> literature-evidence（只保留核验过的 PMID/DOI）
+  -> merge combined_candidates.tsv -> 显式优先级排序（默认 TM 主键）
+  -> 可证伪假设 + 实验设计
 ```
+
+流程的起点是**模板序列文件**，不是单条目标序列：判断「微生物是否编码人体相关的酶」时，需要同时拿宿主自身的酶和微生物的同源酶做模板——前者回答"是否与人体酶同源"，后者回答"是否是同类酶"。只取一组会漏。
 
 默认排序由 `scripts/score_candidates.py` 给出确定性的 `overall_rank`，**以结构相似性（TM-score）为主键**（`--rank-by structure`，默认）：有 TM 值的行按 TM 降序排在前；没有 TM 值的行（快速通道跳过结构的行、只有距离的 DEER 行、仅序列、仅注释）排在其后，内部再按 `priority_order`，然后按序列分、注释强度、`candidate_id` 破平。
 

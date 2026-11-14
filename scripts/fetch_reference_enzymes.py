@@ -48,6 +48,14 @@ NCBI_PROTEIN_DB = "protein"
 PDB_API_BASE = "https://data.rcsb.org/rest/v1/core/entry"
 DEFAULT_RETMAX = 20
 NCBI_WAIT = 0.34
+UNIPROT_BASE = "https://rest.uniprot.org/uniprotkb/search"
+# The template set is host + microbial, so the host organism is a first-class input.
+DEFAULT_HOST_TAXID = 9606  # Homo sapiens
+
+# A template must rest on experimental evidence. TrEMBL entries are marked
+# "Inferred from homology" / "Predicted", and using them makes a host-like enzyme search
+# look like it found nothing: the reference workflow excludes them outright.
+EVIDENCE_REVIEWED = "reviewed (Swiss-Prot)"
 
 
 def http_get(url: str, timeout: int = 60) -> bytes:
@@ -121,6 +129,72 @@ def parse_fasta(fasta: str) -> list[dict[str, str]]:
     if header:
         records.append({"header": header, "sequence": "".join(lines)})
     return records
+
+
+def uniprot_query_url(
+    ec: str,
+    organism_id: int | None,
+    reviewed_only: bool,
+    size: int,
+    extra_clause: str | None = None,
+) -> str:
+    """Build one UniProt search URL. Pure, so the planned queries can be tested."""
+    clauses = [f"ec:{ec}"]
+    if organism_id is not None:
+        clauses.append(f"organism_id:{organism_id}")
+    if extra_clause:
+        clauses.append(extra_clause)
+    if reviewed_only:
+        clauses.append("reviewed:true")
+    params = {"query": " AND ".join(clauses), "format": "fasta", "size": str(size)}
+    return f"{UNIPROT_BASE}?{urllib.parse.urlencode(params)}"
+
+
+def fetch_uniprot_references(
+    ec: str,
+    organism_id: int | None,
+    reviewed_only: bool,
+    size: int,
+    target_id: str,
+    group: str,
+    extra_clause: str | None = None,
+) -> tuple[list[dict[str, str]], str]:
+    """Fetch templates from UniProt and tag them with their evidence level and group.
+
+    `group` is `host` or `microbial`: downstream consumers (and anyone reading the TSV)
+    must be able to tell a human template from a bacterial one.
+    """
+    url = uniprot_query_url(ec, organism_id, reviewed_only, size, extra_clause)
+    try:
+        fasta = http_get(url).decode("utf-8", errors="replace")
+    except Exception as exc:
+        print(f"UniProt request failed ({group}): {exc}", file=sys.stderr)
+        return [], ""
+    rows: list[dict[str, str]] = []
+    for record in parse_fasta(fasta):
+        header = record["header"]
+        accession = header.split("|")[1] if "|" in header else header.split()[0]
+        parts = header.split(" OS=")
+        name = parts[0].split(" ", 1)[1] if " " in parts[0] else accession
+        organism = parts[1].split(" OX=")[0].strip() if len(parts) > 1 else ""
+        rows.append(
+            {
+                "target_id": target_id,
+                "reference_id": accession,
+                "name": name.strip(),
+                "organism": organism,
+                "source": "UniProt",
+                "sequence_file": "",
+                "catalytic_file": "",
+                "ec": ec,
+                "structure_file": "",
+                "uniprot": accession,
+                "notes": "",
+                "evidence": EVIDENCE_REVIEWED if reviewed_only else "unreviewed (TrEMBL)",
+                "template_group": group,
+            }
+        )
+    return rows, fasta
 
 
 def ncbi_build_term(
@@ -260,6 +334,8 @@ def write_reference_tsv(rows: list[dict[str, str]], out_path: Path) -> None:
         "structure_file",
         "uniprot",
         "notes",
+        "evidence",
+        "template_group",
     ]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8", newline="") as handle:
@@ -367,7 +443,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, help="Output reference_enzyme_set.tsv path.")
     parser.add_argument("--fasta-output", type=Path, help="Optional reference protein FASTA path.")
     parser.add_argument("--provenance-output", type=Path, help="Optional JSON provenance path.")
-    parser.add_argument("--retmax", type=int, default=None, help="Maximum NCBI records to fetch.")
+    parser.add_argument("--retmax", type=int, default=None, help="Maximum records to fetch per template group.")
+    parser.add_argument(
+        "--host-organism-id",
+        type=int,
+        default=None,
+        help=f"Taxid whose templates count as host templates (default {DEFAULT_HOST_TAXID}, Homo sapiens).",
+    )
+    parser.add_argument("--no-host", action="store_true",
+                        help="Skip host templates; fetch microbial templates only.")
+    parser.add_argument("--include-unreviewed", action="store_true",
+                        help="Also accept TrEMBL entries. Off by default: 'Inferred from homology' "
+                             "templates can make a host-like enzyme search look empty.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Print the UniProt queries that would run for host and microbial templates.")
     args = parser.parse_args(argv)
 
     # The plugin expects commands to run from the project root. `--project`
@@ -397,7 +486,66 @@ def main(argv: list[str] | None = None) -> int:
     rows: list[dict[str, str]] = []
     prov: list[dict[str, Any]] = []
     fasta = ""
-    if enzyme_name or ec:
+
+    host_taxid = args.host_organism_id if args.host_organism_id is not None else DEFAULT_HOST_TAXID
+    reviewed_only = not args.include_unreviewed
+    target_for_rows = sanitize_ref_id(enzyme_name or ec or "REFERENCE")
+
+    if args.dry_run:
+        if not ec:
+            print("--dry-run needs --ec to build the UniProt queries")
+            return 0
+        print("host 模板查询（宿主自身的同类酶）:")
+        print("  " + ("（--no-host：跳过）" if args.no_host
+                      else uniprot_query_url(ec, host_taxid, reviewed_only, retmax)))
+        print("microbial 模板查询（reviewed，再按 organism 剔除宿主条目）:")
+        print("  " + uniprot_query_url(ec, None, reviewed_only, retmax,
+                                          "(taxonomy_id:2 OR taxonomy_id:2157)"))
+        print()
+        print("两类模板分开取：微生物模板找同类酶，宿主模板判断微生物蛋白是否与人体酶同源。")
+        return 0
+
+    # Host + microbial templates, reviewed first. This ordering is the fix for a real false
+    # negative: five NCBI hits for EC 3.1.4.12 were distant Aeromonas/Vibrio/Streptomyces
+    # entries, and a proteome that does carry the enzyme came back with zero hits.
+    if ec:
+        # "microbial" must be restricted to prokaryotes. Without this clause the top reviewed
+        # hits for an EC are metazoan (mouse, cow, C. elegans) and get labelled microbial.
+        MICROBIAL_CLAUSE = "(taxonomy_id:2 OR taxonomy_id:2157)"
+        groups: list[tuple[str, int | None, str | None]] = []
+        if not args.no_host:
+            groups.append(("host", host_taxid, None))
+        groups.append(("microbial", None, MICROBIAL_CLAUSE))
+        host_accessions: set[str] = set()
+        for group, taxid, clause in groups:
+            group_rows, group_fasta = fetch_uniprot_references(
+                ec=ec,
+                organism_id=taxid,
+                reviewed_only=reviewed_only,
+                size=retmax,
+                target_id=target_for_rows,
+                group=group,
+                extra_clause=clause,
+            )
+            if group == "host":
+                host_accessions = {row["reference_id"] for row in group_rows}
+            elif host_accessions:
+                group_rows = [r for r in group_rows if r["reference_id"] not in host_accessions]
+            rows.extend(group_rows)
+            if group_fasta:
+                fasta += group_fasta
+            prov.append({
+                "source": "UniProt",
+                "group": group,
+                "query": {"ec": ec, "organism_id": taxid, "reviewed_only": reviewed_only,
+                          "taxon_clause": clause},
+                "record_count": len(group_rows),
+            })
+        if not rows:
+            print("warning: UniProt returned no reviewed templates for this EC; "
+                  "falling back to NCBI Protein (less precise)", file=sys.stderr)
+
+    if not rows and (enzyme_name or ec):
         ncbi_rows, ncbi_fasta = fetch_ncbi_references(
             enzyme_name=enzyme_name,
             ec=ec,

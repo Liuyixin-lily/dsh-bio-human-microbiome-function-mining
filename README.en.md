@@ -268,36 +268,35 @@ Decision rules come from `experimental_hypotheses.tsv`, fixed **before** the dat
 ## Core workflow
 
 ```text
-entry A (user can name it):  target enzyme / EC / substrate-product / sequence
-entry B (user only knows):   vague interest "oily skin" / "skin barrier" / "body odour"
+entry A (user can name it):  enzyme / EC / substrate-product / sequence
+entry B (user only knows):   vague interest "sebum" / "skin barrier" / "body odour"
                                -> browse-target-library: domain -> process -> enzyme
   (both entries converge here)
-  -> target_function_card.json
-  -> preflight check .faa/.ffn/.gbff and structure paths
-  -> optional genome-search / genome-download / genome-annotation
-  -> CD-HIT deduplication (100% for single-genome datasets; 95% for multi-genome pan-proteomes)
-  -> DIAMOND sequence screening
-  -> parse existing .faa/.gbff annotations
-  -> fast path: if sequence hit AND existing annotation match the target,
-     mark SEQUENCE_ANNOTATION_CONFIRMED and skip structure steps
-  -> otherwise check candidate structure files (PDB/CIF)
-  -> if structures missing, run bundled structure-prediction sub-skill
-  -> direct US-align against the reference target structure for all available candidate structures
-  -> DEER only as fallback for genomes with no US-align candidate or too few of them,
-     and when the merged sequence+structure candidate list has no qualifying candidate
-  -> optional SignalP cleavage prediction for final candidate proteins
-  -> optional catalytic-pocket, genome-context, and ecological evidence
-  -> optional FedKEA enzyme/EC evidence
-  -> literature-evidence audit (verified PMID/DOI evidence)
-  -> merge combined_candidates.tsv
-  -> explicit priority candidate ranking
-  -> falsifiable experimental hypotheses
-  -> experimental design
+  -> template sequence file (host templates + microbial templates, curated or fetched by
+     fetch_reference_enzymes.py; only entries with experimental evidence, so TrEMBL
+     "Inferred from homology" records are not admitted)
+  -> CD-HIT deduplication (100% for a single genome; 95% for a multi-GCF pan-proteome)
+  -> DIAMOND sequence screening (identity >= 0.2, query coverage >= 0.7, E <= 1e-5)
+  -> parse_source_annotations (existing .faa/.gbff annotation as an independent layer)
+  -> fast path: sequence hit AND annotation agree -> SEQUENCE_ANNOTATION_CONFIRMED
+       -> skip structure entirely and report
+     (only when the annotation disagrees or is absent does the structure branch run)
+  -> ask the user whether candidate protein structures exist
+       |-- no  -> structure-prediction
+       |          (experimental PDB > AlphaFold DB pLDDT >= 60 > homology model > de novo)
+       `-- yes -> US-align over all candidates (TM >= 0.5, both directions)
+                   -> DEER fallback only when too few pass, and only with user consent
+  -> FedKEA (enzyme/EC evidence) / SignalP (signal peptide)
+  -> literature-evidence (verified PMID/DOI only)
+  -> merge combined_candidates.tsv -> explicit priority ranking (TM-score first by default)
+  -> falsifiable hypotheses + experimental design
 ```
 
-Default ranking is produced deterministically by `scripts/score_candidates.py` and is **TM-score-first** (`--rank-by structure`, the default): rows carrying a TM-score are ordered by it descending, and rows without one - fast-path rows that skipped structure, DEER rows carrying only a distance, sequence-only and annotation-only rows - follow, ordered among themselves by `priority_order`, then sequence score, annotation strength and `candidate_id`. Pass `--rank-by priority` to restore tier-first ordering.
-
-TM-score is the primary key rather than the `priority_rule` tier because for **convergent / moonlighting** targets the validated enzyme typically carries an annotation and FedKEA EC that differ from the target EC, and tier-first ordering demotes it below candidates whose EC merely happens to match. A DIAMOND sequence hit whose existing `.faa`/`.gbff` annotation also matches the target function is assigned `SEQUENCE_ANNOTATION_CONFIRMED` and skips downstream structure screening (so it has no TM-score and lands in the no-TM group, first by priority); structure evidence is used only when sequence+annotation evidence is absent, ambiguous, unknown, or contradicts the target. `priority_rule`, `priority_order` and `rank_policy` are retained for traceability; the externally delivered ranking field is `overall_rank`.
+The pipeline starts from a **template sequence file**, not from a single target sequence. To ask
+whether a microbe encodes a host-like enzyme you need both sets: the host's own enzymes (does
+the microbial protein resemble a human one?) and microbial homologues (is it the same class of
+enzyme?). One set alone misses cases — using microbial templates that were five distant NCBI
+hits once produced a false "no candidate" for a proteome that does carry the enzyme.
 
 The final ranked table is `scored_candidates_full.tsv`, with `overall_rank` as the explicit deliverable ranking field. Optional `priority_rule` / `priority_order` columns may be present for traceability but are not required by the schema.
 

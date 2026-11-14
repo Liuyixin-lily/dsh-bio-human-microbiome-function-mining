@@ -2288,6 +2288,39 @@ def main() -> int:
             hits3 = list(csv.DictReader(handle, delimiter="\t"))
         assert len(hits3) == 1 and hits3[0]["protein_accession"] == "WP_9"
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        fetcher = SCRIPTS / "fetch_reference_enzymes.py"
+
+        # --dry-run must plan TWO template groups: host and microbial. One group alone misses
+        # the reason this step exists (host = "is it human-like", microbial = "same enzyme").
+        planned = subprocess.run(
+            [sys.executable, str(fetcher), "--ec", "3.1.4.12", "--dry-run"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "host 模板查询" in planned and "microbial 模板查询" in planned
+        assert "organism_id%3A9606" in planned          # host default = human
+        assert "reviewed%3Atrue" in planned             # experimental evidence only
+        assert "taxonomy_id%3A2" in planned             # microbial = bacteria + archaea
+
+        # --no-host drops the host query entirely
+        no_host = subprocess.run(
+            [sys.executable, str(fetcher), "--ec", "3.1.4.12", "--dry-run", "--no-host"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "--no-host" in no_host
+        assert "organism_id%3A9606" not in no_host
+
+        # the reviewer-only rule is the default, and can be relaxed explicitly
+        unreviewed = subprocess.run(
+            [sys.executable, str(fetcher), "--ec", "3.1.4.12", "--dry-run", "--include-unreviewed"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        assert "reviewed%3Atrue" not in unreviewed
+
+        # dry-run must not create any output file
+        assert not list(tmp.glob("*.tsv"))
+
     print("example test passed")
     return 0
 

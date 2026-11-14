@@ -49,6 +49,13 @@ Set `tools.sequence_screen.cdhit_identity` in `project.json` or pass
 `--cluster-identity 0` to skip CD-HIT when the input FASTA is already
 non-redundant.
 
+The `--query` is the **template sequence file**, not a single target protein: it should hold
+the host templates and the microbial templates together (see `fetch_reference_enzymes.py`,
+which writes `reference_enzyme_set.tsv` with an `evidence` and a `template_group` column).
+Screening with one group alone cannot distinguish "this microbial protein is the same class of
+enzyme" from "it resembles a human enzyme", and a set of distant templates can make a proteome
+that does carry the enzyme come back empty.
+
 Build a DIAMOND database and screen in one step:
 
 ```bash
