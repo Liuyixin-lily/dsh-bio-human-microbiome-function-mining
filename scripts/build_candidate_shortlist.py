@@ -43,6 +43,7 @@ ENZYME_FIELDS = [
     "rank", "target_id", "gene", "name", "uniprot", "ec", "site_process",
     "evidence_status", "evidence_refs", "evidence_note", "ranking_note",
     "known_score", "discovery_score", "priority_score", "selection_status",
+    "scored_components",
     "site_evidence_score", "disease_relevance_score", "biochemical_clarity_score",
     "sequence_structure_score", "microbial_plausibility_score",
     "assay_feasibility_score", "novelty_score", "score_sources",
@@ -51,7 +52,7 @@ ENZYME_FIELDS = [
 TAXA_FIELDS = [
     "rank", "taxon_id", "genus", "species", "display_name",
     "evidence_status", "evidence_refs", "ranking_note",
-    "priority_score", "selection_status",
+    "priority_score", "selection_status", "scored_components",
     "site_presence_score", "disease_site_relevance_score",
     "experimental_accessibility_score", "genome_availability_score",
     "metabolic_plausibility_score", "score_sources", "score_basis", "scoring_policy",
@@ -250,6 +251,18 @@ def recommended(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r for r in rows if str(r.get("evidence_status", "")).startswith("literature_verified") and r.get("evidence_refs")]
 
 
+COMPONENTS = ("site_evidence_score", "disease_relevance_score", "biochemical_clarity_score",
+              "sequence_structure_score", "microbial_plausibility_score",
+              "assay_feasibility_score", "novelty_score")
+TAXA_COMPONENTS = ("site_presence_score", "disease_site_relevance_score",
+                   "experimental_accessibility_score", "genome_availability_score",
+                   "metabolic_plausibility_score")
+
+
+def count_scored(row: dict[str, Any], components: tuple[str, ...]) -> int:
+    return sum(1 for key in components if str(row.get(key) or "").strip() not in ("", "0.000"))
+
+
 def evidence_rank(row: dict[str, Any]) -> tuple[int, float]:
     """Order by evidence strength first, score second.
 
@@ -354,11 +367,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--literature", type=Path, default=None, help="literature_evidence.tsv.")
     parser.add_argument("--site", default=None, help="Body site id (skin / gut / oral ...).")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--rank-by", choices=("evidence", "score"), default="evidence",
+                        help="evidence (default): evidence tier first, priority_score inside the tier, "
+                             "so a hand-scored but unreferenced entry cannot outrank a referenced one; "
+                             "score: pure priority_score order")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    rank_by = getattr(args, "rank_by", "evidence")
     if not args.enzymes and not args.taxa:
         print("error: pass at least one --enzymes or --taxa registry", file=sys.stderr)
         return 2
@@ -393,30 +411,58 @@ def main(argv: list[str] | None = None) -> int:
     if ranked_enzymes.is_file():
         enzyme_rows = annotate(read_tsv(ranked_enzymes), facts_enzymes, "target_id", lit_refs)
         annotate_ranking_note(enzyme_rows, "its own registry")
-        enzyme_rows.sort(key=lambda r: (evidence_rank(r), str(r.get("target_id"))))
+        for row in enzyme_rows:
+            row["scored_components"] = count_scored(row, COMPONENTS)
+        if rank_by == "evidence":
+            enzyme_rows.sort(key=lambda r: (evidence_rank(r), str(r.get("target_id"))))
+        else:
+            # recommended ranking: score first, and the evidence column stays visible next to it
+            enzyme_rows.sort(key=lambda r: (-(float(r.get("priority_score") or 0)),
+                                            -int(r.get("scored_components") or 0),
+                                            str(r.get("target_id"))))
         for i, row in enumerate(enzyme_rows, 1):
             row["rank"] = i
         write_tsv(outdir / "candidate_enzymes.tsv", enzyme_rows, ENZYME_FIELDS)
+        # a recommendation needs more than one scored component; below that the "rank" is only a
+        # restatement of the single component that happened to be filled
+        recommended_rows = [r for r in enzyme_rows if int(r.get("scored_components") or 0) >= 2]
+        for i, row in enumerate(recommended_rows, 1):
+            row["rank"] = i
+        write_tsv(outdir / "recommended_enzymes.tsv", recommended_rows, ENZYME_FIELDS)
     ranked_taxa = outdir / "taxa_priority_ranking.tsv"
     if ranked_taxa.is_file():
         taxa_rows = annotate(read_tsv(ranked_taxa), {
             key.lower(): value for key, value in facts_taxa.items()
         }, "taxon_id")
         for row in taxa_rows:
+            row["scored_components"] = count_scored(row, TAXA_COMPONENTS)
             binomial = f"{row.get('genus','')} {row.get('species','')}".strip().lower()
             fact = facts_taxa.get(binomial)
             if fact:
                 row["evidence_status"] = "library_focus_taxon"
                 row["evidence_refs"] = fact["evidence_refs"]
+        taxa_rows.sort(key=lambda r: (-(float(r.get("priority_score") or 0)),
+                                      -int(r.get("scored_components") or 0),
+                                      str(r.get("taxon_id"))))
+        for i, row in enumerate(taxa_rows, 1):
+            row["rank"] = i
         write_tsv(outdir / "candidate_taxa.tsv", taxa_rows, TAXA_FIELDS)
+        recommended_taxa = [r for r in taxa_rows if int(r.get("scored_components") or 0) >= 2]
+        for i, row in enumerate(recommended_taxa, 1):
+            row["rank"] = i
+        write_tsv(outdir / "recommended_taxa.tsv", recommended_taxa, TAXA_FIELDS)
 
     (outdir / "candidate_shortlist.md").write_text(
         markdown(enzyme_rows, taxa_rows, args.library, args.enzymes, args.taxa), encoding="utf-8"
     )
     rec_e = len(recommended(enzyme_rows))
     rec_t = len(recommended(taxa_rows))
-    print(f"candidate_enzymes.tsv : {len(enzyme_rows)} row(s), {rec_e} literature_verified")
-    print(f"candidate_taxa.tsv    : {len(taxa_rows)} row(s), {rec_t} literature_verified")
+    rec_enzymes = [r for r in enzyme_rows if int(r.get("scored_components") or 0) >= 2]
+    rec_taxa = [r for r in taxa_rows if int(r.get("scored_components") or 0) >= 2]
+    print(f"candidate_enzymes.tsv   : {len(enzyme_rows)} row(s), {rec_e} literature_verified")
+    print(f"recommended_enzymes.tsv : {len(rec_enzymes)} row(s) with >=2 scored components")
+    print(f"candidate_taxa.tsv      : {len(taxa_rows)} row(s), {rec_t} literature_verified")
+    print(f"recommended_taxa.tsv    : {len(rec_taxa)} row(s) with >=2 scored components")
     print(f"candidate_shortlist.md: {outdir / 'candidate_shortlist.md'}")
     return 0
 

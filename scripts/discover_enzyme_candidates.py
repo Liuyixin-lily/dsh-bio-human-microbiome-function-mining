@@ -95,7 +95,8 @@ def slugify(value: str) -> str:
 
 def write_registry(path: Path, entries: list[dict[str, Any]], site: str, topic: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fields = ["target_id", "gene", "name", "uniprot", "ec", "site_process", "notes"]
+    fields = ["target_id", "gene", "name", "uniprot", "ec", "ec_confidence",
+              "microbial_context", "site_process", "notes"]
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t", lineterminator="\n")
         writer.writeheader()
@@ -106,6 +107,11 @@ def write_registry(path: Path, entries: list[dict[str, Any]], site: str, topic: 
                 "name": entry["name"],
                 "uniprot": "",
                 "ec": entry["ec"],
+                # an EC copied from an abstract is a family-level identification, never "full"
+                "ec_confidence": "family" if entry["ec"] else "none",
+                # every candidate here came from a microbiome-metabolism query, but that only
+                # makes the function plausible for the taxon, not demonstrated for a protein
+                "microbial_context": "yes",
                 "site_process": topic,
                 "notes": (
                     f"检索自 {site} 主题「{topic}」；PMID {', '.join(entry['pmids']) or '—'}；"

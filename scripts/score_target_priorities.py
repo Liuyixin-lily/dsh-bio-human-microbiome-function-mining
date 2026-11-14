@@ -453,6 +453,19 @@ class AutoScorer:
             if site_score is not None:
                 out["site_evidence_score"] = (site_score, "auto:library")
 
+        # A registry produced by the discovery route records two things the library does not:
+        # whether the retrieved text named an EC for this enzyme, and whether the text was about
+        # microbiome metabolism at all. Both are derivable without inventing anything.
+        if facts is None:
+            ec_confidence = str(row.get("ec_confidence") or "").strip().lower()
+            if ec_confidence in ("full", "family"):
+                clarity = 2.0 if ec_confidence == "full" else 1.5
+                out["biochemical_clarity_score"] = (clarity, "auto:registry")
+            if str(row.get("microbial_context") or "").strip().lower() in ("yes", "true", "1"):
+                # named in an abstract about microbial xenobiotic metabolism: plausible for a
+                # microbe to carry it, but not demonstrated for a named protein
+                out["microbial_plausibility_score"] = (3.0, "auto:registry")
+
         out.update(self._literature_scores(target_id, facts))
 
         refs = self.reference_rows.get(target_id) or []

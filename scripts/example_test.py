@@ -3326,6 +3326,14 @@ def main() -> int:
             taxa_rows = list(csv.DictReader(handle, delimiter="\t"))
         assert len(taxa_rows) == 1
 
+        # the recommended tables only hold rows with >=2 scored components; the rest stay in the pool
+        for name, minimum in (("recommended_enzymes.tsv", 2), ("recommended_taxa.tsv", 2)):
+            path = out / name
+            if not path.is_file():
+                continue
+            for row in csv.DictReader(path.open("r", encoding="utf-8"), delimiter="\t"):
+                assert int(row["scored_components"]) >= minimum, (name, row)
+
         note = (out / "candidate_shortlist.md").read_text(encoding="utf-8")
         assert "## 1. Recommended" in note and "## 2. Candidate pool" in note
         assert "azoreductase" in note
