@@ -92,12 +92,10 @@ Users rarely know which enzyme they want; they know a phenotype ("skin metabolis
 
 | Library file | Content | role |
 | --- | --- | --- |
-| `library/skin.json` | Skin: 2 processes / 2 enzyme targets, **each with verified PMIDs** — sphingomyelin phosphodiesterase (EC 3.1.4.12) and histidine ammonia-lyase / histidase (EC 4.3.1.3) | `shipped_example` |
+| `library/skin.json` | Skin: 1 process / 1 enzyme target, **with verified PMIDs** — sphingomyelin phosphodiesterase (EC 3.1.4.12), matching examples 1 and 2 | `shipped_example` |
 | `examples/unverified/*.json` | The previous 27 uncited curated entries (skin 10 processes / gut 5), **not loaded by default** | reference material |
 
-**The default library is deliberately tiny.** It holds only entries with real literature support, and passes its own `--require-evidence` gate 2/2. The previous 27 entries carried no citations, so they moved to `examples/unverified/` where that gate quarantines all of them — they are no longer presented as a menu.
-
-The histidase entry is worth reading for how evidence is layered: the **host** side (stratum corneum histidine to urocanic acid, the main UV-absorbing molecule) is directly established; the **microbial** side has enzyme-level evidence only (purified HutH from *P. putida* and *S. griseus*, the annotated *B. subtilis* hut operon), with **no conclusion anywhere about how much skin bacteria contribute to the urocanic acid pool**. Both layers are spelled out in `provenance_note_zh`, and `key_taxa` is marked as reference controls (attention=low) rather than claiming proven skin function.
+**The default library is deliberately tiny.** It holds only entries with real literature support that also match a README example, and passes its own `--require-evidence` gate 1/1. The previous 27 entries carried no citations, so they moved to `examples/unverified/` where that gate quarantines all of them — they are no longer presented as a menu.
 
 **The library itself is optional.** Empty `library/` and the plugin still does everything except offering a menu of "which enzymes to look at first": entry A, per-site genome search, sequence/structure/annotation/literature evidence, ranking and the CRO work order are unaffected. The only countable cost is that `--auto-score` derives 8 components instead of 4.
 
@@ -366,20 +364,14 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples
 
-**Four examples, three entry points.** All are adapted from real, executable research
-scenarios:
+The examples are organized by common input type and adapted from real, executable
+research scenarios:
 
 | # | Input type | Trigger | Example | Entry point |
 | --- | --- | --- | --- | --- |
 | 1 | Known metabolic reaction | Substrate/product is known, but no template sequence or EC. | sphingomyelin -> ceramide + phosphocholine | `reaction` |
 | 2 | Known enzyme name / EC | Functional annotation is known. | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
 | 3 | Known reference sequence | A FASTA or UniProt accession is available. | DDC / P20711 | `sequence` |
-| 4 | Known reference sequence, very large family | As 3, but the target sits in a huge superfamily (here GNAT/PF00583). | AANAT / Q16613 | `sequence` + family census |
-
-Examples 3 and 4 both sit on the melatonin pathway, with opposite conclusions: the DDC
-case is *insufficient evidence, needs an enzyme assay*; the AANAT case needs an extra
-**family census**, because the sequence layer may show no significant hit, and "no
-orthodox homolog" is not "no such activity".
 
 Each example contains a prompt you can send directly and the workflow the Agent
 will run with the bundled skills. Replace tool and data paths with your own.
@@ -479,33 +471,6 @@ The response clearly reports:
 ---
 
 ---
-
-### Example 4: start from a target whose enzyme family is very large, and predict whether gut microbes encode the same activity
-
-```text
-User:
-"Predict whether the given gut microbe Bifidobacterium adolescentis may encode
-the key enzyme of human melatonin synthesis, AANAT (Q16613), and provide a
-verifiable experimental design."
-
-Agent:
-- Use `build-target-function-card` for AANAT / aralkylamine N-acetyltransferase (EC 2.3.1.87), with UniProt reference = Q16613, and record the cofactor (acetyl-CoA) and the fold (GNAT, Pfam PF00583)
-- Keep only the target reference in the reference set: human AANAT (reviewed EC 2.3.1.87); no fold controls
-- Run `scripts/preflight_inputs.py --project project.json --require-target-sequence --require-target-structure` to check the candidate genome files and the candidate structure directory
-- Run `screen-sequence-candidates`: CD-HIT deduplication (single-genome 100%), then DIAMOND; add a second `--sensitive` pass with a permissive E-value for the remote-homolog tail and report the two passes separately
-- Because the target is one branch of the GNAT superfamily, run a family census first: `hmmsearch` with Pfam PF00583 to enumerate every GNAT protein in the candidate genome, including a positive control in the same run (human AANAT only). This census, not the DIAMOND hit list, defines the candidate universe
-- If the sequence layer has no significant hit (as in this example), use `screen-structure-candidates` to US-align all candidate structures against the target template only; prefer experimental target templates (e.g. 1CJW/1KUV) and follow them when a predicted model disagrees with them
-- Cross-check with FedKEA (correct environment, bare-accession FASTA headers); FedKEA returns the most likely single EC (canonical function) and cannot be used to exclude a secondary activity
-- Audit literature with `literature-evidence` to attach PMID/DOI-backed evidence, then rank with `score_candidates.py` (TM-score-first by default; `--rank-by priority` restores priority-tier ordering)
-
-The response clearly reports:
-- whether a canonical AANAT ortholog exists, and the size of the candidate universe (GNAT family members)
-- representative candidate accessions with gene coordinates, plus their sequence / structure / FedKEA evidence chain
-- which candidates already have published experimental validation and which are still hypotheses
-- an experimental path for validating serotonin/tryptamine acetylation (recombinant expression + LC-MS/MS product confirmation + kinetics benchmarked against known bacterial SNATs + knockout/complementation)
-```
-
-> Key difference from Example 3: when the target belongs to a very large superfamily, one extra step is mandatory - **family census (Pfam HMM)** - and the write-up must keep "no canonical ortholog" separate from "no such activity".
 
 ## Key outputs
 

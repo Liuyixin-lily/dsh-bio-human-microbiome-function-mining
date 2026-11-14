@@ -90,12 +90,10 @@ domain（身体部位）  ->  process（生理过程）  ->  enzyme（真正拿�
 
 | 库文件 | 内容 | role |
 | --- | --- | --- |
-| `library/skin.json` | 皮肤：2 个过程 / 2 个酶目标，**每条带已验证 PMID**——鞘磷脂酶（EC 3.1.4.12）、组氨酸酶（EC 4.3.1.3） | `shipped_example` |
+| `library/skin.json` | 皮肤：1 个过程 / 1 个酶目标，**带已验证 PMID**——鞘磷脂酶（EC 3.1.4.12），正好对应示例 1/2 | `shipped_example` |
 | `examples/unverified/*.json` | 旧的 27 条未带引用的策展条目（皮肤 10 过程 / 肠道 5 过程），**不默认加载** | 参考内容 |
 
-**默认库刻意很小。** 它只放逐条有真实文献支撑的条目，用 `--require-evidence` 衡量是 2/2 通过。旧的 27 条没有引用，已移到 `examples/unverified/`，在那个门槛下会被全部隔离——所以不再摆在默认菜单里。
-
-组氨酸酶那一条值得看它怎么写证据：宿主侧（角质层组氨酸→尿刊酸、UV 吸收）有直接文献；微生物侧只有细菌 HutH 的酶学表征（*P. putida*、*S. griseus*、*B. subtilis*），**皮肤菌是否贡献尿刊酸没有任何结论**。条目把这两层分开写在 `provenance_note_zh` 里，`key_taxa` 标为参考对照（attention=low），不假装皮肤菌已被证明。
+**默认库刻意很小。** 它只放逐条有真实文献支撑、且与示例对得上的条目，用 `--require-evidence` 衡量是 1/1 通过。旧的 27 条没有引用，已移到 `examples/unverified/`，在那个门槛下会被全部隔离——所以不再摆在默认菜单里。
 
 **库整体是可选的。** 清空 `library/` 后插件仍能做完全部功能，只是没有「先看哪几个酶」的菜单：入口 A（EC/反应/序列）、按部位挑基因组、序列/结构/注释/文献证据、排序、外包工作单都不受影响。唯一可数的代价是 `--auto-score` 的自动分项从 8 项降到 4 项。空库是受支持状态——`--list-domains` 会打印"库为空、不是错误"和三条替代路径。
 
@@ -381,16 +379,13 @@ For DEER checkpoints on a server without Hugging Face access, place the model fi
 
 ## Usage examples / 使用示例
 
-**一共 4 个示例，对应 3 种起手式。** 均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
+以下示例按三种常见输入类型排列，均改写自真实可复现场的案例，方便你直接复制相近句式发起分析：
 
 | # | 输入类型 | 触发点 | 举例 | 起手式 |
 | --- | --- | --- | --- | --- |
 | 1 | 已知代谢反应 | 有底物/产物，但没有明确模板序列或 EC | sphingomyelin → ceramide + phosphocholine | `reaction` |
 | 2 | 已知酶名/EC | 有酶功能或功能类别注释 | neutral sphingomyelinase / EC 3.1.4.12 | `ec` |
 | 3 | 已知参考序列 | 有模板蛋白 FASTA 或 UniProt accession | DDC / P20711 | `sequence` |
-| 4 | 已知参考序列（家族很大） | 同 3，但靶点属超大超家族（本例 GNAT/PF00583） | AANAT / Q16613 | `sequence` + 家族普查 |
-
-第 3、4 个都落在"褪黑素通路"上，但结论完全不同：DDC 那个是**证据不足、需要测酶活**；AANAT 那个要额外做**家族普查**，因为序列层可能没有显著命中，而"没有正统同源物"不等于"没有该活性"。
 
 每个示例都给出“用户可以直接发送的一句话 prompt”和“Agent 按插件 skill 实际会走的分析链”。实际运行时，把工具和数据路径替换成你自己的即可。
 
@@ -474,33 +469,6 @@ Agent:
 ```
 
 ---
-
-### Example 4: 从一个"酶家族很大"的靶点出发，预测肠道微生物是否编码同类活性的酶
-
-```text
-User:
-"预测给定的肠道微生物青春双歧杆菌 Bifidobacterium adolescentis
-是否可能编码人类褪黑素合成的关键酶 AANAT（Q16613），并给出
-可以验证的实验方案。"
-
-Agent:
-- 用 `build-target-function-card` 以 AANAT / aralkylamine N-acetyltransferase（EC 2.3.1.87）建目标卡片，UniProt 参考 = Q16613，并记下辅因子 acetyl-CoA 与折叠 GNAT（Pfam PF00583）
-- 参考酶集合仅保留靶点参考：人类 human AANAT（reviewed EC 2.3.1.87），不设折叠对照
-- 先跑 `scripts/preflight_inputs.py --project project.json --require-target-sequence --require-target-structure`，核对候选基因组文件与候选结构目录
-- 用 `screen-sequence-candidates` 先 CD-HIT 去冗余（单基因组 100%），再 DIAMOND 筛选；除默认阈值外，再补一次 `--sensitive`（宽 E 值）扫"远缘同源尾巴"，并把两次结果分开报告
-- 因为靶点属于 GNAT 超家族，先做家族普查：用 Pfam PF00583（`hmmsearch`）枚举候选基因组里的全部 GNAT 蛋白，并在同一次检索中带上阳性对照（仅人 AANAT）；这一层定义候选全集，而不是 DIAMOND 命中表（注意：`hmmsearch` **未随插件打包**，按工具执行边界处理——本机可用就直接跑，否则把上面的命令交给你执行后再读回结果）
-- 序列层若无显著命中（本例正是如此），用 `screen-structure-candidates` 对全部候选结构做 US-align，只用靶点模板；靶点模板优先用实验结构（如 1CJW/1KUV），当预测模型与实验结构给出的排序不一致时以实验结构为准
-- 用 FedKEA 交叉核对（要带上正确环境、并提交 accession 干净的 FASTA 表头）；FedKEA 给出的是最可能的单一 EC（正统功能），不能用来排除兼职活性
-- 用 `literature-evidence` 审计文献并输出带 PMID/DOI 的证据链，随后用 `score_candidates.py` 做最终排序（默认以 TM-score 为主键；`--rank-by priority` 可回到优先级规则排序）
-
-回答会明确：
-- 是否存在 AANAT 的正交同源物，以及候选全集（GNAT 家族成员数）
-- 代表候选 accession 与基因坐标，及其序列/结构/FedKEA 证据链
-- 哪些候选已有文献实验验证、哪些仍只是假设
-- 验证 5-羟色胺/色胺乙酰化的实验路径（重组表达 + LC-MS/MS 产物确证 + 动力学与已知细菌 SNAT 比较 + 敲除/回补）
-```
-
-> 与 Example 3 的关键差别：靶点属于超大超家族时，必须额外加一步 —— **家族普查（Pfam HMM）**；结论也要把"没有正统同源物"和"没有该活性"分开说。
 
 ### 如何把这些示例变成你自己的 demo
 
