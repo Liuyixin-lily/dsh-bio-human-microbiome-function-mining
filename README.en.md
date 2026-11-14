@@ -288,6 +288,19 @@ Priority policy used by `score_candidates.py`:
 
 ---
 
+## Bundled lists
+
+`resources/taxa/` ships two curated per-site microbe lists (230 oral, 257 skin species), each row carrying a taxon, a genome assembly id and a site-abundance label. They are **not a target library** — no process, no enzyme — but they supply what the library cannot: an authoritative taxon list, concrete accessions, and **measured site abundance**.
+
+```bash
+python3 scripts/import_taxon_list.py --list resources/taxa/oral_known_microbes.tsv \
+    --site oral --output-dir outputs/taxa
+```
+
+It writes `oral_taxa_registry.tsv` (abundance to `site_presence_score`: High 5 / Medium 4 / Low 3 / Scarce 2, with `No Data` left empty rather than scored 0), `oral_genome_accessions.txt` (feed it to `build_gcf_list.py`) and a provenance file with the source sha256. The skin list contains 67 MAG/bin ids that are not NCBI accessions; they are reported separately.
+
+One limitation: the lists supply a single scoring criterion, and with only that filled the ranking ties heavily (230 oral species produce 5 distinct totals). The report says so explicitly. See `resources/taxa/README.md`.
+
 ## External data sources
 
 `references/gmps.md` documents GMPS (Human Gut Microbial Protein Structure database: ~2.7M AlphaFold2 structures over 968 gut bacterial and 1,255 phage genomes). It is not a target library — it is a **gut-only** candidate pool and structural evidence source:

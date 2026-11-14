@@ -295,6 +295,19 @@ Priority policy used by `score_candidates.py`:
 
 ---
 
+## Bundled lists / 附带名单
+
+`resources/taxa/` 带两份按部位整理的微生物名单（口腔 230 种、皮肤 257 种），每条含物种、基因组装配号、位点丰度。它们**不是目标库**（没有过程、没有酶），提供的是三样目标库给不了的东西：权威物种清单、可直接下载的装配号、**实测位点丰度**。
+
+```bash
+python3 scripts/import_taxon_list.py --list resources/taxa/oral_known_microbes.tsv \
+    --site oral --output-dir outputs/taxa
+```
+
+产出 `oral_taxa_registry.tsv`（丰度 → `site_presence_score`：High 5 / Medium 4 / Low 3 / Scarce 2；`No Data` 留空不当作 0 分）、`oral_genome_accessions.txt`（可直接喂 `build_gcf_list.py`）、以及带 sha256 的 provenance。皮肤名单里有 67 个 MAG/bin 号，不是 NCBI 装配号，会单独列出。
+
+一个限制：名单只提供一项可打分证据，只填它时排名会大面积并列（口腔 230 种只有 5 个不同总分），报告会明确提示「这份排名几乎是并列的」。详见 `resources/taxa/README.md`。
+
 ## External data sources / 外部数据库
 
 `references/gmps.md` 记录了 GMPS（Human Gut Microbial Protein Structure database，约 270 万 AlphaFold2 结构、968 个肠道细菌 + 1,255 个噬菌体基因组）的用法。它不是目标库，而是**肠道**的候选池与结构证据来源：

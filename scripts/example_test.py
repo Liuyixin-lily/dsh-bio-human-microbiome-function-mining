@@ -1874,6 +1874,79 @@ def main() -> int:
         )
         assert "名称命中" in by_name.stdout
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        taxa_import = SCRIPTS / "import_taxon_list.py"
+
+        # the two shipped lists must parse, dedupe nothing, and classify assemblies
+        for site, expected_rows, expected_acc in (("oral", 230, 230), ("skin", 257, 190)):
+            out = tmp / site
+            result = subprocess.run(
+                [sys.executable, str(taxa_import),
+                 "--list", str(ROOT / "resources" / "taxa" / f"{site}_known_microbes.tsv"),
+                 "--site", site, "--output-dir", str(out)],
+                check=True, capture_output=True, text=True,
+            )
+            with (out / f"{site}_taxa_registry.tsv").open("r", encoding="utf-8") as handle:
+                registry = list(csv.DictReader(handle, delimiter="\t"))
+            assert len(registry) == expected_rows, site
+            accessions = [
+                line.strip()
+                for line in (out / f"{site}_genome_accessions.txt").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            assert len(accessions) == expected_acc, (site, len(accessions))
+            assert all(a.startswith(("GCF_", "GCA_")) for a in accessions)
+            provenance = json.loads((out / f"{site}_taxa_list.provenance.json").read_text(encoding="utf-8"))
+            assert len(provenance["source_sha256"]) == 64
+            assert provenance["columns_used"]["abundance"]
+            # abundance -> presence score, and unmeasured must stay empty
+            scored = {row["site_presence_score"] for row in registry}
+            assert scored <= {"1", "2", "3", "4", "5", ""}
+            assert all(row["site_presence_score"] != "0" for row in registry)
+            if site == "oral":
+                assert "" in scored      # the 6 rows with No Data / blank abundance
+
+        # skin has MAG bins that are not NCBI accessions; they must be listed apart
+        with (tmp / "skin" / "skin_unresolved_ids.tsv").open("r", encoding="utf-8") as handle:
+            unresolved = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(unresolved) == 67
+        assert all("bin" in row["genome_id"] or "concoct" in row["genome_id"] for row in unresolved)
+
+        # a duplicate taxon, a bin id and an empty abundance in one synthetic list
+        synth = tmp / "synth.tsv"
+        synth.write_text(
+            "taxon\tGENOME_ID\tabundance\n"
+            "Alpha beta\tGCF_000000001.1\tOral (Abundance: High)\n"
+            "Alpha beta\tGCF_000000001.1\tOral (Abundance: High)\n"
+            "Gamma delta\tSAMPLE_1_bin.7\tOral (Abundance: No Data)\n",
+            encoding="utf-8",
+        )
+        synth_out = tmp / "synth_out"
+        subprocess.run(
+            [sys.executable, str(taxa_import), "--list", str(synth),
+             "--site", "oral", "--output-dir", str(synth_out)],
+            check=True, capture_output=True,
+        )
+        with (synth_out / "oral_taxa_registry.tsv").open("r", encoding="utf-8") as handle:
+            synth_rows = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(synth_rows) == 2                     # duplicate dropped
+        assert synth_rows[0]["site_presence_score"] == "5"
+        assert synth_rows[1]["site_presence_score"] == ""   # No Data is not a low score
+        assert (synth_out / "oral_unresolved_ids.tsv").is_file()
+
+        # the emitted registry must be usable by the ranker, and a near-tie must be flagged
+        ranked = tmp / "ranked"
+        subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_target_priorities.py"),
+             "--taxa", str(tmp / "oral" / "oral_taxa_registry.tsv"),
+             "--site", "oral", "--auto-score", "--allow-missing-scores",
+             "--output", str(ranked)],
+            check=True, capture_output=True,
+        )
+        report = (ranked / "ranking_report.md").read_text(encoding="utf-8")
+        assert "这份排名几乎是并列的" in report
+
     print("example test passed")
     return 0
 

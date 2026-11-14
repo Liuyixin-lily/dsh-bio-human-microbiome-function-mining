@@ -915,6 +915,22 @@ def render_report(
             )
             lines.append("")
 
+    # A ranking where everyone ties is not a ranking; say so instead of implying order.
+    for label, rows in (("菌株", taxa_rows), ("酶目标", enzyme_rows)):
+        if len(rows) < 4:
+            continue
+        distinct = {row["priority_score"] for row in rows}
+        if len(distinct) <= max(2, len(rows) // 10):
+            lines.append("## 注意：这份排名几乎是并列的")
+            lines.append("")
+            lines.append(
+                f"{label}共 {len(rows)} 条，但只有 {len(distinct)} 个不同的总分。"
+                "原因是多数分项既没有给值也无法推导，权重被留空的项吃掉——"
+                "名次差异基本只来自少数已填分项。补齐其他分项（或提供 --genomes / "
+                "--literature / --library 让它们可推导）之前，不要把这个顺序当结论。"
+            )
+            lines.append("")
+
     lines.append("## 边界")
     lines.append("")
     lines.append("- 分项分数由人给，不同人打分可能不一样；换一套分数排名就会变。")

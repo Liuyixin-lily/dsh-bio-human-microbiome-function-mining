@@ -33,6 +33,12 @@ Available scripts:
   `enabled: false` for the rest, so the environment is not typed twice. `--audit-paths DIR`
   fails when the tree contains a real home directory or private IP address, which keeps
   one user's paths out of a plugin other people install.
+- `import_taxon_list.py`: converts a curated per-site microbe list (taxon + genome id +
+  site abundance) into a taxa registry for `score_target_priorities.py`, a plain
+  accession list for genome download, a separate list of MAG/bin ids that are not NCBI
+  accessions, and provenance with the source sha256. Measured site abundance is mapped
+  High 5 / Medium 4 / Low 3 / Scarce 2, while `No Data` stays empty rather than being
+  scored as absent.
 - `score_target_priorities.py`: the **pre**-screening prioritisation layer. Ranks
   candidate enzyme targets and candidate taxa from human-assigned 0-5 scores
   (weighted sums, configurable), so a user can decide what to screen at all.
