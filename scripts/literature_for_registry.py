@@ -40,6 +40,10 @@ ACTIVITY_WORDS = (
 )
 STRUCTURE_WORDS = ("crystal structure", "pdb", "structure of", "structural basis", "alphafold")
 
+UNIPROT = re.compile(
+    r"\b(?:[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})\b"
+)
+
 FIELDS = [
     "candidate_id", "protein_accession", "organism_or_strain", "evidence_type",
     "reference_type", "reference_id", "title", "first_author", "journal", "year",
@@ -91,22 +95,39 @@ def classify(title: str, abstract: str) -> tuple[str, str]:
     return "review", (sentences(text)[0] if sentences(text) else title)
 
 
-def search(term: str, limit: int) -> list[dict[str, str]]:
+def search(term: str, limit: int) -> tuple[list[dict[str, str]], int, int]:
+    """Return (rows, hits_parsed, pmids_resolved).
+
+    The counts matter: a query can hit records and still resolve no identifier (NCBI timeout, rate
+    limit), and reporting that as "no evidence" turns a failed lookup into a silent low score.
+    """
     result = subprocess.run(
         ["bash", str(SEARCH), term, "--limit", str(limit), "--resolve"],
         capture_output=True, text=True,
     )
     if result.returncode != 0 or not result.stdout.strip():
-        return []
-    lines = result.stdout.splitlines()
-    if not lines:
-        return []
-    header = lines[0].split("\t")
+        return [], 0, 0
+    parsed = resolved = 0
+    table: list[str] = []
+    for line in result.stdout.splitlines():
+        lowered = line.lower()
+        if "hits parsed" in lowered or "pmids resolved" in lowered:
+            digits = "".join(ch for ch in line.split(":")[-1] if ch.isdigit())
+            value = int(digits) if digits else 0
+            if "hits parsed" in lowered:
+                parsed = value
+            else:
+                resolved = value
+            continue
+        table.append(line)
+    if not table:
+        return [], parsed, resolved
+    header = table[0].split("\t")
     rows = []
-    for line in lines[1:]:
+    for line in table[1:]:
         cells = line.split("\t")
         rows.append({name: (cells[i] if i < len(cells) else "") for i, name in enumerate(header)})
-    return rows
+    return rows, parsed, resolved
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -136,8 +157,24 @@ def main(argv: list[str] | None = None) -> int:
         if args.dry_run:
             print(f"  {target_id}: {term}")
             continue
-        retrieved = search(term, args.limit)
+        retrieved, parsed, resolved = search(term, args.limit)
         print(f"  {target_id}: {len(retrieved)} record(s) for {term!r}")
+        if parsed and not resolved:
+            print(f"  warning: {target_id}: {parsed} hit(s) but 0 identifier(s) resolved; "
+                  "components that need a verified record stay missing - this is a failed lookup, "
+                  "not absent evidence")
+        # `sequence_structure` can only be derived when a row names a structure or an accession, and a
+        # topic query almost never does. Ask for it directly every time, then drop the duplicates: the
+        # alternative was a per-candidate judgement about whether the abstract "probably" mentioned one.
+        seen_ids = {(record.get("pmid") or "").strip() for record in retrieved}
+        extra, extra_parsed, extra_resolved = search(f"{name} crystal structure", 3)
+        if extra_parsed and not extra_resolved:
+            print(f"  warning: {target_id}: structure query hit {extra_parsed} record(s) but "
+                  "resolved none; sequence_structure will stay missing")
+        extra = [record for record in extra if (record.get("pmid") or "").strip() not in seen_ids]
+        if extra:
+            print(f"  {target_id}: +{len(extra)} structure-targeted record(s)")
+            retrieved = retrieved + extra
         for record in retrieved:
             pmid = (record.get("pmid") or "").strip()
             if not pmid:

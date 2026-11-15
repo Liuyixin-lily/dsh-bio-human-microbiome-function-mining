@@ -273,7 +273,20 @@ The follow-up — "mine alcohol dehydrogenase in *S. epidermidis*" — is a fami
 
 A 2,3-butanediol dehydrogenase at 25.4% identity is **not** confirmed (its annotation is a different activity).
 
-Current priority scores: azoreductase 1.933, beta-glucuronidase 1.867, the other four 1.533; taxa *C. acnes* / *S. epidermidis* 3.467 and *S. aureus* 3.333.
+Entry B now retrieves literature per candidate (`literature_for_registry.py`) before scoring:
+
+| Rank | Enzyme | Score | Scored components |
+| --- | --- | --- | --- |
+| 1 | azoreductase | **3.400** | 6/6 |
+| 2 | epoxide hydrolase | 3.400 | 6/6 |
+| 3 | 4-hydroxybenzoate 1-hydroxylase | 3.400 | 6/6 |
+| 4 | alcohol dehydrogenase | 3.400 | 6/6 |
+| 5 | beta-glucuronidase | 3.067 | 5/6 (structure lookup hit 3 records, resolved 0 PMIDs) |
+| 6 | naphthalene 1,2-dioxygenase | 2.733 | 5/6 (same) |
+
+Taxa: *C. acnes* / *S. epidermidis* 3.467, *S. aureus* 3.333.
+
+5 is the ceiling and a score below it is normal: with no `--disease` the phenotype component is dropped as `not_applicable` (so six components, not seven), and a component without evidence stays a gap rather than becoming a low value - 3.4/5 therefore means "all six components have a source", not "this enzyme is 68% good".
 
 The second stage was re-run (DIAMOND 2.1.11, 13-column `--outfmt`): 26 reviewed templates against 2,372 proteins produced 24 alignments, all four candidates are `SEQUENCE_ANNOTATION_CONFIRMED`, and `check_deliverables.py` reports complete (4 final rows).
 

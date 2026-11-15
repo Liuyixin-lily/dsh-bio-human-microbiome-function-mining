@@ -31,6 +31,7 @@ RESOLVE = SCRIPT_DIR / "resolve_target_intent.py"
 SCORE = SCRIPT_DIR / "score_target_priorities.py"
 SHORTLIST = SCRIPT_DIR / "build_candidate_shortlist.py"
 DISCOVER = SCRIPT_DIR / "discover_enzyme_candidates.py"
+LIT_REGISTRY = SCRIPT_DIR / "literature_for_registry.py"
 IMPORT_TAXA = SCRIPT_DIR / "import_taxon_list.py"
 
 # A fixed domain-term map, not a translator: it only rewrites words that already exist in the
@@ -458,6 +459,32 @@ def main(argv: list[str] | None = None) -> int:
         print("error: no enzyme registry could be built (no library seed, no discovery hit)",
               file=sys.stderr)
         return 1
+
+    # A library hit used to skip the literature route entirely, so the seeded candidates were scored
+    # against the library alone: site_evidence, assay_feasibility and sequence_structure all came out
+    # missing and every score sat around 1.5/5. Retrieve per candidate so the components can be
+    # filled - the evidence usually exists, nobody had asked for it.
+    if not args.skip_discovery:
+        seed_evidence: list[Path] = []
+        for index, registry in enumerate(registries, 1):
+            target = outdir / "discovery" / f"literature_evidence.registry{index}.tsv"
+            result = run(
+                [sys.executable, str(LIT_REGISTRY), "--registry", str(registry),
+                 "--site", args.site, "--limit", str(args.limit), "--output", str(target)],
+                f"literature for candidates ({registry.name})", check=False,
+            )
+            if result.returncode == 0 and target.is_file():
+                seed_evidence.append(target)
+            else:
+                print(f"  note: literature retrieval returned nothing for {registry.name}; "
+                      "components it would fill stay missing rather than being guessed")
+        if seed_evidence:
+            merged = merge_evidence(
+                ([evidence] if evidence is not None else []) + seed_evidence,
+                outdir / "discovery" / "literature_evidence.merged.tsv",
+            )
+            evidence = merged
+            print(f"literature evidence: {merged}")
 
     taxa, taxa_note = taxa_registry(args.site, outdir)
     if taxa is None:
