@@ -315,12 +315,21 @@ RUBRICS = {
         "没有 genome-search 输出时用注册表的 recommended_strain_count（同一分档，auto:registry）"
     ),
     "site_presence_score": (
-        "该菌命中装配中直接来源匹配的比例：≥50%=5，>0=4，0=1（需 genome-search 输出含 classification 列）"
+        "genome-search：该菌命中装配中直接来源匹配的比例，≥50%=5，>0=4，0=1；"
+        "没有 genome-search 输出时用物种名单的实测丰度（High 5 / Medium 4 / Low 3 / Scarce 2，auto:taxa_list）"
     ),
     "site_evidence_score": (
         "literature_evidence.tsv 中该酶 verified=yes 的功能性记录数"
         "（direct_functional_evidence/related_assay）：1 条=3，2 条=4，≥3 条=5；"
         "只有 review 时 1 条=2；无 verified 记录则不推导"
+    ),
+    "assay_feasibility_score": (
+        "文献里是否有该酶的活性测定：verified 记录中出现测定/方法学词（assay、activity、Km、LC-MS、"
+        "荧光/比色等）≥2 条=4、1 条=3；有功能性记录但无方法学词=3；只有 review 或无记录则不推导"
+    ),
+    "experimental_accessibility_score": (
+        "文献中的分离/培养证据：verified 记录出现 isolated/cultured/strain 等 ≥2 条=4、1 条=3；"
+        "没有但该物种有已测序装配=2（auto:registry:sequenced）。生物安全等级不从文献推断"
     ),
     "disease_site_relevance_score": (
         "需配合 --literature 与 --disease <表型>：该菌 verified 记录中命中表型的条数，"
@@ -478,6 +487,7 @@ class AutoScorer:
                 # microbe to carry it, but not demonstrated for a named protein
                 out["microbial_plausibility_score"] = (3.0, "auto:registry")
 
+        out.update(self._assay_feasibility(target_id, facts))
         out.update(self._literature_scores(target_id, facts))
 
         refs = self.reference_rows.get(target_id) or []
@@ -491,6 +501,50 @@ class AutoScorer:
         return out
 
     # -- literature ------------------------------------------------------
+    ASSAY_WORDS = (
+        "assay", "activity", "activities", "kinetic", "km", "kcat", "specific activity",
+        "lc-ms", "lc/ms", "hplc", "fluorogenic", "colorimetric", "spectrophotometric",
+        "enzyme-linked", "eluate", "lysate", "in vitro",
+    )
+    CULTURE_WORDS = (
+        "isolated", "isolate", "isolates", "cultured", "culture", "cultivable", "culturable",
+        "strain", "strains", "type strain", "atcc", "dsm ", "growth", "colony",
+    )
+
+    def _rows_matching(self, words: tuple[str, ...], rows: list[dict[str, str]]) -> list[dict[str, str]]:
+        hits = []
+        for row in rows:
+            text = " ".join(
+                str(row.get(field) or "")
+                for field in ("title", "finding", "notes", "source_search", "evidence_type")
+            ).lower()
+            if any(word in text for word in words):
+                hits.append(row)
+        return hits
+
+    def _assay_feasibility(self, target_id: str, facts: dict[str, Any] | None) -> dict[str, tuple[float, str]]:
+        """A target someone has already assayed is a target with a workable assay.
+
+        Assay feasibility used to be hand-only. That was wrong in one direction: the verified
+        literature says whether an activity measurement exists (method, substrate, kinetics), which
+        is exactly what the component asks. It says nothing about cost or equipment, so the score
+        stays conservative and a literature table without any assay language leaves it a gap.
+        """
+        rows = [row for row in self._literature_for(target_id, facts)
+                if (row.get("verified") or "").strip().lower() in {"yes", "true", "1", "y"}]
+        if not rows:
+            return {}
+        assayed = self._rows_matching(self.ASSAY_WORDS, rows)
+        if len(assayed) >= 2:
+            return {"assay_feasibility_score": (4.0, "auto:literature:assay")}
+        if assayed:
+            return {"assay_feasibility_score": (3.0, "auto:literature:assay")}
+        if any((row.get("evidence_type") or "").strip() in {"direct_functional_evidence", "related_assay"}
+               for row in rows):
+            # a functional record implies the activity was measured somehow
+            return {"assay_feasibility_score": (3.0, "auto:literature:functional_record")}
+        return {}
+
     def _literature_for(self, target_id: str, facts: dict[str, Any] | None) -> list[dict[str, str]]:
         """Rows that are plausibly about this target.
 
@@ -686,6 +740,23 @@ class AutoScorer:
                     value = 1.0
                 out["genome_availability_score"] = (value, "auto:registry")
 
+        rows_for_taxon = self._taxon_literature_rows(genus, species, row)
+        verified_rows = [
+            entry for entry in rows_for_taxon
+            if (entry.get("verified") or "").strip().lower() in {"yes", "true", "1", "y"}
+        ]
+        culture_hits = self._rows_matching(self.CULTURE_WORDS, verified_rows)
+        if culture_hits:
+            # isolation/culture in the literature is what makes a strain obtainable. Biosafety level
+            # is not in the literature, so this never claims a lab may handle it.
+            out["experimental_accessibility_score"] = (
+                4.0 if len(culture_hits) >= 2 else 3.0,
+                "auto:literature:cultivation",
+            )
+        elif "genome_availability_score" in out and out["genome_availability_score"][0] >= 2.0:
+            # a sequenced isolate exists, which is weaker evidence than a reported culture
+            out["experimental_accessibility_score"] = (2.0, "auto:registry:sequenced")
+
         if self.disease:
             rows = self._taxon_literature_rows(genus, species, row)
             if rows:
@@ -729,7 +800,12 @@ def resolve_score(
     """Manual value wins; otherwise an auto-derived value; otherwise a gap."""
     raw = cell(row, key, site)
     if raw != "":
-        sources[key] = "manual"
+        # a value can arrive pre-filled by an importer (the species list writes site_presence and
+        # records where it came from). Labelling that "manual" would credit a human for a measurement
+        # the list already made.
+        provenance_key = (key[:-6] + "_source") if key.endswith("_score") else f"{key}_source"
+        provenance = (row.get(provenance_key) or "").strip()
+        sources[key] = f"auto:{provenance}" if provenance else "manual"
         return score_of(row, key, site, problems, where)
     if key in auto:
         value, source = auto[key]

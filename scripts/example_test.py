@@ -3762,10 +3762,11 @@ def main() -> int:
         # has been studied in the disease being asked about.
         taxa = tmp / "taxa.tsv"
         taxa.write_text(
-            "taxon_id\tgenus\tspecies\tdisplay_name\trecommended_strain_count\n"
-            "a\tCutibacterium\tacnes\tCutibacterium acnes\t12\n"
-            "b\tStaphylococcus\tepidermidis\tStaphylococcus epidermidis\t2\n"
-            "c\tOther\tspecies\tOther species\t\n",
+            "taxon_id\tgenus\tspecies\tdisplay_name\trecommended_strain_count\t"
+            "site_presence_score\tsite_presence_source\n"
+            "a\tCutibacterium\tacnes\tCutibacterium acnes\t12\t5\ttaxa_list\n"
+            "b\tStaphylococcus\tepidermidis\tStaphylococcus epidermidis\t2\t5\ttaxa_list\n"
+            "c\tOther\tspecies\tOther species\t\t\t\n",
             encoding="utf-8",
         )
         lit = tmp / "lit.tsv"
@@ -3777,7 +3778,9 @@ def main() -> int:
             "b\ttaxon:b\tStaphylococcus epidermidis\tdirect_functional_evidence\tPMID\t222\t"
             "skin microbiome in atopic dermatitis\tisolated from atopic dermatitis\tyes\tskin\n"
             "a\ttaxon:a\tCutibacterium acnes\treview\tPMID\t333\tacne review\t"
-            "C. acnes and acne\tyes\tskin\n",
+            "C. acnes and acne\tyes\tskin\n"
+            "b\ttaxon:b\tStaphylococcus epidermidis\trelated_assay\tPMID\t444\t"
+            "isolation from skin\tisolated and cultured, type strain available\tyes\tskin\n",
             encoding="utf-8",
         )
         out = tmp / "ranked"
@@ -3802,12 +3805,15 @@ def main() -> int:
         assert rows["b"]["disease_site_relevance_score"] == "4.000"
         assert source(rows["a"], "disease_site_relevance_score") == "auto:literature:no_match"
         assert rows["a"]["disease_site_relevance_score"] == "1.000"
-        # experimental accessibility stays manual by design: it is a lab fact (culturability,
-        # biosafety, type strain), not something a literature search can establish
-        for row in rows.values():
-            missing = [k.split("=")[0] for k in row["score_sources"].split(";")
-                       if k.endswith("=missing")]
-            assert "experimental_accessibility_score" in missing, missing
+        # accessibility comes from cultivation evidence, or from a sequenced isolate when there is
+        # none; biosafety level is deliberately not inferred from anything
+        assert source(rows["b"], "experimental_accessibility_score") == "auto:literature:cultivation"
+        assert rows["b"]["experimental_accessibility_score"] == "4.000"
+        assert source(rows["a"], "experimental_accessibility_score") == "auto:registry:sequenced"
+        assert rows["a"]["experimental_accessibility_score"] == "2.000"
+        assert source(rows["c"], "experimental_accessibility_score") == "missing"
+        # a value imported from the species list is labelled as derived, not as hand-typed
+        assert source(rows["a"], "site_presence_score") == "auto:taxa_list"
 
     print("example test passed")
     return 0

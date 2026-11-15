@@ -62,6 +62,7 @@ TAXA_FIELDS = [
     "key_evidence_dois",
     "rationale",
     "site_presence_score",
+    "site_presence_source",
     "metabolic_plausibility_score",
     "genome_availability_score",
     "disease_site_relevance_score",
@@ -190,6 +191,7 @@ def build_rows(
                     + (f"；参考装配 {genome_id}" if genome_id else "")
                 ),
                 "site_presence_score": "" if score is None else str(score),
+                "site_presence_source": "taxa_list" if score is not None else "",
                 "metabolic_plausibility_score": "",
                 "genome_availability_score": "",
                 "disease_site_relevance_score": "",

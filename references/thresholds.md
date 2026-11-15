@@ -49,8 +49,28 @@ Where a taxa component comes from, without a genome-search run: `site_presence` 
 measured abundance, `genome_availability` from the list's `recommended_strain_count`, `metabolic_plausibility`
 from the library's `focus_taxa`, and `disease_site_relevance` from a literature table plus `--disease`
 (two verified rows mentioning the phenotype = 4, one = 3, verified but none = 1 "searched, no evidence").
-Only `experimental_accessibility` has no derivation: culturability, biosafety level and type-strain
-availability are lab facts, not something a search can settle.
+Every component now has a derivation, and each one records which input produced it
+(`auto:library` / `auto:registry` / `auto:taxa_list` / `auto:genome_search` / `auto:literature[:assay|:cultivation|:no_match]`):
+
+| component | table | derived from |
+| --- | --- | --- |
+| `site_evidence` | enzyme | verified functional records: 1=3, 2=4, >=3=5; review only=2 |
+| `disease_relevance` | enzyme | verified records matching `--disease`: >=2=4, 1=3, none=1 |
+| `biochemical_clarity` | enzyme | EC confidence + reaction + substrate/product + fold hint |
+| `sequence_structure` | enzyme | reference set: structure=5, accession only=3 |
+| `microbial_plausibility` | enzyme | known microbial examples: 0=1, 1=3, >=2=4; or a registry's `microbial_context` |
+| `novelty` | enzyme | dark matter=5, no examples=4, examples=2 |
+| `assay_feasibility` | enzyme | verified records naming an assay/method: >=2=4, 1=3; a functional record without method words=3 |
+| `site_presence` | taxa | genome-search direct ratio, else the species list's measured abundance |
+| `genome_availability` | taxa | genome-search assembly count, else the list's `recommended_strain_count` |
+| `metabolic_plausibility` | taxa | the library's `focus_taxa` attention |
+| `disease_site_relevance` | taxa | verified records matching `--disease`: >=2=4, 1=3, none=1 |
+| `experimental_accessibility` | taxa | verified isolation/culture records: >=2=4, 1=3; a sequenced isolate alone=2 |
+
+What literature cannot settle is stated rather than scored: biosafety level, equipment cost and
+per-assay turnaround are not derived, so the report never implies them. A component with no supporting
+evidence stays `missing` (counted as 0 in the weighted sum, labelled `missing` in `score_sources`) —
+absence of evidence is not a low score.
 
 Gates: `--require-min-criteria N` (components with any value) and `--require-min-evidence N`
 (components derived from data, `auto:*` only). Rows that fail keep no rank and are written to
