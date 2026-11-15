@@ -284,7 +284,7 @@ Entry B now retrieves literature per candidate (`literature_for_registry.py`) be
 | 5 | beta-glucuronidase | 2.900 | 5/6 (structure lookup hit 3 records, resolved 0 PMIDs) |
 | 6 | naphthalene 1,2-dioxygenase | 2.567 | 5/6 (same) |
 
-Taxa: *C. acnes* / *S. epidermidis* 3.467, *S. aureus* 3.333.
+Taxa: *C. acnes* / *S. epidermidis* 3.500, *S. aureus* 3.200.
 
 5 is the ceiling and a score below it is normal: with no `--disease` the phenotype component is dropped as `not_applicable` (so six components, not seven), and a component without evidence stays a gap rather than becoming a low value - 3.4/5 therefore means "all six components have a source", not "this enzyme is 68% good".
 

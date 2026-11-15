@@ -96,14 +96,31 @@ DEFAULT_DISCOVERY_COEFFS = {
     "novelty_score": 0.30,
 }
 DEFAULT_ENZYME_MIX = (0.5, 0.5)  # (known, discovery)
+# Five taxa dimensions, equally weighted. Empirically this also separates the list better than the
+# previous 0.30/0.25/0.20/0.15/0.10 profile: a library focus taxon reaches 3.25 while a species that only
+# appears in the abundance list lands at 2.25, so the 3.0 selection line has one row near it instead of
+# eleven. The trade-off is that measured presence alone no longer carries a taxa candidate: abundance
+# without a genome or a metabolic role now defers. Restore the old profile with
+# config.ranking.site-heavy.json.
 DEFAULT_TAXA_WEIGHTS = {
-    "site_presence_score": 0.30,
-    "disease_site_relevance_score": 0.25,
+    "site_presence_score": 0.20,
+    "disease_site_relevance_score": 0.20,
     "experimental_accessibility_score": 0.20,
-    "genome_availability_score": 0.15,
-    "metabolic_plausibility_score": 0.10,
+    "genome_availability_score": 0.20,
+    "metabolic_plausibility_score": 0.20,
 }
 DEFAULT_TAXA_MIN_SCORE = 3.0
+
+# The five taxa components are two kinds of evidence, not one list:
+#   relevance  - is this organism actually here, and does it do something relevant?
+#   feasibility - can we obtain it and its genome?
+# Keeping the groups explicit is what stops "we happen to have a genome" from outvoting "it is present
+# and plausible" once the phenotype question is dropped: weights renormalise inside a group, never across
+# the two, so the group totals stay as configured.
+TAXA_GROUPS = {
+    "relevance": ("site_presence_score", "disease_site_relevance_score", "metabolic_plausibility_score"),
+    "feasibility": ("experimental_accessibility_score", "genome_availability_score"),
+}
 
 ENZYME_OUT_FIELDS = [
     "rank",
@@ -1029,8 +1046,19 @@ def rank_taxa(
                 sources["disease_site_relevance_score"] = "not_applicable:no --disease given"
         for key in weights:
             values[key] = resolve_score(row, key, site, auto, sources, problems, where)
-        weight_sum = sum(weights.values()) or 1.0
-        total = sum((weight / weight_sum) * values[key] for key, weight in weights.items())
+        # A dropped component renormalises inside its own group: the relevance block keeps its
+        # configured total, so "we have a genome" can never absorb the weight of "is it relevant".
+        total = 0.0
+        for group in TAXA_GROUPS.values():
+            configured = [(key, taxa_w[key]) for key in group if key in taxa_w]
+            group_weight = sum(weight for _, weight in configured)
+            live = [(key, weight) for key, weight in configured if key in weights]
+            live_total = sum(weight for _, weight in live)
+            if not live or live_total <= 0:
+                continue
+            total += group_weight * sum(
+                (weight / live_total) * values[key] for key, weight in live
+            )
         pmids = cell(row, "key_evidence_pmids", site)
         dois = cell(row, "key_evidence_dois", site)
         for pmid in _split_refs(pmids):

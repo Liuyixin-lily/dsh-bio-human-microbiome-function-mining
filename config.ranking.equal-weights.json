@@ -1,11 +1,18 @@
 {
   "ranking": {
-    "comment": "Default since 2026-11: four known dimensions equally weighted.",
+    "comment": "Default since 2026-11: four enzyme dimensions and five taxa dimensions equally weighted.",
     "enzyme_coeffs": {
       "site_evidence_score": 0.25,
       "disease_relevance_score": 0.25,
       "biochemical_clarity_score": 0.25,
       "sequence_structure_score": 0.25
+    },
+    "taxa_weights": {
+      "site_presence_score": 0.2,
+      "disease_site_relevance_score": 0.2,
+      "experimental_accessibility_score": 0.2,
+      "genome_availability_score": 0.2,
+      "metabolic_plausibility_score": 0.2
     }
   }
 }

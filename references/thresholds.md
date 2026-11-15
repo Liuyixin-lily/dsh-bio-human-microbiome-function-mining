@@ -43,7 +43,20 @@ structure but no literature can tie one with literature but no structure. `confi
 restores the previous 0.30 / 0.25 / 0.25 / 0.20 profile, and `config.ranking.equal-weights.json` spells
 the current default out as a file you can diff.
 
-Taxa: `priority_score = sum(weight x component)`, one 0–5 scale, threshold `>= 3.0` selects. The
+Taxa: `priority_score = sum(weight x component)`, one 0–5 scale, threshold `>= 3.0` selects. The five
+components are weighted 0.20 each, and they belong to two groups:
+
+| group | weight | components |
+| --- | --- | --- |
+| relevance | 0.60 | `site_presence_score`, `disease_site_relevance_score`, `metabolic_plausibility_score` |
+| feasibility | 0.40 | `experimental_accessibility_score`, `genome_availability_score` |
+
+Weights renormalise **inside** a group, never across the two. Without that rule, dropping the phenotype
+question (`--disease` absent) hands its weight to the feasibility group, and a well-sequenced but absent
+organism can cross 3.0: on the real skin list *E. coli* (presence 1, genome 5, culturability 5) scores
+3.0 and would be recommended for a skin question. Group-local renormalisation keeps it at 2.6 (defer)
+while an equally-weighted five-component case is unchanged (all five present: 0.20 x sum, verified on a
+real row at 3.600 = 0.2 x 18). The
 recommended-taxa table is exactly the `selected` rows; rows below the threshold stay in the full table
 as `defer`. Enzymes have no pass mark - their recommended table is the ranked rows with at least two
 scored components, since too few components are derivable before screening for a fixed cut-off to leave

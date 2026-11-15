@@ -3879,9 +3879,9 @@ def main() -> int:
         taxa = tmp / "taxa.tsv"
         taxa.write_text(
             "taxon_id\tgenus\tspecies\tdisplay_name\trecommended_strain_count\t"
-            "site_presence_score\tsite_presence_source\n"
-            "high\tCutibacterium\tacnes\tCutibacterium acnes\t12\t5\ttaxa_list\n"
-            "low\tOther\tspecies\tOther species\t1\t2\ttaxa_list\n",
+            "site_presence_score\tsite_presence_source\tmetabolic_plausibility_score\n"
+            "high\tCutibacterium\tacnes\tCutibacterium acnes\t12\t5\ttaxa_list\t5\n"
+            "low\tOther\tspecies\tOther species\t1\t2\ttaxa_list\t1\n",
             encoding="utf-8",
         )
         out = tmp / "out"
