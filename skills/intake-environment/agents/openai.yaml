@@ -1,4 +1,0 @@
-interface:
-  display_name: "Intake Environment"
-  short_description: "Ask for and verify host, tool paths and databases first"
-  default_prompt: "Use $intake-environment to ask me for my execution environment (host, tool paths, env vars, databases, data paths, permission to execute) and verify what is actually reachable before running anything."
