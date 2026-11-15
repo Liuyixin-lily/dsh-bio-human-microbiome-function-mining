@@ -19,3 +19,34 @@ Use these defaults unless the user overrides them in `project.json`.
 
 Thresholds should be stated explicitly in every report so candidates can be
 evaluated against the exact policy used.
+
+## Pre-screening ranking (`score_target_priorities.py`)
+
+Both tables are scored on a 0–5 scale per component; every component is filled by a manual cell,
+by an `auto:*` derivation, or is `missing` (counted as 0 for the weighted sum, recorded as `missing`
+in `score_sources`, never written as a low score).
+
+Enzymes: `priority_score = 0.5 x known + 0.5 x discovery`, both sub-scores on 0–5.
+
+| known (0.5) | weight | discovery (0.5) | weight |
+| --- | --- | --- | --- |
+| `site_evidence_score` | 0.30 | `microbial_plausibility_score` | 0.40 |
+| `disease_relevance_score` | 0.25 | `assay_feasibility_score` | 0.30 |
+| `biochemical_clarity_score` | 0.25 | `novelty_score` | 0.30 |
+| `sequence_structure_score` | 0.20 | | |
+
+Taxa: `priority_score = sum(weight x component)`, one 0–5 scale, threshold `>= 3.0` selects.
+
+| component | weight |
+| --- | --- |
+| `site_presence_score` | 0.30 |
+| `disease_site_relevance_score` | 0.25 |
+| `experimental_accessibility_score` | 0.20 |
+| `genome_availability_score` | 0.15 |
+| `metabolic_plausibility_score` | 0.10 |
+
+Gates: `--require-min-criteria N` (components with any value) and `--require-min-evidence N`
+(components derived from data, `auto:*` only). Rows that fail keep no rank and are written to
+`withheld_rows.tsv` with the reason. Weights and the taxa threshold are overridable through
+`--config` (`enzyme_known_weight`, `enzyme_discovery_weight`, `taxa_min_priority_score`); a threshold
+above the maximum achievable score is rejected instead of silently selecting nothing.
