@@ -3755,6 +3755,60 @@ def main() -> int:
         )
         assert directory.name in flat, f"{directory.name}/ has assets but no skills/{directory.name}.md"
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # taxa components must be derived from the inputs the plugin already has: the species list
+        # states how many assemblies it recommends, and the literature table says whether the taxon
+        # has been studied in the disease being asked about.
+        taxa = tmp / "taxa.tsv"
+        taxa.write_text(
+            "taxon_id\tgenus\tspecies\tdisplay_name\trecommended_strain_count\n"
+            "a\tCutibacterium\tacnes\tCutibacterium acnes\t12\n"
+            "b\tStaphylococcus\tepidermidis\tStaphylococcus epidermidis\t2\n"
+            "c\tOther\tspecies\tOther species\t\n",
+            encoding="utf-8",
+        )
+        lit = tmp / "lit.tsv"
+        lit.write_text(
+            "candidate_id\tprotein_accession\torganism_or_strain\tevidence_type\treference_type\t"
+            "reference_id\ttitle\tfinding\tverified\tsource_search\n"
+            "b\ttaxon:b\tStaphylococcus epidermidis\trelated_assay\tPMID\t111\t"
+            "atopic dermatitis skin\tabundance rises in atopic dermatitis\tyes\tskin\n"
+            "b\ttaxon:b\tStaphylococcus epidermidis\tdirect_functional_evidence\tPMID\t222\t"
+            "skin microbiome in atopic dermatitis\tisolated from atopic dermatitis\tyes\tskin\n"
+            "a\ttaxon:a\tCutibacterium acnes\treview\tPMID\t333\tacne review\t"
+            "C. acnes and acne\tyes\tskin\n",
+            encoding="utf-8",
+        )
+        out = tmp / "ranked"
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_target_priorities.py"), "--taxa", str(taxa),
+             "--literature", str(lit), "--disease", "atopic dermatitis", "--auto-score",
+             "--allow-missing-scores", "--site", "skin", "--output", str(out)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        with (out / "taxa_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            rows = {r["taxon_id"]: r for r in csv.DictReader(handle, delimiter="\t")}
+        def source(row, key):
+            return dict(p.split("=", 1) for p in row["score_sources"].split(";") if "=" in p)[key]
+        # strain count 12 -> availability 4; 2 -> 2; empty -> stays a gap
+        assert source(rows["a"], "genome_availability_score") == "auto:registry"
+        assert rows["a"]["genome_availability_score"] == "4.000"
+        assert rows["b"]["genome_availability_score"] == "2.000"
+        assert source(rows["c"], "genome_availability_score") == "missing"
+        # two verified rows mentioning the phenotype -> 4; one verified row that does not -> 1
+        assert source(rows["b"], "disease_site_relevance_score") == "auto:literature"
+        assert rows["b"]["disease_site_relevance_score"] == "4.000"
+        assert source(rows["a"], "disease_site_relevance_score") == "auto:literature:no_match"
+        assert rows["a"]["disease_site_relevance_score"] == "1.000"
+        # experimental accessibility stays manual by design: it is a lab fact (culturability,
+        # biosafety, type strain), not something a literature search can establish
+        for row in rows.values():
+            missing = [k.split("=")[0] for k in row["score_sources"].split(";")
+                       if k.endswith("=missing")]
+            assert "experimental_accessibility_score" in missing, missing
+
     print("example test passed")
     return 0
 

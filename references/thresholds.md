@@ -45,6 +45,13 @@ Taxa: `priority_score = sum(weight x component)`, one 0–5 scale, threshold `>=
 | `genome_availability_score` | 0.15 |
 | `metabolic_plausibility_score` | 0.10 |
 
+Where a taxa component comes from, without a genome-search run: `site_presence` from the species list's
+measured abundance, `genome_availability` from the list's `recommended_strain_count`, `metabolic_plausibility`
+from the library's `focus_taxa`, and `disease_site_relevance` from a literature table plus `--disease`
+(two verified rows mentioning the phenotype = 4, one = 3, verified but none = 1 "searched, no evidence").
+Only `experimental_accessibility` has no derivation: culturability, biosafety level and type-strain
+availability are lab facts, not something a search can settle.
+
 Gates: `--require-min-criteria N` (components with any value) and `--require-min-evidence N`
 (components derived from data, `auto:*` only). Rows that fail keep no rank and are written to
 `withheld_rows.tsv` with the reason. Weights and the taxa threshold are overridable through

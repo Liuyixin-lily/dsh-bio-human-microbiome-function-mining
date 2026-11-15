@@ -311,7 +311,8 @@ RUBRICS = {
         "参考酶集合中该 target 的记录：有结构文件=5；有 UniProt/登录号=3；无记录=0"
     ),
     "genome_availability_score": (
-        "genome-search 命中的装配数：0=1，1–3=2，4–9=3，10–19=4，≥20=5"
+        "genome-search 命中的装配数：0=1，1–3=2，4–9=3，10–19=4，≥20=5；"
+        "没有 genome-search 输出时用注册表的 recommended_strain_count（同一分档，auto:registry）"
     ),
     "site_presence_score": (
         "该菌命中装配中直接来源匹配的比例：≥50%=5，>0=4，0=1（需 genome-search 输出含 classification 列）"
@@ -320,6 +321,10 @@ RUBRICS = {
         "literature_evidence.tsv 中该酶 verified=yes 的功能性记录数"
         "（direct_functional_evidence/related_assay）：1 条=3，2 条=4，≥3 条=5；"
         "只有 review 时 1 条=2；无 verified 记录则不推导"
+    ),
+    "disease_site_relevance_score": (
+        "需配合 --literature 与 --disease <表型>：该菌 verified 记录中命中表型的条数，"
+        "≥2 条=4，1 条=3；检索过但 0 条命中=1（标为“检索过、无证据”）"
     ),
     "disease_relevance_score": (
         "需配合 --disease <表型>：verified 记录中标题/发现/检索词命中该表型的条数，"
@@ -594,7 +599,28 @@ class AutoScorer:
         return out
 
     # -- taxa ------------------------------------------------------------
-    def taxa_scores(self, genus: str, species: str) -> dict[str, tuple[float, str]]:
+    def _taxon_literature_rows(
+        self, genus: str, species: str, row: dict[str, str] | None
+    ) -> list[dict[str, str]]:
+        """Literature rows that plausibly concern this taxon.
+
+        Matching on the organism column keeps this usable without inventing identifiers; the
+        taxon_id is accepted too so a registry that shares ids with the evidence table still joins.
+        """
+        organism = f"{genus} {species}".strip().lower()
+        species_l = species.strip().lower()
+        taxon_id = ((row or {}).get("taxon_id") or "").strip().lower()
+        out: list[dict[str, str]] = []
+        for entry in self.literature_rows:
+            org = (entry.get("organism_or_strain") or "").lower()
+            cid = (entry.get("candidate_id") or "").strip().lower()
+            if (organism and organism in org) or (species_l and species_l in org) or (taxon_id and cid == taxon_id):
+                out.append(entry)
+        return out
+
+    def taxa_scores(
+        self, genus: str, species: str, row: dict[str, str] | None = None
+    ) -> dict[str, tuple[float, str]]:
         out: dict[str, tuple[float, str]] = {}
         binomial = f"{genus} {species}".strip()
         if binomial in self.taxa_focus:
@@ -626,6 +652,68 @@ class AutoScorer:
             out["site_presence_score"] = (5.0 if ratio >= 0.5 else 4.0, "auto:genome_search")
         else:
             out["site_presence_score"] = (1.0, "auto:genome_search")
+        return out
+
+    def _taxa_extra_scores(
+        self, genus: str, species: str, row: dict[str, str] | None
+    ) -> dict[str, tuple[float, str]]:
+        """Scores derivable without a genome-search run.
+
+        Two of the five taxa components were previously `missing` even when the registry already
+        carried the answer: the species list states how many assemblies it recommends, and the
+        literature table says whether the species has been studied in the disease being asked about.
+        Leaving them blank made every shortlist look thinner than its own inputs.
+        """
+        out: dict[str, tuple[float, str]] = {}
+        data = row or {}
+
+        raw_count = (data.get("recommended_strain_count") or "").strip()
+        if raw_count:
+            try:
+                count = int(float(raw_count))
+            except ValueError:
+                count = None
+            if count is not None:
+                if count >= 20:
+                    value = 5.0
+                elif count >= 10:
+                    value = 4.0
+                elif count >= 4:
+                    value = 3.0
+                elif count >= 1:
+                    value = 2.0
+                else:
+                    value = 1.0
+                out["genome_availability_score"] = (value, "auto:registry")
+
+        if self.disease:
+            rows = self._taxon_literature_rows(genus, species, row)
+            if rows:
+                term = self.disease.lower()
+                verified = [
+                    entry
+                    for entry in rows
+                    if (entry.get("verified") or "").strip().lower() in {"yes", "true", "1", "y"}
+                ]
+                hits = [
+                    entry
+                    for entry in verified
+                    if term
+                    in " ".join(
+                        [
+                            entry.get("title", ""),
+                            entry.get("finding", ""),
+                            entry.get("source_search", ""),
+                            entry.get("notes", ""),
+                        ]
+                    ).lower()
+                ]
+                if len(hits) >= 2:
+                    out["disease_site_relevance_score"] = (4.0, "auto:literature")
+                elif len(hits) == 1:
+                    out["disease_site_relevance_score"] = (3.0, "auto:literature")
+                elif verified:
+                    out["disease_site_relevance_score"] = (1.0, "auto:literature:no_match")
         return out
 
 
@@ -787,7 +875,10 @@ def rank_taxa(
         where = f"taxa[{taxon_id}]"
         genus = cell(row, "genus", site)
         species = cell(row, "species", site)
-        auto = auto_scorer.taxa_scores(genus, species) if auto_scorer else {}
+        auto = auto_scorer.taxa_scores(genus, species, row) if auto_scorer else {}
+        if auto_scorer:
+            for key, value in auto_scorer._taxa_extra_scores(genus, species, row).items():
+                auto.setdefault(key, value)  # genome-search output wins when both exist
         sources: dict[str, str] = {}
         values: dict[str, float] = {}
         for key in taxa_w:
