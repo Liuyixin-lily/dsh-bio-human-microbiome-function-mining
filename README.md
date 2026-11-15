@@ -167,7 +167,7 @@ python3 scripts/score_target_priorities.py \
 
 ## 交付集 / Delivery set
 
-`outputs/task/` 必须有：
+`outputs/task/` 必须有六样（空表时另需说明文件）：
 
 | 文件 | 说明 |
 | --- | --- |
@@ -176,6 +176,7 @@ python3 scripts/score_target_priorities.py \
 | `high_confidence_candidate_summary.tsv` | 每个候选的证据摘要 |
 | `experimental_hypotheses.tsv` | 可证伪的实验假设 |
 | `scored_candidates.tsv` | 打分表 |
+| `experimental_design.md` | 实验方案：订什么构建、怎么表达纯化、怎么测、对照与判定规则、风险替代方案 |
 
 ```bash
 python3 scripts/check_deliverables.py --project-dir <项目目录>

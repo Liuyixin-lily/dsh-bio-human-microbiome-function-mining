@@ -116,11 +116,13 @@ Everything lands in `outputs/task/`:
 
 - `final_target_candidates.tsv` — one row per protein, with the template it matched and the alignment;
 - `final_target_candidates_note.md` — required when the table is empty ("empty" is not "none");
+- `experimental_design.md` — the protocol: what to order, how to express and assay it, controls, and the
+  decision rules written before the data;
 - `high_confidence_candidate_summary.tsv`, `experimental_hypotheses.tsv`, `scored_candidates.tsv`;
 - extracted sequences under `candidate_sequences/` when you asked for them (proteins, CDS, genes,
   mature proteins when SignalP predicts a signal peptide).
 
-`experimental_design.md` and the optional `cro_work_order.md` + `cro_modules.tsv` + `cro_sequences.faa`
+The optional `cro_work_order.md` + `cro_modules.tsv` + `cro_sequences.faa`
 + `cro_gap_list.md` complete the package:
 
 ```bash

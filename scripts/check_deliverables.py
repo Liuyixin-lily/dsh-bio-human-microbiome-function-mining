@@ -95,6 +95,22 @@ def check(project_dir: Path) -> list[dict[str, str]]:
             add(name, "missing", "expected deliverable",
                 "python3 scripts/summarize_candidates.py --scored <scored>.tsv "
                 "--project project.json --outdir outputs/task")
+
+    # The hypotheses table says what would falsify a candidate; it does not say what to order, express
+    # and assay. That protocol-level document is a deliverable in its own right - a run that ends with a
+    # ranked table but no plan hands the reader a list and no next step.
+    design = task / "experimental_design.md"
+    final_rows = rows(final) if final.is_file() else 0
+    if design.is_file():
+        add(design.name, "ok", f"{design.stat().st_size} bytes: protocol, controls and decision rules")
+    elif final_rows == 0:
+        # nothing to plan yet; requiring a protocol for an empty candidate set would just be noise
+        add(design.name, "ok", "not required: no final candidates, so there is nothing to plan")
+    else:
+        add(design.name, "missing",
+            "no experimental plan was written; a candidate list without a protocol is not actionable",
+            "python3 scripts/summarize_candidates.py --scored <scored>.tsv "
+            "--project project.json --outdir outputs/task")
     return findings
 
 

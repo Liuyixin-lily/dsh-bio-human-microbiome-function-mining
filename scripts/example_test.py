@@ -3704,6 +3704,7 @@ def main() -> int:
         (task / "final_target_candidates.tsv").write_text("final_rank\n1\n", encoding="utf-8")
         (task / "high_confidence_candidate_summary.tsv").write_text("x\n1\n", encoding="utf-8")
         (task / "experimental_hypotheses.tsv").write_text("x\n1\n", encoding="utf-8")
+        (task / "experimental_design.md").write_text("# plan\n", encoding="utf-8")
         ok = subprocess.run([sys.executable, str(check), "--project-dir", str(tmp)],
                             capture_output=True, text=True)
         assert ok.returncode == 0, ok.stdout
@@ -3899,6 +3900,41 @@ def main() -> int:
         selected = {r["taxon_id"] for r in csv.DictReader(
             (out / "selected_taxa.tsv").open("r", encoding="utf-8"), delimiter="\t")}
         assert selected == {"high"}, selected
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # the delivery set must include a protocol, not only a hypotheses table: a ranked list with no
+        # plan is not actionable
+        card = {
+            "target_id": "t", "enzyme_name": "alcohol dehydrogenase (NAD+)", "ec": "1.1.1.1",
+            "reaction": "a primary alcohol + NAD+ = an aldehyde + NADH + H+",
+            "substrate": "a primary alcohol", "product": "an aldehyde", "cofactor": "NAD+",
+        }
+        project = tmp / "project.json"
+        project.write_text(json.dumps({"target_function_card": card}), encoding="utf-8")
+        scored = tmp / "scored.tsv"
+        scored.write_text(
+            "candidate_id\tprotein_accession\torganism_or_strain\toverall_rank\tpriority_rule\t"
+            "sequence_score\tannotation\trepresentative_id\tpident\tquery_coverage\tevalue\n"
+            "WP_1\tWP_1\tStaphylococcus epidermidis\t1\tSEQUENCE_ANNOTATION_CONFIRMED\t10\t"
+            "alcohol dehydrogenase AdhP\tsp|P39451|ADHP_ECOLI\t68.5\t99.7\t2.1e-161\n",
+            encoding="utf-8",
+        )
+        out = tmp / "task"
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "summarize_candidates.py"), "--scored", str(scored),
+             "--project", str(project), "--outdir", str(out)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        design = out / "experimental_design.md"
+        assert design.is_file(), "no experimental plan was written"
+        text = design.read_text(encoding="utf-8")
+        assert "a primary alcohol + NAD+ = an aldehyde + NADH + H+" in text, "the card reaction is missing"
+        assert "NAD+" in text and "阳性对照" in text and "阴性对照" in text
+        assert "WP_1" in text
+        # an accession with pipes must not break the table layout
+        assert "sp\\|P39451\\|ADHP_ECOLI" in text, "table cell was not escaped"
 
     print("example test passed")
     return 0

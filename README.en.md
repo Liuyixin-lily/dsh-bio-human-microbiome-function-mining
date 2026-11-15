@@ -176,6 +176,7 @@ When a step is reached and its decision is unanswered, the script **stops and pr
 | `high_confidence_candidate_summary.tsv` | per-candidate evidence summary |
 | `experimental_hypotheses.tsv` | falsifiable hypotheses |
 | `scored_candidates.tsv` | the scored table |
+| `experimental_design.md` | the protocol: constructs to order, expression and purification, assay and controls, decision rules, fallbacks |
 
 ```bash
 python3 scripts/check_deliverables.py --project-dir <project dir>

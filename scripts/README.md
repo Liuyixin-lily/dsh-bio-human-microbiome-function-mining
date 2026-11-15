@@ -49,6 +49,10 @@ Available scripts:
   rests on. Names are stripped of parentheticals and secondary names before searching,
   because querying `"azoreductase (Azo1, FMN-dependent)"` returns nothing and the silence
   then looks like absent evidence.
+- `summarize_candidates.py` also writes `experimental_design.md`: the protocol that turns
+  the ranked rows into constructs to order, an expression/purification path, the assay with
+  its controls, per-candidate decision rules and fallbacks. Without it the delivery is a list
+  with no next step.
 - `score_target_priorities.py`: the **pre**-screening prioritisation layer. Ranks
   candidate enzyme targets and candidate taxa from human-assigned 0-5 scores
   (weighted sums, configurable), so a user can decide what to screen at all.

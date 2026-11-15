@@ -97,9 +97,11 @@ scoring has no deliverable:
 | `high_confidence_candidate_summary.tsv` | per-candidate evidence summary |
 | `experimental_hypotheses.tsv` | falsifiable hypotheses |
 | `scored_candidates.tsv` | the scored table the above are derived from |
+| `experimental_design.md` | the protocol: constructs to order, expression and purification, assay and controls, per-candidate decision rules, fallbacks |
 
-Plus, earlier in the run: `target_function_card.json`, `sequence_candidates.tsv`,
-`structural_candidates.tsv`, `combined_candidates.tsv`, and `experimental_design.md`.
+Plus, earlier in the run: `target_function_card.json`, `sequence_candidates.tsv` and
+`structural_candidates.tsv` / `combined_candidates.tsv`. A ranked list without the protocol is not a
+deliverable - `experimental_hypotheses.tsv` says what would falsify a candidate, not what to order.
 Verify the set with `scripts/check_deliverables.py --project-dir <dir>`; it names the command that
 fills each gap.
 

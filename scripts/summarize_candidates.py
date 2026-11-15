@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -379,6 +380,212 @@ def gene_metadata(row: dict[str, str], evidence_by_id: dict[str, dict[str, str]]
     return ";".join(pieces)
 
 
+def _card_fields(project: dict[str, Any], project_path: Path | None) -> dict[str, str]:
+    card = project_card(project, project_path)
+    return {
+        "enzyme": str(card.get("enzyme_name") or "").strip(),
+        "ec": str(card.get("ec") or "").strip(),
+        "reaction": str(card.get("reaction") or "").strip(),
+        "substrate": str(card.get("substrate") or "").strip(),
+        "product": str(card.get("product") or "").strip(),
+        "cofactor": str(card.get("cofactor") or "").strip(),
+        "fold": str(card.get("structural_fold") or "").strip(),
+        "catalytic": str(card.get("catalytic_residues_file") or "").strip(),
+    }
+
+
+def write_experimental_design(
+    outdir: Path,
+    project: dict[str, Any],
+    project_path: Path | None,
+    final_rows: list[dict[str, str]],
+    hypothesis_rows: list[dict[str, str]],
+) -> Path:
+    """把候选表与假设表变成一份能照着做的实验方案。
+
+    `experimental_hypotheses.tsv` 回答"什么情况算被证伪"，但不回答"订什么基因、怎么表达、测什么、
+    先做哪个"——后者才是实验台前或外包公司需要的东西。这里每个候选相关的数值都来自目标卡片、
+    候选表或假设表，协议选择标为建议并写明理由，不凭空补参数。
+    """
+    card = _card_fields(project, project_path)
+    by_accession = {row.get("protein_accession", ""): row for row in hypothesis_rows}
+
+    def cell_text(value: str, limit: int = 70) -> str:
+        """Make a value safe inside a markdown table cell.
+
+        Accessions look like `sp|P39451|ADHP_ECOLI`; an unescaped pipe splits the cell and shifts every
+        later column, which silently corrupts the table.
+        """
+        text = (value or "").replace("|", "\\|").replace("\n", " ").strip()
+        return text if len(text) <= limit else text[: limit - 1] + "…"
+
+    def product_of(annotation: str) -> str:
+        """The annotation starts with the NCBI boilerplate; the product is what follows it."""
+        text = annotation or ""
+        marker = 'Protein Homology." '
+        if marker in text:
+            text = text.split(marker, 1)[1]
+        elif text.startswith("Derived by automated"):
+            text = text.split('"', 1)[-1]
+        return cell_text(text.strip(' "'), 60)
+    lines: list[str] = []
+    add = lines.append
+
+    title = card["enzyme"] or "目标酶"
+    ec = f"（EC {card['ec']}）" if card["ec"] else ""
+    add(f"# 实验方案：{title}{ec}")
+    add("")
+    add("由目标卡片与排序后的候选自动生成。所有候选相关数值来自 `final_target_candidates.tsv` /")
+    add("`experimental_hypotheses.tsv`；协议部分是针对该读出的建议，请按实验室标准流程调整。")
+    add("")
+
+    add("## 1. 什么算成功")
+    add("")
+    if card["reaction"]:
+        add(f"- 受试反应：{card['reaction']}")
+    if card["substrate"] and card["product"]:
+        add(f"- 读出：{card['substrate']} 的消耗与 {card['product']} 的生成")
+    if card["cofactor"]:
+        add(f"- 辅因子：{card['cofactor']}（依赖辅因子的读出是最便宜的独立验证）")
+    add("- **支持假设**：纯化蛋白使底物转化高于阴性对照，且随时间与蛋白浓度增加，至少三次生物学重复一致。")
+    add("- **证伪**：在阳性对照成立的条件下降解仍不高于阴性对照上限。阳性对照失败或蛋白不溶属于")
+    add("  **不可判定**，不是阴性——这条区分决定了「一批失败的测定」会不会被读成「没有功能」。")
+    add("")
+
+    add("## 2. 候选与推进顺序")
+    add("")
+    if final_rows:
+        add("| 顺序 | 候选蛋白 | 来源菌 | 证据基础 | 最近的特征化同源物 | identity / coverage | 现有注释 |")
+        add("| --- | --- | --- | --- | --- | --- | --- |")
+        for row in final_rows:
+            add(
+                f"| {row.get('final_rank', '')} | {cell_text(row.get('protein_accession', ''))} | "
+                f"{cell_text(row.get('organism_or_strain', ''))} | {cell_text(row.get('evidence_base', ''))} | "
+                f"{cell_text(row.get('representative_id', ''))} | "
+                f"{row.get('pident', '')}% / {row.get('query_coverage', '')}% | "
+                f"{product_of(row.get('source_annotation', ''))} |"
+            )
+        add("")
+        first = final_rows[0]
+        add(f"先做 **{first.get('protein_accession', '')}**：排序第一，且它的最近同源物 "
+            f"**{first.get('representative_id', '')}** 可以直接当阳性对照买/要。")
+        if len(final_rows) > 1:
+            add("其余候选按表中顺序推进；每个候选独立判定，不要用「前一个没活性」当作后面不做的理由。")
+    else:
+        add("最终候选表为空，先读 `final_target_candidates_note.md`，不要直接下单。")
+        add("通常先补上缺失的验证步骤，或按说明放宽交付规则。")
+    add("")
+
+    add("## 3. 阶段一：基因合成与克隆")
+    add("")
+    add("- 按 *E. coli* 密码子优化每条 CDS；原始序列留档备查。")
+    add("- 默认构建：N 端 His6-SUMO（可切除）在 pET28a 衍生载体上；若标签可能干扰催化或寡聚化，同时做无标签版本。")
+    add("- 每个候选订一条构建，另外订：")
+    add("  - 催化失活突变体（按卡片 `catalytic_residues_file` 指定位点；若没有该文件，用最近同源物的")
+    add("    金属配位或活性位点残基），")
+    add("  - 空载体，作为宿主背景对照。")
+    add("")
+
+    add("## 4. 阶段二：表达与纯化")
+    add("")
+    add("- 宿主：BL21(DE3)；若预期二硫键或稀有密码子，改用 SHuffle / Rosetta-gami。")
+    add("- 诱导：0.2–0.5 mM IPTG，16–18 °C 过夜；保留 37 °C / 3 h 作为备选条件。")
+    add("- 立刻记录可溶/包涵体分布：只在沉淀里出现时先换条件（降温、换标签、共表达伴侣），再谈测定。")
+    add("- 纯化：金属亲和 → 分子筛；记录最终缓冲液成分，因为它可能模拟或抑制读出。")
+    add("")
+
+    add("## 5. 阶段三：体外活性测定")
+    add("")
+    add(f"- 底物：{card['substrate'] or '按卡片定义'}；产物标准品：{card['product'] or '按卡片定义'}。")
+    add("- 检测方式（按优先级）：")
+    add("  1. LC-MS 或 HPLC 定量底物与产物（特异性最好，需要产物标准品）；")
+    add("  2. 340 nm 偶联读数——仅在消耗/生成 NAD(P)H 且纯化后没有其他同类活性时有效；")
+    add("  3. 荧光或显色底物类似物做筛选读出，阳性必须用方法 1 复核。")
+    add("- 每块板都带：阳性对照（上面的特征化同源物）、催化失活突变体、空载体裂解液、无酶空白。")
+    add("- 条件：底物浓度取最近同源物报道的 Km 附近，pH 7.0–8.0，37 °C，至少三次生物学重复；")
+    add("  任何阳性结果都要补蛋白滴定与时间曲线。")
+    add("")
+
+    add("## 6. 阶段四：特异性（阶段三出现阳性之后再做）")
+    add("")
+    add("- 测 2–3 个相近底物，看活性是目标反应还是一般性活性——宽底物谱是结果，不是干扰。")
+    add("- 用产物做竞争实验、核对化学计量比，把「真转化」和「偶联/间接效应」分开。")
+    add("")
+
+    add("## 7. 判定规则（数据回来之前就固定）")
+    add("")
+    predictions = {
+        (by_accession.get(row.get("protein_accession", ""), {}).get("testable_prediction") or "").strip()
+        for row in final_rows
+    }
+    falsifications = {
+        (by_accession.get(row.get("protein_accession", ""), {}).get("falsification_criteria") or "").strip()
+        for row in final_rows
+    }
+    if len(predictions) == 1 and len(falsifications) == 1:
+        # one shared rule, stated once: repeating an identical sentence in four rows hides the parts
+        # that actually differ between candidates
+        add(f"- 可检验预测：{cell_text(next(iter(predictions)), 400) if predictions else '见 hypotheses 表'}")
+        add(f"- 判为证伪：{cell_text(next(iter(falsifications)), 400) if falsifications else '见 hypotheses 表'}")
+        add("")
+        add("| 候选蛋白 | 现有注释 | 与最近同源物一致度 | 阴性时的替代解释 |")
+        add("| --- | --- | --- | --- |")
+        for row in final_rows:
+            accession = row.get("protein_accession", "")
+            hyp = by_accession.get(accession, {})
+            ambient = (hyp.get("ambient_hypothesis") or "").replace("Alternative: ", "", 1)
+            # the generated text quotes the NCBI boilerplate; drop it so the alternative reads as a
+            # statement about the protein rather than about the annotation pipeline
+            ambient = re.sub(r"\s*\(Derived by automated[^)]*\)", "", ambient)
+            add(
+                f"| {cell_text(accession, 30)} | {product_of(row.get('source_annotation', ''))} | "
+                f"{row.get('pident', '')}% / {row.get('query_coverage', '')}% | {cell_text(ambient, 90)} |"
+            )
+    else:
+        add("| 候选蛋白 | 可检验预测 | 判为证伪的条件 |")
+        add("| --- | --- | --- |")
+        for row in final_rows:
+            accession = row.get("protein_accession", "")
+            hyp = by_accession.get(accession, {})
+            add(
+                f"| {cell_text(accession, 30)} | {cell_text(hyp.get('testable_prediction', ''), 140)} | "
+                f"{cell_text(hyp.get('falsification_criteria', ''), 140)} |"
+            )
+    add("")
+    add("规则必须写在数据之前；每个候选的完整假设与替代解释见 `experimental_hypotheses.tsv`。")
+    add("")
+
+    add("## 8. 风险与替代方案")
+    add("")
+    add("| 风险 | 先做什么 |")
+    add("| --- | --- |")
+    add("| 蛋白不溶 | 降低诱导温度、换标签/载体、试 SHuffle 或共表达伴侣 |")
+    add("| 可溶但无活性 | 裂解液补辅因子、切除标签、换 pH/缓冲体系 |")
+    add("| 活性低于检测限 | 浓缩、延长孵育，把偶联读数换成 LC-MS |")
+    add("| 所有对照都有活性 | 读出本身不特异，先换 LC-MS，再谈结论 |")
+    add("| 阳性对照失败 | 停下来修方法；此时的阴性结果不可解释 |")
+    add("")
+
+    add("## 9. 如果要外包")
+    add("")
+    add("把候选与规则交给 `build_cro_work_order.py` 生成可直接询价的委托单，而不是重写这份方案：")
+    add("")
+    add("```bash")
+    add("python3 scripts/build_cro_work_order.py --card <target_function_card.json> \\")
+    add("    --candidates outputs/task/final_target_candidates.tsv \\")
+    add("    --sequences outputs/task/candidate_sequences/candidate_proteins.faa \\")
+    add("    --outdir outputs/task/cro_package --scope candidates")
+    add("```")
+    add("")
+    add("它复用同一批候选与同一套预先注册的判定规则，价格与周期留空由承接方填写。")
+    add("")
+
+    path = outdir / "experimental_design.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
 def write_tsv(path: Path, fields: list[str], rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -623,8 +830,12 @@ def main(argv: list[str] | None = None) -> int:
     write_tsv(summary_path, SUMMARY_FIELDS, summary_rows)
     write_tsv(final_path, FINAL_FIELDS, final_rows)
     write_tsv(hypotheses_path, HYPOTHESIS_FIELDS, hypothesis_rows)
+    design_path = write_experimental_design(
+        args.outdir, project, Path(args.project) if args.project else None, final_rows, hypothesis_rows
+    )
     print(f"wrote {summary_path} ({len(summary_rows)} rows)")
     print(f"wrote {final_path} ({len(final_rows)} rows)")
+    print(f"wrote {design_path}")
 
     # An empty final table must never read as "nothing was found". When candidates exist but
     # none is in the delivery rule set, write the reason next to the table and say what widens it.
