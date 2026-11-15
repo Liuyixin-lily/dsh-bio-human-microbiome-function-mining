@@ -125,6 +125,7 @@ to bounded parallel curl downloads. Both paths use resumable transfers.
 - [scripts/build_gcf_list.py](scripts/build_gcf_list.py): species/taxon to `GCF`/`GCA` accession-list builder.
 - [scripts/build_download_links.py](scripts/build_download_links.py): accession list to NCBI URL builder with parallel complete-file preflight.
 - [scripts/download_genomes.py](scripts/download_genomes.py): downloader with parallel retries, resume, gzip validation, species folders, and decompression.
+- [references/assembly-summary.md](references/assembly-summary.md): where NCBI keeps each `assembly_summary.txt`, which columns matter, and how the two groups differ when a list mixes RefSeq and GenBank.
 
 ### Slow-summary fallback
 

@@ -73,3 +73,8 @@ When writing an Excel file, create at least these sheets:
   terms.
 
 If some input accessions cannot be resolved, add a `Missing_assemblies` sheet.
+
+## References
+
+- [references/source_terms.md](references/source_terms.md): the shipped source vocabulary (skin, oral,
+  gut, respiratory, urogenital, blood, environment) and how to supply your own terms or a term file.
