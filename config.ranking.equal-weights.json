@@ -1,0 +1,11 @@
+{
+  "ranking": {
+    "comment": "Default since 2026-11: four known dimensions equally weighted.",
+    "enzyme_coeffs": {
+      "site_evidence_score": 0.25,
+      "disease_relevance_score": 0.25,
+      "biochemical_clarity_score": 0.25,
+      "sequence_structure_score": 0.25
+    }
+  }
+}

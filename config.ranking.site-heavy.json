@@ -1,0 +1,11 @@
+{
+  "ranking": {
+    "comment": "Previous default: niche evidence outranks structure availability (0.30 vs 0.20).",
+    "enzyme_coeffs": {
+      "site_evidence_score": 0.3,
+      "disease_relevance_score": 0.25,
+      "biochemical_clarity_score": 0.25,
+      "sequence_structure_score": 0.2
+    }
+  }
+}

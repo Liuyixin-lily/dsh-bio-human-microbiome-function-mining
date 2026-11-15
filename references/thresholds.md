@@ -30,10 +30,18 @@ Enzymes: `priority_score = 0.5 x known + 0.5 x discovery`, both sub-scores on 0â
 
 | known (0.5) | weight | discovery (0.5) | weight |
 | --- | --- | --- | --- |
-| `site_evidence_score` | 0.30 | `microbial_plausibility_score` | 0.40 |
+| `site_evidence_score` | 0.25 | `microbial_plausibility_score` | 0.40 |
 | `disease_relevance_score` | 0.25 | `assay_feasibility_score` | 0.30 |
 | `biochemical_clarity_score` | 0.25 | `novelty_score` | 0.30 |
-| `sequence_structure_score` | 0.20 | | |
+| `sequence_structure_score` | 0.25 | | |
+
+The four known dimensions are weighted equally on purpose: niche evidence, human-health relevance,
+biochemical characterisation and sequence/structure data are four dimensions of the same question, and
+equal weights say none is privileged a priori. The cost of that choice is worth stating: the score
+difference between two candidates is exactly `0.025 x (structure - site evidence)`, so a candidate with a
+structure but no literature can tie one with literature but no structure. `config.ranking.site-heavy.json`
+restores the previous 0.30 / 0.25 / 0.25 / 0.20 profile, and `config.ranking.equal-weights.json` spells
+the current default out as a file you can diff.
 
 Taxa: `priority_score = sum(weight x component)`, one 0â€“5 scale, threshold `>= 3.0` selects. The
 recommended-taxa table is exactly the `selected` rows; rows below the threshold stay in the full table

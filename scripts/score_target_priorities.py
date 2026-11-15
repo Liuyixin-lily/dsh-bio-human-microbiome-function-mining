@@ -78,11 +78,17 @@ DEFAULT_LIBRARY_DIR = SCRIPT_DIR.parent / "library"
 SCORE_MAX = 5.0
 SCORE_BASIS = "manual_expert_judgement"
 
+# The four "known" components are weighted equally: niche evidence, human-health relevance,
+# biochemical characterisation and sequence/structure data are four different dimensions of the same
+# question, and equal weights state that none of them is privileged a priori. Consequence worth knowing:
+# a candidate with a structure but no literature evidence can now tie one with literature but no
+# structure, because the ranking delta is exactly 0.025 x (structure - site evidence). Use
+# config.ranking.site-heavy.json to restore the previous 0.30/0.25/0.25/0.20 profile.
 DEFAULT_ENZYME_COEFFS = {
-    "site_evidence_score": 0.30,
+    "site_evidence_score": 0.25,
     "disease_relevance_score": 0.25,
     "biochemical_clarity_score": 0.25,
-    "sequence_structure_score": 0.20,
+    "sequence_structure_score": 0.25,
 }
 DEFAULT_DISCOVERY_COEFFS = {
     "microbial_plausibility_score": 0.40,
@@ -321,7 +327,7 @@ RUBRICS = {
         "没有 genome-search 输出时用物种名单的实测丰度（High 5 / Medium 4 / Low 3 / Scarce 2，auto:taxa_list）"
     ),
     "site_evidence_score": (
-        "literature_evidence.tsv 中该酶 verified=yes 的功能性记录数"
+        "权重 0.25；literature_evidence.tsv 中该酶 verified=yes 的功能性记录数"
         "（direct_functional_evidence/related_assay）：1 条=3，2 条=4，≥3 条=5；"
         "只有 review 时 1 条=2；无 verified 记录则不推导"
     ),

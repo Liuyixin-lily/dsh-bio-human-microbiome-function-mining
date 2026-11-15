@@ -3313,8 +3313,8 @@ def main() -> int:
                        "sequence_structure_score", "microbial_plausibility_score",
                        "assay_feasibility_score", "novelty_score"):
             assert column in rows[0], column
-        coeffs_known = {"site_evidence_score": 0.30, "disease_relevance_score": 0.25,
-                        "biochemical_clarity_score": 0.25, "sequence_structure_score": 0.20}
+        coeffs_known = {"site_evidence_score": 0.25, "disease_relevance_score": 0.25,
+                        "biochemical_clarity_score": 0.25, "sequence_structure_score": 0.25}
         coeffs_disc = {"microbial_plausibility_score": 0.40, "assay_feasibility_score": 0.30,
                        "novelty_score": 0.30}
         azo = by_id["azo"]

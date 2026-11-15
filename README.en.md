@@ -281,8 +281,8 @@ Entry B now retrieves literature per candidate (`literature_for_registry.py`) be
 | 2 | epoxide hydrolase | 3.400 | 6/6 |
 | 3 | 4-hydroxybenzoate 1-hydroxylase | 3.400 | 6/6 |
 | 4 | alcohol dehydrogenase | 3.400 | 6/6 |
-| 5 | beta-glucuronidase | 3.067 | 5/6 (structure lookup hit 3 records, resolved 0 PMIDs) |
-| 6 | naphthalene 1,2-dioxygenase | 2.733 | 5/6 (same) |
+| 5 | beta-glucuronidase | 2.900 | 5/6 (structure lookup hit 3 records, resolved 0 PMIDs) |
+| 6 | naphthalene 1,2-dioxygenase | 2.567 | 5/6 (same) |
 
 Taxa: *C. acnes* / *S. epidermidis* 3.467, *S. aureus* 3.333.
 
