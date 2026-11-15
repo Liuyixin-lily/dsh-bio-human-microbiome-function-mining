@@ -41,6 +41,14 @@ Available scripts:
   accessions, and provenance with the source sha256. Measured site abundance is mapped
   High 5 / Medium 4 / Low 3 / Scarce 2, while `No Data` stays empty rather than being
   scored as absent.
+- `literature_for_registry.py`: retrieves literature per candidate and writes the
+  `literature_evidence.tsv` that `score_target_priorities.py --literature` reads. This is
+  the step that fills evidence-derived components instead of leaving them blank: a review
+  record is only promoted to `direct_functional_evidence` when the abstract names an
+  activity or a method (word-boundary match), and the quoted sentence is what the score
+  rests on. Names are stripped of parentheticals and secondary names before searching,
+  because querying `"azoreductase (Azo1, FMN-dependent)"` returns nothing and the silence
+  then looks like absent evidence.
 - `score_target_priorities.py`: the **pre**-screening prioritisation layer. Ranks
   candidate enzyme targets and candidate taxa from human-assigned 0-5 scores
   (weighted sums, configurable), so a user can decide what to screen at all.

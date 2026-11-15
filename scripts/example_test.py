@@ -3318,7 +3318,16 @@ def main() -> int:
         coeffs_disc = {"microbial_plausibility_score": 0.40, "assay_feasibility_score": 0.30,
                        "novelty_score": 0.30}
         azo = by_id["azo"]
-        known = sum(w * float(azo.get(k) or 0) for k, w in coeffs_known.items())
+        # a component that does not apply is excluded and the remaining weights renormalise, so the
+        # number stays reproducible from the exported components alone
+        azo_sources = dict(
+            part.split("=", 1) for part in (azo.get("score_sources") or "").split(";") if "=" in part
+        )
+        active = dict(coeffs_known)
+        if azo_sources.get("disease_relevance_score", "").startswith("not_applicable"):
+            active.pop("disease_relevance_score", None)
+        scale = sum(active.values()) or 1.0
+        known = sum((w / scale) * float(azo.get(k) or 0) for k, w in active.items())
         disc = sum(w * float(azo.get(k) or 0) for k, w in coeffs_disc.items())
         assert abs((0.5 * known + 0.5 * disc) - float(azo["priority_score"])) < 0.001
 
@@ -3814,6 +3823,53 @@ def main() -> int:
         assert source(rows["c"], "experimental_accessibility_score") == "missing"
         # a value imported from the species list is labelled as derived, not as hand-typed
         assert source(rows["a"], "site_presence_score") == "auto:taxa_list"
+
+    # literature retrieval helper: query names are cleaned, and the classifier only calls a record
+    # functional evidence when it mentions an activity or a method
+    spec_lit = importlib.util.spec_from_file_location(
+        "literature_for_registry", SCRIPTS / "literature_for_registry.py")
+    lit_mod = importlib.util.module_from_spec(spec_lit)
+    assert spec_lit.loader is not None
+    spec_lit.loader.exec_module(lit_mod)
+    assert lit_mod.query_name("azoreductase (Azo1, FMN-dependent NADPH)") == "azoreductase"
+    assert lit_mod.query_name("alcohol dehydrogenase / cytochrome P450") == "alcohol dehydrogenase"
+    kind, sentence = lit_mod.classify(
+        "Bacterial azoreductase", "The enzyme activity was measured by HPLC with methyl red.")
+    assert kind == "direct_functional_evidence" and "HPLC" in sentence
+    kind, _ = lit_mod.classify("A review of skin lipids", "Ceramides dominate the stratum corneum.")
+    assert kind == "review"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # a registry keyed by library ids must still find the reference set, which is keyed by
+        # UniProt ids; matching by EC is what makes sequence_structure derivable there
+        enzymes = tmp / "enzymes.tsv"
+        enzymes.write_text(
+            "target_id\tname\tec\tsite_process\n"
+            "skin_beta_glucuronidase\tbeta-glucuronidase\t3.2.1.31\tp\n",
+            encoding="utf-8",
+        )
+        refs = tmp / "refs.tsv"
+        refs.write_text(
+            "target_id\treference_id\tname\tecsource\n"
+            "P12345\tP12345\tbeta-glucuronidase\t3.2.1.31\n",
+            encoding="utf-8",
+        )
+        out = tmp / "ranked"
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_target_priorities.py"), "--enzymes", str(enzymes),
+             "--reference-enzymes", str(refs), "--auto-score", "--allow-missing-scores",
+             "--site", "skin", "--output", str(out)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        with (out / "enzyme_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            row = next(csv.DictReader(handle, delimiter="\t"))
+        sources = dict(p.split("=", 1) for p in row["score_sources"].split(";") if "=" in p)
+        assert sources["sequence_structure_score"].startswith("auto:reference_enzymes")
+        # no --disease means the phenotype component does not apply; it must be excluded from the
+        # weighted sum rather than scored as a gap
+        assert sources["disease_relevance_score"].startswith("not_applicable")
 
     print("example test passed")
     return 0

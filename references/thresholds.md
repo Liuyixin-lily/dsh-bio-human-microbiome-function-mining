@@ -67,6 +67,18 @@ Every component now has a derivation, and each one records which input produced 
 | `disease_site_relevance` | taxa | verified records matching `--disease`: >=2=4, 1=3, none=1 |
 | `experimental_accessibility` | taxa | verified isolation/culture records: >=2=4, 1=3; a sequenced isolate alone=2 |
 
+Filling them is a step, not a hope: `scripts/literature_for_registry.py --registry <registry.tsv>
+--site <site> --output literature_evidence.tsv` retrieves per candidate and writes the table the ranker
+consumes. With that table plus `--reference-enzymes` (for `sequence_structure`) every component of a
+candidate that has an EC gets a value. A candidate with no EC cannot get a reference set, so
+`sequence_structure` stays `missing` there — that is a real gap, not a hidden low score, and
+`--require-min-criteria` will withhold the row if it matters.
+
+A phenotype component (`disease_relevance_score`, `disease_site_relevance_score`) is only asked when
+`--disease` is given. Without it the component is recorded as `not_applicable`, dropped from the
+weighted sum, and the remaining weights renormalise; a component nobody asked about must not count as
+either evidence or a gap.
+
 What literature cannot settle is stated rather than scored: biosafety level, equipment cost and
 per-assay turnaround are not derived, so the report never implies them. A component with no supporting
 evidence stays `missing` (counted as 0 in the weighted sum, labelled `missing` in `score_sources`) —

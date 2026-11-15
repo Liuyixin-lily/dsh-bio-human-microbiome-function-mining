@@ -148,6 +148,8 @@ TAXA_OUT_FIELDS = [
 ]
 
 PMID_RE = re.compile(r"^\d{1,9}$")
+UNIPROT_RE = re.compile(r"\b(?:[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})\b")
+PDB_RE = re.compile(r"\bPDB[\s:]*([0-9][A-Za-z0-9]{3})\b")
 DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
 
 
@@ -486,11 +488,15 @@ class AutoScorer:
                 # named in an abstract about microbial xenobiotic metabolism: plausible for a
                 # microbe to carry it, but not demonstrated for a named protein
                 out["microbial_plausibility_score"] = (3.0, "auto:registry")
+            if str(row.get("uniprot") or "").strip():
+                # an accession is enough to fetch a structure; that is weaker than having one on disk
+                out["sequence_structure_score"] = (3.0, "auto:registry:accession")
 
         out.update(self._assay_feasibility(target_id, facts))
+        out.update(self._literature_structure(target_id, facts))
         out.update(self._literature_scores(target_id, facts))
 
-        refs = self.reference_rows.get(target_id) or []
+        refs = self.reference_rows.get(target_id) or self._reference_for(row)
         if refs:
             if any(r.get("structure_file") for r in refs):
                 out["sequence_structure_score"] = (5.0, "auto:reference_enzymes")
@@ -522,6 +528,24 @@ class AutoScorer:
                 hits.append(row)
         return hits
 
+    def _reference_for(self, row: dict[str, str]) -> list[dict[str, str]]:
+        """Reference rows for a candidate that carries a library id rather than an accession.
+
+        `reference_enzyme_set.tsv` is keyed by UniProt/PDB ids while a library-derived registry is
+        keyed by enzyme ids, so a direct target_id lookup silently found nothing and the component
+        stayed blank even after fetching the reference set.
+        """
+        name = (row.get("name") or row.get("enzyme_name_en") or "").strip().lower()
+        ec = (row.get("ec") or "").strip()
+        out: list[dict[str, str]] = []
+        for key, rows in self.reference_rows.items():
+            for entry in rows:
+                entry_name = (entry.get("name") or "").strip().lower()
+                entry_ec = (entry.get("ec") or "").strip()
+                if (name and entry_name and (name in entry_name or entry_name in name)) or (ec and entry_ec == ec):
+                    out.append(entry)
+        return out
+
     def _assay_feasibility(self, target_id: str, facts: dict[str, Any] | None) -> dict[str, tuple[float, str]]:
         """A target someone has already assayed is a target with a workable assay.
 
@@ -543,6 +567,29 @@ class AutoScorer:
                for row in rows):
             # a functional record implies the activity was measured somehow
             return {"assay_feasibility_score": (3.0, "auto:literature:functional_record")}
+        return {}
+
+    STRUCTURE_WORDS = ("crystal structure", "pdb", "structure of", "structural basis", "alphafold")
+
+    def _literature_structure(self, target_id: str, facts: dict[str, Any] | None) -> dict[str, tuple[float, str]]:
+        """A paper that names a structure or an accession is enough to plan against one.
+
+        Without this the component could only be filled by running a reference-enzyme fetch, which made
+        a perfectly retrievable target look unevidenced.
+        """
+        rows = [row for row in self._literature_for(target_id, facts)
+                if (row.get("verified") or "").strip().lower() in {"yes", "true", "1", "y"}]
+        if not rows:
+            return {}
+        if self._rows_matching(self.STRUCTURE_WORDS, rows):
+            return {"sequence_structure_score": (5.0, "auto:literature:structure")}
+        # an abstract usually names the accession in prose ("PDB 1ABC", "UniProt P12345") rather than
+        # in a column, so scan the text before concluding there is nothing to build against
+        for row in rows:
+            for field in ("protein_accession", "uniprot", "title", "finding", "notes"):
+                value = str(row.get(field) or "")
+                if UNIPROT_RE.search(value) or PDB_RE.search(value):
+                    return {"sequence_structure_score": (3.0, "auto:literature:accession")}
         return {}
 
     def _literature_for(self, target_id: str, facts: dict[str, Any] | None) -> list[dict[str, str]]:
@@ -834,7 +881,12 @@ def gate_row(
     - min_evidence: how many components were DERIVED from data (auto:*), which is the
       only kind of backing that is not just someone's opinion.
     """
-    backed = sum(1 for source in sources.values() if source != "missing")
+    # a component that does not apply (no phenotype was asked about) must not be counted as
+    # backing: that would let a row pass the gate on a question nobody asked
+    backed = sum(
+        1 for source in sources.values()
+        if source != "missing" and not source.startswith("not_applicable")
+    )
     derived = sum(1 for source in sources.values() if source.startswith("auto:"))
     if min_criteria is not None and backed < min_criteria:
         return False, (
@@ -870,9 +922,17 @@ def rank_enzymes(
         auto = auto_scorer.enzyme_scores(target_id, row) if auto_scorer else {}
         sources: dict[str, str] = {}
         values: dict[str, float] = {}
-        for key in list(enzyme_c) + list(discovery_c):
+        # A phenotype component cannot be answered when no phenotype was asked about. Scoring it as a
+        # gap zero makes every non-disease task look under-evidenced; instead the component is marked
+        # not_applicable and the remaining weights are renormalised.
+        coeffs = dict(enzyme_c)
+        if not (auto_scorer and auto_scorer.disease):
+            if coeffs.pop("disease_relevance_score", None) is not None:
+                sources["disease_relevance_score"] = "not_applicable:no --disease given"
+        for key in list(coeffs) + list(discovery_c):
             values[key] = resolve_score(row, key, site, auto, sources, problems, where)
-        known = sum(weight * values[key] for key, weight in enzyme_c.items())
+        scale = sum(coeffs.values()) or 1.0
+        known = sum((weight / scale) * values[key] for key, weight in coeffs.items())
         discovery = sum(weight * values[key] for key, weight in discovery_c.items())
         passes, reason = gate_row(sources, min_criteria, min_evidence)
         if not passes and withheld is not None:
@@ -957,9 +1017,14 @@ def rank_taxa(
                 auto.setdefault(key, value)  # genome-search output wins when both exist
         sources: dict[str, str] = {}
         values: dict[str, float] = {}
-        for key in taxa_w:
+        weights = dict(taxa_w)
+        if not (auto_scorer and auto_scorer.disease):
+            if weights.pop("disease_site_relevance_score", None) is not None:
+                sources["disease_site_relevance_score"] = "not_applicable:no --disease given"
+        for key in weights:
             values[key] = resolve_score(row, key, site, auto, sources, problems, where)
-        total = sum(weight * values[key] for key, weight in taxa_w.items())
+        weight_sum = sum(weights.values()) or 1.0
+        total = sum((weight / weight_sum) * values[key] for key, weight in weights.items())
         pmids = cell(row, "key_evidence_pmids", site)
         dois = cell(row, "key_evidence_dois", site)
         for pmid in _split_refs(pmids):
