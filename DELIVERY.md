@@ -38,6 +38,7 @@ tool paths already installed on their server).
 - `scripts/`: parsing, merging, ranking, and wrapper scripts.
 - `schemas/`: machine-readable evidence-table contracts.
 - `references/`: thresholds, tool-fallback, evidence, and acceptance rules.
+- `docs/`: the workflow diagram (zh / en PNG) and the script that regenerates it.
 - `library/`: curated selectable target index (`domain -> process -> enzyme`) with
   a browser/validator script; `skin` is curated, `gut` is a starter list.
   Coverage is intentionally finite, so the plugin also ships an intent router

@@ -17,6 +17,7 @@
     "skills/**",
     "agents/**/*.md",
     "scripts/**",
+    "docs/**",
     "schemas/**",
     "references/**",
     "library/**",

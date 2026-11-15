@@ -39,6 +39,7 @@ human_microbiome_function_mining/
 ├── SKILL-PROVENANCE.yaml        # skill adaptation ledger
 ├── references/                  # workflow, thresholds, fallback and evidence rules
 ├── library/                     # curated selectable target index (domain -> process -> enzyme)
+├── docs/                        # workflow diagram (zh / en) + its generator
 ├── schemas/                     # machine-readable evidence-table contracts
 ├── scripts/                     # parsers, wrappers, ranking, and example test
 ├── projects/                    # example project configuration files
@@ -376,6 +377,12 @@ python3 scripts/build_cro_work_order.py \
 ---
 
 ## Core workflow / 核心流程
+
+![工作流程](docs/workflow.zh.png)
+
+（[英文版](docs/workflow.en.png)；生成脚本 `docs/make_workflow_diagram.py`，改流程后重跑一次即可。
+下面是可以直接复制的文字版。）
+
 
 ```text
 entry A (user can name it):  enzyme / EC / substrate-product / sequence
