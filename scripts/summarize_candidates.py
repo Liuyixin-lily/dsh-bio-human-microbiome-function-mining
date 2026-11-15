@@ -419,6 +419,21 @@ def write_experimental_design(
         text = (value or "").replace("|", "\\|").replace("\n", " ").strip()
         return text if len(text) <= limit else text[: limit - 1] + "…"
 
+    def evidence_strength(row: dict[str, str]) -> str:
+        """Sequence runs report identity/coverage; structure-only runs report a TM-score.
+
+        Printing both unconditionally produced "% / %" for a structure-only candidate, which reads as a
+        measurement of zero rather than as a different kind of evidence.
+        """
+        identity = (row.get("pident") or "").strip()
+        coverage = (row.get("query_coverage") or "").strip()
+        tm = (row.get("tm_score_mean") or "").strip()
+        if identity and coverage:
+            return f"identity {identity}% / coverage {coverage}%"
+        if tm:
+            return f"TM {tm}（双向）"
+        return cell_text(row.get("evidence_base", ""), 40)
+
     def product_of(annotation: str) -> str:
         """The annotation starts with the NCBI boilerplate; the product is what follows it."""
         text = annotation or ""
@@ -455,15 +470,16 @@ def write_experimental_design(
     add("## 2. 候选与推进顺序")
     add("")
     if final_rows:
-        add("| 顺序 | 候选蛋白 | 来源菌 | 证据基础 | 最近的特征化同源物 | identity / coverage | 现有注释 |")
+        add("| 顺序 | 候选蛋白 | 来源菌 | 证据基础 | 最近的特征化同源物 | 比对强度 | 现有注释 |")
         add("| --- | --- | --- | --- | --- | --- | --- |")
+
         for row in final_rows:
+            annotation = product_of(row.get("source_annotation", "")) or "（无 NCBI 注释，MAG 或非模式基因组）"
             add(
                 f"| {row.get('final_rank', '')} | {cell_text(row.get('protein_accession', ''))} | "
                 f"{cell_text(row.get('organism_or_strain', ''))} | {cell_text(row.get('evidence_base', ''))} | "
                 f"{cell_text(row.get('representative_id', ''))} | "
-                f"{row.get('pident', '')}% / {row.get('query_coverage', '')}% | "
-                f"{product_of(row.get('source_annotation', ''))} |"
+                f"{evidence_strength(row)} | {annotation} |"
             )
         add("")
         first = final_rows[0]
@@ -499,7 +515,15 @@ def write_experimental_design(
     add(f"- 底物：{card['substrate'] or '按卡片定义'}；产物标准品：{card['product'] or '按卡片定义'}。")
     add("- 检测方式（按优先级）：")
     add("  1. LC-MS 或 HPLC 定量底物与产物（特异性最好，需要产物标准品）；")
-    add("  2. 340 nm 偶联读数——仅在消耗/生成 NAD(P)H 且纯化后没有其他同类活性时有效；")
+    cofactor = (card["cofactor"] or "").upper()
+    reaction = card["reaction"] or ""
+    if "NAD" in cofactor or "NAD" in reaction.upper():
+        add("  2. 340 nm 偶联读数——仅在该反应消耗/生成 NAD(P)H，且纯化后没有其他同类活性时有效；")
+    elif "H2O" in reaction or "hydrolysis" in reaction.lower():
+        add("  2. 水解产物的偶联显色（如胆碱释放 → 胆碱氧化酶/过氧化物酶显色，或磷酸释放测定）——")
+        add("     适合批量筛选，但必须用一个已知底物标定摩尔响应；")
+    else:
+        add("  2. 反应产物的偶联显色或荧光读出——适合批量筛选，但必须用已知底物标定摩尔响应；")
     add("  3. 荧光或显色底物类似物做筛选读出，阳性必须用方法 1 复核。")
     add("- 每块板都带：阳性对照（上面的特征化同源物）、催化失活突变体、空载体裂解液、无酶空白。")
     add("- 条件：底物浓度取最近同源物报道的 Km 附近，pH 7.0–8.0，37 °C，至少三次生物学重复；")
@@ -528,7 +552,7 @@ def write_experimental_design(
         add(f"- 可检验预测：{cell_text(next(iter(predictions)), 400) if predictions else '见 hypotheses 表'}")
         add(f"- 判为证伪：{cell_text(next(iter(falsifications)), 400) if falsifications else '见 hypotheses 表'}")
         add("")
-        add("| 候选蛋白 | 现有注释 | 与最近同源物一致度 | 阴性时的替代解释 |")
+        add("| 候选蛋白 | 现有注释 | 比对强度 | 阴性时的替代解释 |")
         add("| --- | --- | --- | --- |")
         for row in final_rows:
             accession = row.get("protein_accession", "")
@@ -538,8 +562,8 @@ def write_experimental_design(
             # statement about the protein rather than about the annotation pipeline
             ambient = re.sub(r"\s*\(Derived by automated[^)]*\)", "", ambient)
             add(
-                f"| {cell_text(accession, 30)} | {product_of(row.get('source_annotation', ''))} | "
-                f"{row.get('pident', '')}% / {row.get('query_coverage', '')}% | {cell_text(ambient, 90)} |"
+                f"| {cell_text(accession, 30)} | {product_of(row.get('source_annotation', '')) or '—'} | "
+                f"{evidence_strength(row)} | {cell_text(ambient, 90)} |"
             )
     else:
         add("| 候选蛋白 | 可检验预测 | 判为证伪的条件 |")
