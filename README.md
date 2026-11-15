@@ -104,7 +104,7 @@ python3 scripts/run_entry_b.py --topic "皮肤外源性物质代谢" --site skin
     --output-dir outputs/task/entry_b
 ```
 
-产出 `recommended_enzymes.tsv` / `recommended_taxa.tsv`（只留**至少两项已评**的条目——一项打分排出来的名次只是那一项换了个说法），完整池在 `candidate_enzymes.tsv` / `candidate_taxa.tsv`。排序**证据优先**：手打分但无引用的条目不可能压过有引用的条目，因为分数跨来源不可比。
+产出 `recommended_enzymes.tsv` / `recommended_taxa.tsv`，只留**至少两项已评**的条目——一项打分排出来的名次只是那一项换了个说法；菌还要额外满足**至少一项证据比"出现在名单里"更具体**（库的 focus_taxon、一条真实引用、或 genome-search 命中），否则 257 个菌会全部入选。完整池在 `candidate_enzymes.tsv` / `candidate_taxa.tsv`。排序**证据优先**：手打分但无引用的条目不可能压过有引用的条目，因为分数跨来源不可比。
 
 候选酶也可以完全由插件自己从文献生成，而不是借用别人的清单：
 
@@ -264,6 +264,10 @@ neutral sphingomyelinase（EC 3.1.4.12）相关的代谢基因，并给出可验
 | 4 | WP_002456033.1 | sp\|Q0KDL6\|ADH_CUPNH | 34.9% | 96.2% | 9.5e-62 | zinc-dependent ADH |
 
 另一个 25.4% identity 的 2,3-丁二醇脱氢酶**没有**被确认（注释是别的活性）。
+
+排序表当前分数：偶氮还原酶 1.933、β-葡萄糖醛酸苷酶 1.867，其余 4 个 1.533；候选菌 *C. acnes* / *S. epidermidis* 3.467、*S. aureus* 3.333。
+
+后半段重跑一次（DIAMOND 2.1.11，`--outfmt` 13 列）：26 个 reviewed 模板 × 2,372 个蛋白 → 24 条对齐，4 个候选全部 `SEQUENCE_ANNOTATION_CONFIRMED`，`check_deliverables.py` 报 complete（4 行最终候选）。
 
 **看点**：示例 4 分两段——前半段只要库 + 文献就能出排序表，**只复现前半段是合理终点**；后半段才需要蛋白组与比对工具。模板集若含同种条目（*S. epidermidis* 自己的 reviewed ADH），最高命中会变成 100%，那是同种自比对，不是跨物种证据。
 

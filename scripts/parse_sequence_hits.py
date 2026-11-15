@@ -72,12 +72,22 @@ def detect_rows(path: Path) -> list[dict[str, str]]:
                 if record and any(record.values()):
                     rows.append(record)
             return rows
-        # headerless DIAMOND output: name the columns by position, never drop a line
+        # headerless DIAMOND output: name the columns by position, never drop a line.
+        # A short layout (for example the 9-column one people type by hand) shifts every value after
+        # `length`, so evalue/coverage/bitscore silently became empty strings and the fast path could
+        # never fire. Refuse it instead of producing a table full of blanks.
+        expected = len(DIAMOND_FIELDS)
         for line in handle:
             line = line.rstrip("\n")
             if not line.strip():
                 continue
             cells = line.split("\t")
+            if len(cells) < expected:
+                raise SystemExit(
+                    f"error: {path} has {len(cells)} column(s), expected {expected} for DIAMOND "
+                    "outfmt. Use: --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart "
+                    "qend sstart send evalue bitscore qcovhsp"
+                )
             record = {
                 field: (cells[index] if index < len(cells) else "")
                 for index, field in enumerate(DIAMOND_FIELDS)

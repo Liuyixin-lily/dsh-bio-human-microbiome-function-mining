@@ -104,7 +104,7 @@ python3 scripts/run_entry_b.py --topic "skin xenobiotic metabolism" --site skin 
     --output-dir outputs/task/entry_b
 ```
 
-It writes `recommended_enzymes.tsv` / `recommended_taxa.tsv` (only rows with **at least two scored components** — a rank built on one component is just that component restated), with the full pool in `candidate_enzymes.tsv` / `candidate_taxa.tsv`. Ordering is **evidence first**: a hand-scored entry with no references must not outrank one with references, because scores are not comparable across sources.
+It writes `recommended_enzymes.tsv` / `recommended_taxa.tsv` (only rows with **at least two scored components** — a rank built on one component is just that component restated; a taxon also needs **evidence more specific than being in the species list**, i.e. a library focus taxon, a real citation, or a genome-search hit, or all 257 would be recommended), with the full pool in `candidate_enzymes.tsv` / `candidate_taxa.tsv`. Ordering is **evidence first**: a hand-scored entry with no references must not outrank one with references, because scores are not comparable across sources.
 
 Candidate enzymes can also come from literature the plugin retrieves itself instead of someone else's table:
 
@@ -267,6 +267,10 @@ The follow-up — "mine alcohol dehydrogenase in *S. epidermidis*" — is a fami
 | 4 | WP_002456033.1 | sp\|Q0KDL6\|ADH_CUPNH | 34.9% | 96.2% | 9.5e-62 | zinc-dependent ADH |
 
 A 2,3-butanediol dehydrogenase at 25.4% identity is **not** confirmed (its annotation is a different activity).
+
+Current priority scores: azoreductase 1.933, beta-glucuronidase 1.867, the other four 1.533; taxa *C. acnes* / *S. epidermidis* 3.467 and *S. aureus* 3.333.
+
+The second stage was re-run (DIAMOND 2.1.11, 13-column `--outfmt`): 26 reviewed templates against 2,372 proteins produced 24 alignments, all four candidates are `SEQUENCE_ANNOTATION_CONFIRMED`, and `check_deliverables.py` reports complete (4 final rows).
 
 **Why it matters**: example 4 has two stages — the first needs only the library and literature and yields the ranking tables, so **reproducing only the first stage is a legitimate stopping point**; the second stage needs a proteome and the alignment tools. If the template set contains a same-species entry (*S. epidermidis*'s own reviewed ADH) the best hit becomes 100%, which is a self-match, not cross-species evidence.
 
