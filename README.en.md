@@ -223,7 +223,7 @@ experimental design."
 | FedKEA | promotes 2 to `USALIGN_TARGET_EC` (TM 0.7088, 0.6988); the rest are `USALIGN_OTHER_EC` |
 | DEER | not used |
 
-**Why it matters**: the first run skipped FedKEA, so the final table was empty; the empty-table note now opens with "check whether FedKEA was run".
+**Why it matters**: **zero sequence hits do not mean no function.** For the same EC the sequence search found no homologue in any of the three genomes, while the structure channel returned 2 / 3 / 1 candidates, two of which FedKEA promoted to `USALIGN_TARGET_EC` (TM 0.7088, 0.6988). Only the structural evidence shows the answer; the other four stay as `USALIGN_OTHER_EC` controls.
 
 ### Example 3: from a reference sequence
 

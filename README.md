@@ -221,7 +221,7 @@ neutral sphingomyelinase（EC 3.1.4.12）相关的代谢基因，并给出可验
 | FedKEA | 升级 2 个为 `USALIGN_TARGET_EC`（TM 0.7088、0.6988）；其余 `USALIGN_OTHER_EC` |
 | DEER | 未使用 |
 
-**看点**：第一次跑漏了 FedKEA，最终表因此为空；空表说明的第一句现在就是「先查 FedKEA 跑没跑」。
+**看点**：**序列通道 0 命中不等于没有功能**。同一个 EC 上，序列搜索在三个基因组里都没找到同源，结构通道却各给出 2/3/1 个候选，其中 2 个经 FedKEA 升级为 `USALIGN_TARGET_EC`（TM 0.7088、0.6988）——换成结构证据才看到答案，另外 4 个按 `USALIGN_OTHER_EC` 保留作对照。
 
 ### Example 3：从已知序列出发
 
