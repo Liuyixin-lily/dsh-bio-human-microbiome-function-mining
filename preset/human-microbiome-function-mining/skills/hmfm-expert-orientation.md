@@ -91,7 +91,7 @@ python3 scripts/intake_environment.py --probe --config environment.json \
 
 - 两条入口按「用户手里有什么」区分，**但 B 不是终点**：用户能说出酶 / EC / 反应 / 序列
   时直接从 build-target-function-card 开始，**不要绕道 `library/`**；说不出来时走入口 B，
-  用它收敛到一个 EC / 一个酶之后**立刻交棒给入口 A**（`run_entry_b.py --select <id> --ec <EC>`
+  它会为每个候选补文献再排序（库命中不等于跳过检索），拿到排序表、收敛到一个 EC / 一个酶之后**立刻交棒给入口 A**（`run_entry_b.py --select <id> --ec <EC>`
   就是这条交接）。用户中途自己说出了酶或 EC，就停止展示菜单，直接进 A。
 - 家族名（"醇脱氢酶"）不是目标：同一家族对应多个 EC，必须让用户选，插件不替他定。
 - 用户只说了「关注什么」而没说具体酶 / EC / 序列时，先查 `library/`：用

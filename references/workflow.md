@@ -117,3 +117,13 @@ FedKEA comparison, literature alignment, and hypothesis generation.
 **已知限制**：模板集可能包含与目标同种的条目（如 *S. epidermidis* 自己的 reviewed ADH）。
 这时 100% identity 是同种自比对，不是跨物种的功能证据；当前表能看出模板 accession，但还不能
 自动标记 `same_species`。看到 100% 命中时先核对模板物种。
+
+## Entry B retrieval (before any ranking)
+
+`browse_target_library.py` lays out the menu; `run_entry_b.py` takes a focus phrase through it. A
+library hit does not end the run: for every seeded candidate `literature_for_registry.py` retrieves
+literature and writes the `literature_evidence.tsv` the ranker reads, including a second,
+structure-targeted query (`"<enzyme> crystal structure"`) since a topic query rarely names a
+structure. Only then does `score_target_priorities.py --auto-score` fill `site_evidence`,
+`assay_feasibility` and `sequence_structure`. `--skip-discovery` disables it for an offline run;
+records that resolve no identifier are reported as a failed lookup, not as absent evidence.

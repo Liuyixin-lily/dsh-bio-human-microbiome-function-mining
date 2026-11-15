@@ -21,7 +21,9 @@ There are two peer entries before this workflow: **entry A**
 (`browse-target-library`) when the user only describes an interest and needs to
 choose from the curated target library. When the user already names the enzyme /
 EC / reaction / sequence, go straight to entry A here — do not detour through the
-library.
+library. Entry B is not a lookup-only step either: `run_entry_b.py` retrieves literature for every
+candidate before ranking, so the recommendation tables are built on filled components rather than on
+whatever the library happened to carry.
 
 **Tool boundary**: heavy external tools (DIAMOND, CD-HIT, US-align, DEER,
 FedKEA, Bakta) are not bundled. The Agent runs them only when the user gives

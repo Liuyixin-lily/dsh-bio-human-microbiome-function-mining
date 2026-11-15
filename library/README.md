@@ -105,7 +105,7 @@ v1.0.0 的 27 条（皮肤 10 过程 / 肠道 5 过程）没有引用支撑，�
 所以库只是一份**菜单**，不是能力边界。三种情况分开处理：
 
 1. **用户能说出目标** → 走入口 A，`library/` 完全不参与。
-2. **用户知道部位、说不出目标** → 库没覆盖时不要硬编，先用 `resolve_target_intent.py` 把问题route到文献检索与收敛步骤；或者先用 `genome-search --source <部位>` 把该部位的基因组和注释拿到手，再在有真实序列的基础上选靶点。
+2. **用户知道部位、说不出目标** → 走入口 B：库给菜单，`run_entry_b.py` 再为每个候选逐个补文献（不是只查库），补齐分项后才排序；库没覆盖时先用 `resolve_target_intent.py` 把问题 route 到文献检索与收敛步骤，或者先用 `genome-search --source <部位>` 把该部位的基因组和注释拿到手，再在有真实序列的基础上选靶点。
 3. **用户要长期在这个部位工作** → 用 `build_library_domain.py` 生成一个 `role: user_defined` 的域。生成域必须 `content_status: starter`，每个酶的 `evidence_refs` 强制为空，写盘前要过真实校验。
 
 如果你希望库里出现更多部位，正确做法不是让我凭记忆补条目，而是先跑 `literature-evidence` 把该部位的关键酶查实，再用 spec 生成——这样条目带 `provenance_source`，而不是"看起来像真的"。

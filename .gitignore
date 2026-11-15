@@ -1,5 +1,6 @@
 # local run artifacts (contain absolute paths and fetched data)
 runs/
+outputs/
 # per-user environment intake: generated locally, never shared
 environment.json
 environment_card.json

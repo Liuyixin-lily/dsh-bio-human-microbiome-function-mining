@@ -340,12 +340,11 @@ malformed identifiers.
 Entry B is a front end, not a terminus. Three scripts cover it end to end:
 
 ```bash
-# 1) focus phrase only -> menu, route, and (if the library misses) literature discovery,
-#    then the recommendation tables
+# 1) focus phrase only -> menu, route, literature for every candidate, then the recommendation tables
 python3 scripts/run_entry_b.py --topic "皮肤外源性物质代谢" --site skin \
     --output-dir outputs/task/entry_b
 
-# 2) the library misses and you want the candidate list to come from literature
+# 2) the library misses: let the candidates themselves come from literature
 python3 scripts/discover_enzyme_candidates.py --site skin \
     --terms "skin microbiome xenobiotic metabolism enzyme" --limit 25 \
     --output outputs/task/discovery/enzyme_registry.tsv \
@@ -357,9 +356,19 @@ python3 scripts/build_candidate_shortlist.py --site skin \
     --output-dir outputs/task/candidates
 ```
 
-The tables are `recommended_enzymes.tsv` / `recommended_taxa.tsv` (only rows with at least two
-scored components; a rank built on one component is just that component restated), with the full
-pool in `candidate_enzymes.tsv` / `candidate_taxa.tsv`. Ordering is evidence tier first, then
+A library hit does **not** end the retrieval: for every candidate in the seeded registry entry B runs
+`literature_for_registry.py`, which retrieves per candidate, classifies what the abstract actually says
+(activity/method words promote it to `direct_functional_evidence`, otherwise `review`) and runs a
+second, structure-targeted query (`"<enzyme> crystal structure"`) because a topic query almost never
+names a structure. Those rows are what `site_evidence`, `assay_feasibility` and `sequence_structure`
+are computed from — skipping the step is why a shortlist reads 1.5/5. `--skip-discovery` turns it off
+for an offline run, and a query that finds records but resolves no identifier is reported as a failed
+lookup rather than silently scored as absent evidence.
+
+The tables are `recommended_enzymes.tsv` / `recommended_taxa.tsv`. Taxa are recommended when the
+ranking's own threshold is met (`priority_score >= 3.0`, i.e. `selection_status=selected`); enzymes
+carry no pass mark, so their table is the ranked rows with at least two scored components. The full
+pool is in `candidate_enzymes.tsv` / `candidate_taxa.tsv`. Ordering is evidence tier first, then
 score: a hand-scored entry with no references must not outrank one with references.
 
 Once the user picks a row, hand off to entry A — same command, no re-derivation:

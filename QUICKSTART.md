@@ -50,8 +50,9 @@ the usual cause (wrong conda env, missing shared library, no network) only shows
 | an enzyme, an EC number, a reaction, or a sequence | **entry A** — go straight to §5, do not detour through the library | `scripts/build_target_function_card.py` |
 | only a focus point ("油脂分泌", "体味", "皮肤代谢有哪些过程") | **entry B** — let the library or the literature propose candidates | `scripts/run_entry_b.py` |
 
-Entry B in one command — it searches the library, falls back to literature discovery, and writes the two
-ranked candidate lists:
+Entry B in one command — it searches the library, retrieves literature for every candidate, and writes
+the two ranked candidate lists (the retrieval is what fills the evidence components; without it the
+scores read ~1.5/5):
 
 ```bash
 python3 scripts/run_entry_b.py --topic "皮肤外源性物质代谢" --site skin \
