@@ -1,167 +1,87 @@
 # Delivery contents
 
-This guide describes what the plugin ships and how a new user should adapt it
-to their own dataset and compute environment.
+What this package ships, and how to adapt it to a new dataset. For installation and a first run, read
+`QUICKSTART.md` first.
 
-## 0. This is a DeepSeek harness plugin
+## What this package is
 
-This package is meant to be installed or loaded into a DeepSeek harness / compatible
-agent harness environment. New users do not just read the files: they need to
-install the package through `dsh plugin`, or connect the plugin contents
-(`agents/deepseek.md`, `skills/`, `scripts/`, `schemas/`, `references/`, `projects/`)
-to their harness so the agent can use them.
+A DeepSeek Harness plugin: install it with `dsh plugin` (or load the tree into a compatible harness)
+so the agent can use the skills in `skills/`. It is **not** a hosted service and it does not bundle
+DIAMOND, CD-HIT, US-align, DEER, FedKEA, Bakta or SignalP — you supply the data, the compute and the
+tool paths.
 
-Start with `QUICKSTART.md` in the plugin root. It explains installation, the built-in
-self-check, and how to adapt the plugin to a new dataset.
+## What is inside
 
-The plugin is not a hosted service and it does not bundle DIAMOND, US-align, DEER,
-FedKEA, or Bakta. Users provide their own datasets, compute, and external tools (or
-tool paths already installed on their server).
+| Path | Contents |
+| --- | --- |
+| `package.json`, `index.js`, `src/`, `cordis.patch.yml` | npm/bundle entry that registers the skills and the system-prompt section |
+| `preset/human-microbiome-function-mining/` | agent preset (persona + orientation skill), installed by `scripts/install-preset.js` into `~/.dsh/.agent-presets/` |
+| `agents/deepseek.md` | agent prompt and execution guardrails |
+| `skills/` | 12 skill documents (`skills/<name>.md`) plus the asset directories they call (`scripts/`, `references/`) |
+| `scripts/` | parsers, wrappers, ranking and self-check scripts |
+| `schemas/` | evidence-table contracts (TSV) and the JSON library/card schemas |
+| `references/` | workflow, thresholds, decision points, fallback and evidence rules |
+| `library/` | selectable targets: `skin` (curated, one evidenced process) and `skin_xenobiotic` (starter, 6 xenobiotic classes) |
+| `docs/` | workflow diagram (zh / en) and the script that regenerates it |
+| `projects/`, `demo/`, `examples/` | example project configs, a recorded real-data demo, the quarantined legacy library |
+| `resources/taxa/` | skin / oral species lists and the GMPS manifest |
+| `config.minimal.example.json`, `config.example.json` | lean and full configuration references |
+| `LICENSE`, `SKILL-PROVENANCE.yaml` | MIT license; which upstream skills this plugin absorbs |
 
-## 1. Plugin core
+The library is deliberately small; coverage is **content, not capability**.
+`scripts/resolve_target_intent.py` routes an uncovered question, `scripts/build_library_domain.py`
+creates a new starter domain with the honesty rules enforced in code, and
+`scripts/attach_library_evidence.py` is the only way an entry can become `literature_verified`.
 
-- `package.json`: dsh npm package manifest with `dsh.bundle.patch` pointing to
-  `cordis.patch.yml`; it is the primary delivery form for DeepSeek Harness.
-- `index.js` and `src/`: ESM entry that registers skills and a system-prompt
-  section when loaded by dsh.
-- `cordis.patch.yml`: dsh bundle patch inserting the plugin row and declaring
-  the `human-microbiome-function-mining` agent preset.
-- `preset/human-microbiome-function-mining/`: preset persona and preset skills
-  installed by `scripts/install-preset.js` into
-  `~/.dsh/.agent-presets/human-microbiome-function-mining`.
-- `agents/deepseek.md`: DeepSeek agent prompt and execution guardrails.
-- `config.minimal.example.json`: lean example configuration for a first run.
-- `config.example.json`: fuller project/tool configuration reference.
-- `LICENSE`: MIT license for the package.
-- `SKILL-PROVENANCE.yaml`: internal skill adaptation ledger.
-- `skills/`: main discovery skill plus independent sub-skills.
-- `scripts/`: parsing, merging, ranking, and wrapper scripts.
-- `schemas/`: machine-readable evidence-table contracts.
-- `references/`: thresholds, tool-fallback, evidence, and acceptance rules.
-- `docs/`: the workflow diagram (zh / en PNG) and the script that regenerates it.
-- `library/`: curated selectable target index (`domain -> process -> enzyme`) with
-  a browser/validator script; `skin` is curated, `gut` is a starter list.
-  Coverage is intentionally finite, so the plugin also ships an intent router
-  (`scripts/resolve_target_intent.py`) that routes uncovered questions to the
-  site-generic mechanisms, and a domain builder
-  (`scripts/build_library_domain.py`) that creates new starter domains with the
-  honesty rules enforced in code.
+## Skills
 
-## 2. Sub-skills shipped separately
+`intake-environment` · `browse-target-library` · `build-target-function-card` ·
+`functional-dark-matter-discover` · `screen-sequence-candidates` · `screen-structure-candidates` ·
+`structure-prediction` · `literature-evidence` · `genome-search` · `genome-download` ·
+`genome-annotation` · `prepare-cro-work-order`
 
-The following skills are independent deliverables and can be installed or
-updated separately:
+## Scripts, by role
 
-- `intake-environment`
-- `browse-target-library`
-- `build-target-function-card`
-- `screen-sequence-candidates`
-- `screen-structure-candidates`
-- `prepare-cro-work-order`
-- `literature-evidence`
-- `genome-search`
-- `genome-download`
-- `genome-annotation`
+- **Target and menu**: `build_target_function_card.py`, `browse_target_library.py`,
+  `resolve_target_intent.py`, `build_library_domain.py`, `attach_library_evidence.py`,
+  `record_query.py`.
+- **Candidates**: `discover_enzyme_candidates.py`, `build_candidate_shortlist.py`, `run_entry_b.py`,
+  `score_target_priorities.py` (the two ranked candidate lists).
+- **Screening**: `fetch_reference_enzymes.py` (reviewed templates), `run_diamond.py` (CD-HIT +
+  DIAMOND), `run_usalign.py`, `run_deer.py`, `run_fedkea.py`, `run_signalp.py`, `run_bakta.py`.
+- **Parsers**: `parse_sequence_hits.py`, `parse_usalign.py`, `parse_deer.py`, `parse_fedkea.py`,
+  `parse_signalp.py`, `parse_source_annotations.py`, `merge_source_annotations.py`.
+- **Evidence and ranking**: `merge_candidates.py`, `score_candidates.py`, `summarize_candidates.py`,
+  `extract_candidate_sequences.py`.
+- **Checks**: `preflight_inputs.py`, `validate_schema.py`, `check_deliverables.py`, `decisions.py`
+  (judgement gates), `example_test.py` (end-to-end test without external tools).
 
-Each skill contains its own `SKILL.md`, scripts, and references where needed.
+## Adapting to a new dataset
 
-## 3. Scripts
+1. Install the plugin into your harness, and put the tree on the machine where the agent runs commands
+   only if the tools live there.
+2. Start from `config.minimal.example.json`; move to `config.example.json` or a `projects/` example when
+   you need DEER / FedKEA / Bakta / genome-prep fields.
+3. Fill in `project.json`: target FASTA / PDB or EC+reaction, candidate proteome `.faa` (and `.gbff`,
+   `.fna` for gene sequences), candidate structure directory, tool paths, and the literature source.
+4. Run `python3 scripts/example_test.py` once — it needs no external tools and catches a broken install.
+5. Hand the target to the agent, or run the documented commands yourself. Deliverables land in
+   `outputs/task/`; `python3 scripts/check_deliverables.py --project-dir <dir>` says what is missing.
 
-Use these directly or through the agent skills:
+When a tool is not reachable from the terminal, the wrappers write a pending checkpoint with the exact
+command; the same parsers consume the files you return.
 
-- `fetch_reference_enzymes.py`: autobuilds the reference enzyme set from NCBI
-  and RCSB PDB when network access is available.
-- `run_diamond.py`: runs CD-HIT deduplication (single-genome 100%; multi-genome
-  95%) then DIAMOND screening.
-- `run_usalign.py`: runs US-align screening over candidate structures.
-- `run_deer.py`: runs DEER as a user-approved fallback only when US-align does
-  not leave enough suitable candidates.
-- `run_fedkea.py`: runs local FedKEA when configured; it never calls the web
-  server programmatically.
-- `run_signalp.py`: runs or wraps a user-provided local SignalP executable and
-  parses GFF3 output through `parse_signalp.py`.
-- `run_bakta.py`: runs Bakta annotation when a genome is newly downloaded and
-  annotated by the plugin.
-- parsers for the raw outputs above: `parse_sequence_hits.py`,
-  `parse_usalign.py`, `parse_deer.py`, `parse_fedkea.py`,
-  `parse_source_annotations.py`, `parse_signalp.py`.
-- `merge_candidates.py`: merges sequence, structure, FedKEA, and source
-  annotation evidence into `combined_candidates.tsv`. Pass `--project` when
-  the project JSON records candidate sequence source paths.
-- `score_candidates.py`: produces `scored_candidates_full.tsv` with explicit
-  `priority_rule` / `priority_order`. A DIAMOND hit whose existing `.faa`/
-  `.gbff` annotation matches the target EC or enzyme name/product synonym is
-  assigned `SEQUENCE_ANNOTATION_CONFIRMED` and skips structure screening.
-- `summarize_candidates.py`: produces `high_confidence_candidate_summary.tsv`,
-  `final_target_candidates.tsv`, and `experimental_hypotheses.tsv` from a
-  scored table. Pass `--literature literature_evidence.tsv` when verified
-  citations are available so hypotheses include literature-backed citations.
-- `extract_candidate_sequences.py`: extracts final candidate proteins, CDS,
-  gene nucleotide sequences, and optional SignalP-cleaved mature proteins from
-  source FASTA files. When those FASTA files are later used as FedKEA input,
-  the extracted files use clean accession-only headers so FedKEA output
-  accessions can be joined back to the candidate subset.
-- `validate_schema.py`: checks output TSVs against `schemas/`.
-- `example_test.py`: end-to-end example test against synthetic inputs. It
-  verifies that the parsing, merge, and scoring scripts work together without
-  real DIAMOND, US-align, DEER, or FedKEA runs.
+## External tools
 
-## 4. Adapting to a new user dataset
+The agent never downloads or installs these silently:
 
-1. Install/load the plugin into the user's DeepSeek harness / agent environment.
-2. Copy the plugin tree to the user's compute server only when that server is the
-   place where the agent runs commands, or when the user wants to run the scripts
-   directly from that server.
-3. Copy `config.minimal.example.json` first. Copy `config.example.json` or the
-   example project JSON under `projects/` when you need DEER/FedKEA/Bakta or
-   genome-prep fields. Edit the input and tool paths in `project.json`:
-   - target enzyme FASTA
-   - target structure PDB
-   - candidate proteome `.faa` or annotated `.gbff`
-   - per-genome `.fna` genomic FASTA when the user wants the candidate gene's
-     nucleotide sequence output (or obtain it through `genome-download`)
-   - DIAMOND/CD-HIT, US-align, optional DEER, optional FedKEA/Bakta/SignalP
-     paths
-   - candidate PDB/CIF structure directory or individual structure files
-4. Run `example_test.py` first to verify that the parser/merge/score logic works
-   without external tools.
-5. Ask the agent to run the target-specific workflow from `README.md` or
-   `references/workflow.md`. Structure screening is only run when sequence hits
-   and existing annotations do not together confirm the target function.
-6. If external tools are not accessible from the terminal, the plugin writes
-   pending checkpoints with exact commands for the user to run. The user
-   returns the resulting files and the same parsers merge and score them.
-7. Generate the final compact deliverables with `summarize_candidates.py`.
+- DEER: <https://github.com/WangJiuming/deer>
+- FedKEA (local): <https://github.com/Stevenleizheng/FEDKEA>
+- FedKEA web (manual submission): <https://www.viromelab.com/software/fedkea>
 
-The plugin is a DeepSeek harness delivery package around analysis logic, not a
-hosted service. Users must install/load the plugin into their harness. External
-tools and compute remain on the user's own environment; the Agent can run those
-tools only when their paths are accessible from the current terminal and the
-user explicitly allows direct execution.
-
-## 5. External tool install links
-
-The Agent does not download or install DEER/FedKEA silently. If a user wants to
-run these themselves, point them to the upstream repositories:
-
-- DEER structure retrieval: <https://github.com/WangJiuming/deer>
-- FedKEA enzyme/EC prediction (local): <https://github.com/Stevenleizheng/FEDKEA>
-- FedKEA web server (manual submission): <https://www.viromelab.com/software/fedkea>
-
-For candidate lists shorter than 20 sequences, the FedKEA web server is usually
-the fastest validation route. For larger batches, recommend installing FedKEA
-locally and giving `validation_inputs.fedkea.script_path` the path to its
-`main.py`. By default FedKEA runs on the candidate subset produced by
-sequence/structure screening, not on the full proteome. Use
-`--expected-accessions` or `validation_inputs.fedkea.expected_accessions` so
-the parse step verifies that FedKEA output accessions can be joined to the
-submitted candidates; zero overlap is a failed validation step.
-
-When running FedKEA locally inside a conda environment, the wrapper expects
-`python` to be the FedKEA environment's interpreter because `main.py` launches
-helper subprocesses with `python`. On systems where `numpy`/`torch` fail with
-missing `CXXABI_1.3.9` symbols, set both `PATH` and `LD_LIBRARY_PATH` in the
-active conda environment before running, or encode them in
-`validation_inputs.fedkea.env` in `project.json`. See
-`references/tool_fallback.md` for the exact command tested on the provided
-demo server.
+For fewer than ~20 sequences the FedKEA web server is usually fastest; for larger batches install it
+locally and point `validation_inputs.fedkea.script_path` at its `main.py`. FedKEA runs on the screened
+candidate subset, not the whole proteome — pass `--expected-accessions` so a zero-overlap join fails
+loudly instead of silently validating nothing. If `numpy`/`torch` report missing `CXXABI_1.3.9`
+symbols, set both `PATH` and `LD_LIBRARY_PATH` for the conda environment (or record them in
+`validation_inputs.fedkea.env`). Details: `references/tool_fallback.md`.
