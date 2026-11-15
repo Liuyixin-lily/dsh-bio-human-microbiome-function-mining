@@ -35,7 +35,11 @@ Enzymes: `priority_score = 0.5 x known + 0.5 x discovery`, both sub-scores on 0�
 | `biochemical_clarity_score` | 0.25 | `novelty_score` | 0.30 |
 | `sequence_structure_score` | 0.20 | | |
 
-Taxa: `priority_score = sum(weight x component)`, one 0–5 scale, threshold `>= 3.0` selects.
+Taxa: `priority_score = sum(weight x component)`, one 0–5 scale, threshold `>= 3.0` selects. The
+recommended-taxa table is exactly the `selected` rows; rows below the threshold stay in the full table
+as `defer`. Enzymes have no pass mark - their recommended table is the ranked rows with at least two
+scored components, since too few components are derivable before screening for a fixed cut-off to leave
+anything.
 
 | component | weight |
 | --- | --- |

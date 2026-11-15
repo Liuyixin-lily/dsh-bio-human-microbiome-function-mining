@@ -263,29 +263,6 @@ def count_scored(row: dict[str, Any], components: tuple[str, ...]) -> int:
     return sum(1 for key in components if str(row.get(key) or "").strip() not in ("", "0.000"))
 
 
-GENERIC_SOURCES = ("auto:taxa_list", "auto:registry")
-
-
-def has_specific_evidence(row: dict[str, Any]) -> bool:
-    """At least one scored component comes from something more specific than the species list.
-
-    Every taxon in the list has abundance and an assembly count, so a bare `>= 2 components` rule
-    recommended all 257 of them. What makes a taxon worth naming is a library focus, a retrieved
-    citation, or a genome-search hit - not the fact that it appears in the list at all.
-    """
-    raw = str(row.get("score_sources") or "")
-    for part in raw.split(";"):
-        if "=" not in part:
-            continue
-        key, source = part.split("=", 1)
-        source = source.strip()
-        if source in ("manual", "missing") or source.startswith("not_applicable"):
-            continue
-        if not source.startswith(GENERIC_SOURCES):
-            return True
-    return False
-
-
 def evidence_rank(row: dict[str, Any]) -> tuple[int, float]:
     """Order by evidence strength first, score second.
 
@@ -470,9 +447,11 @@ def main(argv: list[str] | None = None) -> int:
         for i, row in enumerate(taxa_rows, 1):
             row["rank"] = i
         write_tsv(outdir / "candidate_taxa.tsv", taxa_rows, TAXA_FIELDS)
+        # "recommended" is the ranking's own decision: a taxon is recommended when its weighted score
+        # reaches the selection threshold, exactly as `selected_taxa.tsv` says. A separate evidence
+        # heuristic here would be a second, quieter rule that can disagree with the report.
         recommended_taxa = [
-            r for r in taxa_rows
-            if int(r.get("scored_components") or 0) >= 2 and has_specific_evidence(r)
+            r for r in taxa_rows if r.get("selection_status") == "selected"
         ]
         for i, row in enumerate(recommended_taxa, 1):
             row["rank"] = i

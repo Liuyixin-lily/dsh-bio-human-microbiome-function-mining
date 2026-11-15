@@ -3871,6 +3871,35 @@ def main() -> int:
         # weighted sum rather than scored as a gap
         assert sources["disease_relevance_score"].startswith("not_applicable")
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        # a taxon below the selection threshold must not appear in the recommended table even with
+        # several scored components: the recommended table is the ranking's own decision, not a
+        # separate "looks well evidenced" heuristic
+        taxa = tmp / "taxa.tsv"
+        taxa.write_text(
+            "taxon_id\tgenus\tspecies\tdisplay_name\trecommended_strain_count\t"
+            "site_presence_score\tsite_presence_source\n"
+            "high\tCutibacterium\tacnes\tCutibacterium acnes\t12\t5\ttaxa_list\n"
+            "low\tOther\tspecies\tOther species\t1\t2\ttaxa_list\n",
+            encoding="utf-8",
+        )
+        out = tmp / "out"
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "score_target_priorities.py"), "--taxa", str(taxa),
+             "--auto-score", "--allow-missing-scores", "--site", "skin", "--output", str(out)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        with (out / "taxa_priority_ranking.tsv").open("r", encoding="utf-8") as handle:
+            rows = {r["taxon_id"]: r for r in csv.DictReader(handle, delimiter="\t")}
+        assert rows["high"]["selection_status"] == "selected"
+        assert rows["low"]["selection_status"] == "defer"
+        assert float(rows["high"]["priority_score"]) >= 3.0 > float(rows["low"]["priority_score"])
+        selected = {r["taxon_id"] for r in csv.DictReader(
+            (out / "selected_taxa.tsv").open("r", encoding="utf-8"), delimiter="\t")}
+        assert selected == {"high"}, selected
+
     print("example test passed")
     return 0
 

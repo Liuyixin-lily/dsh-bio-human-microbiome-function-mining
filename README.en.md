@@ -104,7 +104,12 @@ python3 scripts/run_entry_b.py --topic "skin xenobiotic metabolism" --site skin 
     --output-dir outputs/task/entry_b
 ```
 
-It writes `recommended_enzymes.tsv` / `recommended_taxa.tsv` (only rows with **at least two scored components** — a rank built on one component is just that component restated; a taxon also needs **evidence more specific than being in the species list**, i.e. a library focus taxon, a real citation, or a genome-search hit, or all 257 would be recommended), with the full pool in `candidate_enzymes.tsv` / `candidate_taxa.tsv`. Ordering is **evidence first**: a hand-scored entry with no references must not outrank one with references, because scores are not comparable across sources.
+It writes `recommended_enzymes.tsv` / `recommended_taxa.tsv`. The two use different bars because the action behind them differs:
+
+- **taxa**: the ranking threshold — `priority_score >= 3.0` is `selected`, and that is the recommended table (exactly three in example 4). Rows below it are `defer`: still in the full table, not recommended.
+- **enzymes**: no pass mark. The recommended table is the ranked list of rows with **at least two scored components**; few components are derivable before screening, so a fixed cut-off would empty the list. Which one to screen is the user's call by rank.
+
+The full pool stays in `candidate_enzymes.tsv` / `candidate_taxa.tsv`. Ordering is **evidence first**: a hand-scored entry with no references must not outrank one with references, because scores are not comparable across sources.
 
 Candidate enzymes can also come from literature the plugin retrieves itself instead of someone else's table:
 

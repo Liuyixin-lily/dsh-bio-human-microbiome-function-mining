@@ -104,7 +104,12 @@ python3 scripts/run_entry_b.py --topic "皮肤外源性物质代谢" --site skin
     --output-dir outputs/task/entry_b
 ```
 
-产出 `recommended_enzymes.tsv` / `recommended_taxa.tsv`，只留**至少两项已评**的条目——一项打分排出来的名次只是那一项换了个说法；菌还要额外满足**至少一项证据比"出现在名单里"更具体**（库的 focus_taxon、一条真实引用、或 genome-search 命中），否则 257 个菌会全部入选。完整池在 `candidate_enzymes.tsv` / `candidate_taxa.tsv`。排序**证据优先**：手打分但无引用的条目不可能压过有引用的条目，因为分数跨来源不可比。
+产出 `recommended_enzymes.tsv` / `recommended_taxa.tsv`。两者的"推荐"标准不同，因为背后的动作不同：
+
+- **候选菌**：按排序阈值，`priority_score ≥ 3.0` 即 `selected`，推荐表就是这批（示例 4 里正好 3 个）。低于阈值的是 `defer`，仍在完整表里但不进推荐表。
+- **候选酶**：没有及格线，推荐表是"至少两项已评"的排名清单——筛前能推导的分项少，用固定阈值会把所有酶都刷掉；要不要做由你按名次挑。
+
+完整池在 `candidate_enzymes.tsv` / `candidate_taxa.tsv`。排序**证据优先**：手打分但无引用的条目不可能压过有引用的条目，因为分数跨来源不可比。
 
 候选酶也可以完全由插件自己从文献生成，而不是借用别人的清单：
 
